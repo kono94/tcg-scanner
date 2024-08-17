@@ -3,6 +3,7 @@
 *.index
 *.html
 cards/*
+htmls/*
 !cards/.gitkeep
 # Byte-compiled / optimized / DLL files
 __pycache__/
