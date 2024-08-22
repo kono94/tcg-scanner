@@ -88,6 +88,7 @@ class CardModel(nn.Module):
         self.weights = models.MobileNet_V3_Large_Weights.IMAGENET1K_V2
         self.transform = self.weights.transforms()
         self.base_model = models.mobilenet_v3_large(self.weights)
+        self.save_name_string = "mobile_large"
         num_ftrs = self.base_model.classifier[3].in_features
         self.base_model.classifier[3] = nn.Identity()
         embedding_size = 256
@@ -109,6 +110,9 @@ class CardModel(nn.Module):
         std = self.weights.transforms.func(crop_size=1).std
         crop_size = 224
         return mean, std, crop_size
+    
+    def save_name(self):
+        return self.save_name_string
 
 
 def extract_embedding(model: CardModel, img_path, device):

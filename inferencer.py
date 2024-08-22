@@ -14,7 +14,7 @@ from model import  CardModel, set_seed, extract_prefix, extract_embedding, find_
 SEED = 42
 set_seed(SEED)
 ROOT_DIR = "cards"
-
+STATE_DICT = "mobile_large_v2_state_dict.pth"
 classes = None
 with open('names.txt', 'r') as file:
     classes = file.read().splitlines()
@@ -27,7 +27,7 @@ else:
     DEVICE = torch.device("cpu")
 
 model = CardModel(num_labels=len(classes)).to(DEVICE).eval()
-model.load_state_dict(torch.load("1724327867.455931_model_state_dict.pth", weights_only=True))
+model.load_state_dict(torch.load(STATE_DICT, weights_only=True))
 
 def infere(path):
     _, logits = extract_embedding(model, path, DEVICE)

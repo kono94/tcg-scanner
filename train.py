@@ -12,6 +12,9 @@ set_seed(SEED)
 
 BATCH_SIZE = 32
 NUM_WORKERS = 0
+TRAIN_EPOCHS = 1
+TRAIN_FINE_EPOCHS = 1
+ITERATION = "v2"
 ROOT_DIR = "cards"
 
 if torch.cuda.is_available():
@@ -79,17 +82,17 @@ def train_loop(num_epochs, optimizer):
 for param in model.base_model.parameters():
     param.requires_grad = False
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-train_loop(30, optimizer)
+train_loop(TRAIN_EPOCHS, optimizer)
 
 # %%
 # Unfreeze more layers and fine-tune with a lower learning rate
 for param in model.base_model.parameters():
     param.requires_grad = True
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-train_loop(15, optimizer)
+train_loop(TRAIN_FINE_EPOCHS, optimizer)
 
-torch.save(model.state_dict(), f'{time.time()}_model_state_dict.pth')
-torch.save(model, f'{time.time()}_model_save.pth')
+torch.save(model.state_dict(), f'{model.save_name()}_{ITERATION}_state_dict.pth')
+torch.save(model, f'{model.save_name()}_{ITERATION}.pth')
 
 # %%
 embedding, logits = extract_embedding(model, "monkey.png", DEVICE)
