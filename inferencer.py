@@ -14,7 +14,7 @@ from model import  CardModel, set_seed, extract_prefix, extract_embedding, find_
 SEED = 42
 set_seed(SEED)
 ROOT_DIR = "cards"
-STATE_DICT = "mobile_large_v2_state_dict.pth"
+STATE_DICT = "mobile_large_v1_state_dict.pth"
 classes = None
 with open('names.txt', 'r') as file:
     classes = file.read().splitlines()
@@ -26,11 +26,12 @@ elif torch.backends.mps.is_built() and torch.backends.mps.is_available():
 else:
     DEVICE = torch.device("cpu")
 
-model = CardModel(num_labels=len(classes)).to(DEVICE).eval()
-model.load_state_dict(torch.load(STATE_DICT, weights_only=True))
+model = CardModel(num_labels=len(classes)).eval()
+model.to(DEVICE)
+model.load_state_dict(torch.load(STATE_DICT, map_location="cuda"))
 
-def infere(path):
-    _, logits = extract_embedding(model, path, DEVICE)
+def infere(img):
+    _, logits = extract_embedding(model, img, DEVICE)
     predicted_class = torch.argmax(F.softmax(logits, dim=1), dim=1).detach() #.item() if .detach() not working
     return classes[predicted_class]
 

@@ -115,11 +115,13 @@ class CardModel(nn.Module):
         return self.save_name_string
 
 
-def extract_embedding(model: CardModel, img_path, device):
+def extract_embedding(model: CardModel, img, device):
     model.eval()
-    image = Image.open(img_path)
-    if image.mode != "RGB":
+    if isinstance(img, str):
+        image = Image.open(img)
         image = image.convert("RGB")
+    else:
+        image = img
     image = model.preprocess(image)
     with torch.no_grad():
         embedding, logits = model(image.unsqueeze(0).to(device))
