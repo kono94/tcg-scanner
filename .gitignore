@@ -1,3 +1,6 @@
+*.pt
+runs/
+card_detector_dataset/
 *.pth
 *.npy
 *.index
