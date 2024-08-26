@@ -1,9 +1,9 @@
 # %%
 import os
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from PIL import Image
 from sklearn.metrics.pairwise import euclidean_distances
 import torch
 import torch.nn.functional as F
@@ -82,9 +82,9 @@ def similarity_search(path, top_k=5):
 if __name__ == "__main__":
     predicted_class_name = infere("monkey.png")
     print(predicted_class_name)
-    img = Image.open(ROOT_DIR + "/" +  extract_prefix(predicted_class_name) + "/" + predicted_class_name)
-    img.show()
-
+    img = cv2.imread(ROOT_DIR + "/" +  extract_prefix(predicted_class_name) + "/" + predicted_class_name)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
     print("Creating template db...")
     create_template_db()
     print("Creating done!")
@@ -97,11 +97,11 @@ if __name__ == "__main__":
     for i, card_id in enumerate(labels):
         image_path = find_image_path(card_id, ROOT_DIR)
         if image_path:
-            image = Image.open(image_path)
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             print(f"Match {i + 1}:")
             print(f"Card ID: {card_id}")
             print(f"Distance: {distances[i]}")
-            plt.imshow(image)
-            plt.axis('off')
-            plt.show()
+            cv2.imshow("t", image)
+            cv2.waitKey(1000)
 # %%

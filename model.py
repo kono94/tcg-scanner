@@ -1,14 +1,15 @@
 import re
 import random
 import os
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from torch.utils.data import Dataset
-from PIL import Image
 from pathlib import Path
+from PIL import Image
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -57,9 +58,8 @@ class SingleSampleDataset(Dataset):
                     self.labels.append(self.label_to_idx[label])
 
                     # Load the image into memory
-                    image = Image.open(img_path)
-                    if image.mode != "RGB":
-                        image = image.convert("RGB")
+                    image = cv2.imread(img_path)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
                     self.images_in_memory.append(image)
 
     def __len__(self):
@@ -118,10 +118,9 @@ class CardModel(nn.Module):
 def extract_embedding(model: CardModel, img, device):
     model.eval()
     if isinstance(img, str):
-        image = Image.open(img)
-        image = image.convert("RGB")
-    else:
-        image = img
+        img = cv2.imread(img)        
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(img)
     image = model.preprocess(image)
     with torch.no_grad():
         embedding, logits = model(image.unsqueeze(0).to(device))
