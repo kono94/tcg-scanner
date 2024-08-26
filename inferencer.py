@@ -30,11 +30,16 @@ model = CardModel(num_labels=len(classes)).eval()
 model.to(DEVICE)
 model.load_state_dict(torch.load(STATE_DICT, map_location="cuda"))
 
-def infere(img):
+def infere(img, min_conf=0.5) -> str | None:
     _, logits = extract_embedding(model, img, DEVICE)
-    predicted_class = torch.argmax(F.softmax(logits, dim=1), dim=1).detach() #.item() if .detach() not working
-    return classes[predicted_class]
-
+    probs = F.softmax(logits, dim=1).detach().cpu().numpy()
+    max_conf = np.max(probs)
+    
+    if max_conf > min_conf:
+        predicted_class = torch.argmax(F.softmax(logits, dim=1), dim=1).detach() #.item() if .detach() not working
+        return classes[predicted_class], max_conf
+    else:
+        return None, max_conf
 
 #####################################
 ##### Template based approach  ######
