@@ -87,7 +87,7 @@ class CardModel(nn.Module):
         #####
         self.weights = models.MobileNet_V3_Large_Weights.IMAGENET1K_V2
         self.transform = self.weights.transforms()
-        self.base_model = models.mobilenet_v3_large(self.weights)
+        self.base_model = models.mobilenet_v3_large(weights=self.weights)
         self.save_name_string = "mobile_large"
         num_ftrs = self.base_model.classifier[3].in_features
         self.base_model.classifier[3] = nn.Identity()

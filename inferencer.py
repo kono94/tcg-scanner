@@ -28,7 +28,7 @@ else:
 
 model = CardModel(num_labels=len(classes)).eval()
 model.to(DEVICE)
-model.load_state_dict(torch.load(STATE_DICT, map_location="cuda"))
+model.load_state_dict(torch.load(STATE_DICT, weights_only=True, map_location=DEVICE))
 
 def infere(img, min_conf=0.5) -> str | None:
     _, logits = extract_embedding(model, img, DEVICE)
