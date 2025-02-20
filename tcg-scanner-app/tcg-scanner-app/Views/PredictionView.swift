@@ -1,6 +1,4 @@
 import SwiftUI
-import AVFoundation
-import Vision
 
 struct PredictionView: UIViewRepresentable {
     var predictions: [YOLO.Prediction]
@@ -13,8 +11,8 @@ struct PredictionView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        let layersToRemove = uiView.layer.sublayers?.filter { $0.name == "prediction" } ?? []
-        layersToRemove.forEach { $0.removeFromSuperlayer() }
+        // Remove existing prediction layers
+        uiView.layer.sublayers?.filter { $0.name == "prediction" }.forEach { $0.removeFromSuperlayer() }
         
         for prediction in predictions {
             let rect = convertRect(prediction.boundingBox)
@@ -36,8 +34,7 @@ struct PredictionView: UIViewRepresentable {
             textLayer.foregroundColor = UIColor.red.cgColor
             textLayer.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
             textLayer.fontSize = 14
-            textLayer.frame = CGRect(x: rect.origin.x, y: rect.origin.y - 18,
-                                   width: rect.width, height: 18)
+            textLayer.frame = CGRect(x: rect.origin.x, y: rect.origin.y - 18, width: rect.width, height: 18)
             uiView.layer.addSublayer(textLayer)
         }
     }

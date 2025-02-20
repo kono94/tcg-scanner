@@ -1,7 +1,8 @@
 import SwiftUI
+
 struct TabBarView: View {
     @State private var predictions: [YOLO.Prediction] = []
-
+    
     var body: some View {
         TabView {
             HomeView()
@@ -15,8 +16,24 @@ struct TabBarView: View {
         }
         .accentColor(.blue)
         .onAppear {
-            // Fix tab bar transparency issue
             UITabBar.appearance().backgroundColor = UIColor.systemBackground
         }
+    }
+}
+
+struct HomeView: View {
+    var body: some View {
+        VStack {
+            Text("Welcome to TCG Scanner")
+                .font(.title)
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+struct SettingsView: View {
+    var body: some View {
+        Text("Settings Placeholder")
     }
 }

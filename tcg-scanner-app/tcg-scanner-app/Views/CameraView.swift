@@ -14,21 +14,23 @@ struct CameraView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: CameraViewController, context: Context) {}
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(self)
+        Coordinator(parent: self)
     }
     
     class Coordinator: NSObject, CameraViewControllerDelegate {
-        var parent: CameraView
+        let parent: CameraView
         let yolo = YOLO()
         
-        init(_ parent: CameraView) {
+        init(parent: CameraView) {
             self.parent = parent
         }
         
         func didCaptureBuffer(_ buffer: CVPixelBuffer) {
             let inputImage = CIImage(cvPixelBuffer: buffer)
             yolo.detect(image: inputImage) { predictions in
-                self.parent.predictions = predictions
+                DispatchQueue.main.async {
+                    self.parent.predictions = predictions
+                }
             }
         }
     }
@@ -41,10 +43,16 @@ protocol CameraViewControllerDelegate: AnyObject {
 class CameraViewController: UIViewController {
     weak var delegate: CameraViewControllerDelegate?
     private let captureSession = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupCamera()
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer.frame = view.bounds
     }
     
     private func setupCamera() {
@@ -65,8 +73,7 @@ class CameraViewController: UIViewController {
             captureSession.addOutput(output)
         }
         
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.bounds
+        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
         

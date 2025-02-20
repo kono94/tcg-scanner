@@ -15,7 +15,5 @@ struct CameraContainerView: View {
                 )
             }
         }
-        // Preserve tab bar space
-        .padding(.bottom, UITabBarController().tabBar.frame.height)
     }
 }
