@@ -6,7 +6,6 @@ card_detector_dataset/
 *.pth
 *.npy
 *.index
-*.html
 cards/*
 htmls/*
 *.zip

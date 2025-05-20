@@ -1,0 +1,7 @@
+path: ../card_detector_dataset/ # dataset root dir
+train: images/train 
+val: images/val 
+
+names:
+  0: op
+  1: pokemon
