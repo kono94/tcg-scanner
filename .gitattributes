@@ -1,0 +1,2 @@
+datasets/card_detector/images.zip filter=lfs diff=lfs merge=lfs -text
+datasets/card_detector/labels.zip filter=lfs diff=lfs merge=lfs -text
