@@ -1,3 +1,22 @@
+### Setup
+Clone repository but do not automatically download all git-lfs files.
+
+```bash
+set GIT_LFS_SKIP_SMUDGE=1 && \
+git clone https://github.com/kono94/tcg-scanner.git && \ 
+cd tcg-scanner
+```
+
+Pull the model weights:
+```bash
+git lfs pull app/weights/*
+```
+
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
 ### Usage
 
 ```bash
