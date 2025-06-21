@@ -2,6 +2,7 @@
 Clone repository but do not automatically download all git-lfs files.
 
 ```bash
+sudo apt install git-lfs # if not already isntalled
 set GIT_LFS_SKIP_SMUDGE=1 && \
 git clone https://github.com/kono94/tcg-scanner.git && \ 
 cd tcg-scanner
