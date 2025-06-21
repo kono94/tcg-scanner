@@ -1,20 +1,19 @@
 import os
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
-import torch.nn.functional as F
 from tqdm import tqdm
+from typing import Tuple
 from sklearn.metrics.pairwise import euclidean_distances
-from app.util import PROJECT_ROOT, DATASET_ROOT_DIR, set_seed, extract_prefix, find_image_path
-from app.model import  CardModel, extract_embedding
+from app.util import PROJECT_ROOT, DATASET_ROOT_DIR, set_seed, extract_prefix, display_top_k_images
+from app.model import  CardModel
 
 
 SEED = 42
 set_seed(SEED)
 STATE_DICT = PROJECT_ROOT / 'app' / 'weights' / 'mobilenet_v3_large_v3_state_dict.pth'
-classes = None
 
+classes = None
 with open(DATASET_ROOT_DIR / 'names.txt', 'r') as file:
     classes = file.read().splitlines()
 
@@ -25,20 +24,21 @@ elif torch.backends.mps.is_built() and torch.backends.mps.is_available():
 else:
     DEVICE = torch.device("cpu")
 
+print("Using DEVICE=", DEVICE)
+
 model = CardModel(num_labels=len(classes)).eval()
 model.to(DEVICE)
 model.load_state_dict(torch.load(STATE_DICT, weights_only=True, map_location=DEVICE))
 
-def infere(img, min_conf=0.5) -> str | None:
-    _, logits = extract_embedding(model, img, DEVICE)
-    probs = F.softmax(logits, dim=1).detach().cpu().numpy()
-    max_conf = np.max(probs)
+def classify_image(img, min_conf_threshold=0.5) -> Tuple[str | None, float]:
+    _, probs = model.extract_embedding(img, DEVICE)
+    predicted_class_idx = np.argmax(probs)
+    predicted_class_conf = probs[predicted_class_idx]
     
-    if max_conf > min_conf:
-        predicted_class = torch.argmax(F.softmax(logits, dim=1), dim=1).detach() #.item() if .detach() not working
-        return classes[predicted_class], max_conf
+    if predicted_class_conf > min_conf_threshold:
+        return classes[predicted_class_idx], predicted_class_conf
     else:
-        return None, max_conf
+        return None, predicted_class_conf
 
 #####################################
 ##### Template based approach  ######
@@ -63,7 +63,7 @@ def create_template_db():
                     continue
                 img_path = os.path.join(series_path, img_name)
                 label = img_name  
-                embedding, _ = extract_embedding(model, img_path, DEVICE)
+                embedding, _ = model.extract_embedding(img_path, DEVICE)
                 card_embeddings.append(embedding)
                 index_to_card_id[index] = label
                 index += 1
@@ -72,42 +72,37 @@ def create_template_db():
 
 def similarity_search(path, top_k=5):
     # Define a query vector
-    query_embedding, _ = extract_embedding(model, path, DEVICE)
-    query_embedding = np.array([query_embedding]) 
-
+    query_embedding, _ = model.extract_embedding(path, DEVICE)
+    query_embedding = np.expand_dims(query_embedding, axis=0)
     distances = euclidean_distances(card_embeddings_np, query_embedding)
-
     closest_indices = np.argsort(distances.flatten())[:top_k]
     labels = [index_to_card_id[idx] for idx in closest_indices]
     distances = [distances[idx][0] for idx in closest_indices]
     return labels, distances
 
+  
 
 if __name__ == "__main__":
-    predicted_class_name, confidence = infere(PROJECT_ROOT / 'resources' / 'test_images' / 'monkey.png')
+    predicted_class_name, confidence = classify_image(PROJECT_ROOT / 'resources' / 'test_images' / 'monkey.png')
     print(predicted_class_name)
     if predicted_class_name is None:
-        raise Exception("No match")
+        raise Exception("No match for classification method")
     
     img = cv2.imread(DATASET_ROOT_DIR / 'cards' / extract_prefix(predicted_class_name) / predicted_class_name)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    cv2.imshow(f"Classification method; Predicted card: {predicted_class_name}", img)
+    cv2.waitKey(1000)
     
-    print("Creating template db...")
+    print("Creating template db for similarity search method...")
     create_template_db()
     print("Creating done!")
     top_k = 5
     labels, distances = similarity_search(PROJECT_ROOT / 'resources' / 'test_images' / 'monkey.png', top_k)
-    fig, axes = plt.subplots(1, 1, figsize=(5, 5))
-    if top_k == 1:
-        axes = [axes] 
-
+    
+    # Print and display top-k results
+    print("\nSimilarity Search Results:")
     for i, card_id in enumerate(labels):
-        image_path = find_image_path(card_id, DATASET_ROOT_DIR / 'cards')
-        if image_path:
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            print(f"Match {i + 1}:")
-            print(f"Card ID: {card_id}")
-            print(f"Distance: {distances[i]}")
-            cv2.imshow("t", image)
-            cv2.waitKey(1000)
+        print(f"Match {i + 1}:")
+        print(f"Card ID: {card_id}")
+        print(f"Distance: {distances[i]:.4f}")
+    
+    display_top_k_images(labels, distances, top_k)

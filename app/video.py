@@ -5,7 +5,7 @@ import queue
 import time
 import cv2
 import json
-from inferencer import infere
+from inferencer import classify_image
 from pathlib import Path
 from util import PROJECT_ROOT, find_image_path, set_seed
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     recognition_queue = queue.Queue()
 
     def process_recognition(track_id, cropped_image, min_conf):
-        result, max_conf = infere(cropped_image, min_conf)
+        result, max_conf = classify_image(cropped_image, min_conf)
         if result is not None:
             card_id = Path(result).stem
             json_path = find_image_path(f"{card_id}.json")

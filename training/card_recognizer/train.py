@@ -91,8 +91,9 @@ with open(DATASET_ROOT_DIR / 'names.txt', 'w') as file:
 train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
 model = CardModel(nr_classes).to(DEVICE)
 
-mean, std, crop_size = model.transform_info()
+mean, std, resize_size, crop_size = model.transform_info()
 transform = transforms.Compose([
+    transforms.Resize(resize_size),
     transforms.RandomResizedCrop(crop_size, scale=(1, 1)),
     transforms.ColorJitter(brightness=0.7, contrast=0.7, saturation=0.3, hue=0.05),
     transforms.RandomAffine(degrees=5, translate=(0.05, 0.05), scale=(0.96, 1.06)),
