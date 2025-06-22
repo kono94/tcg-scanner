@@ -1,5 +1,5 @@
 *.mlpackage/
-
+*.db
 *.pt
 runs/
 card_detector_dataset/
