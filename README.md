@@ -25,4 +25,14 @@ export PYTHONPATH=$(pwd)
 python app/video.py IMG_3374.mp4
 ```
 
+Start webservice with templating frontend to upload USB camera images
+```bash
+uvicorn app.main:app --reload
+```
+
+Scrape current prices of OP cards:
+```bash
+python app/scrape_prices.py
+```
+
 https://github.com/user-attachments/assets/992716b5-3d6d-4835-84aa-8eb74fbf4293
