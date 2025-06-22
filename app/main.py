@@ -76,18 +76,6 @@ app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Fake data for now
-def seed_db():
-    db = SessionLocal()
-    if db.query(Card).count() == 0:
-        db.add_all([
-            Card(card_id="card001", name="Blue-Eyes White Dragon", price=12.34, image_url="/static/blue-eyes.jpg"),
-            Card(card_id="card002", name="Dark Magician", price=8.99, image_url="/static/dark-magician.jpg"),
-            Card(card_id="card003", name="Charizard", price=99.99, image_url="/static/charizard.jpg"),
-        ])
-        db.commit()
-    db.close()
-seed_db()
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
