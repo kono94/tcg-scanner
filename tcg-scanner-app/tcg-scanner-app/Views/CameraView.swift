@@ -1,87 +1,160 @@
 import SwiftUI
 import AVFoundation
-import Vision
-import CoreML
 import UIKit
-import Combine
 
 public struct CameraView: View {
-    @StateObject private var cameraManager = CameraManager()
-    @State private var predictions: [YOLO.Prediction] = []
-    @State private var viewSize: CGSize = .zero
+    @StateObject private var viewModel = ScannerViewModel()
     
     public init() {}
     
     public var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                CameraPreviewView(session: cameraManager.session)
-                    .edgesIgnoringSafeArea(.all)
-                    .onAppear {
-                        viewSize = geometry.size
-                    }
-                
-                ForEach(predictions) { prediction in
-                    DetectionBox(prediction: prediction, viewSize: viewSize)
+        ZStack(alignment: .topLeading) {
+            CameraPreviewView(
+                session: viewModel.cameraService.session,
+                overlayItems: viewModel.overlayItems
+            )
+            .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Frame \(viewModel.debugInfo.frameSize)")
+                Text("Detections \(viewModel.debugInfo.detectionCount) | Tracks \(viewModel.debugInfo.activeTrackCount)")
+                Text(viewModel.debugInfo.lastRecognitionSummary)
+                    .lineLimit(2)
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundColor(.white)
+            .padding(8)
+            .background(Color.black.opacity(0.65))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .padding(.top, 12)
+            .padding(.leading, 12)
+
+            if let errorMessage = viewModel.errorMessage {
+                VStack {
+                    Spacer()
+                    Text(errorMessage)
+                        .font(.callout)
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .background(Color.red.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding()
                 }
             }
         }
         .onAppear {
-            cameraManager.start()
+            viewModel.start()
         }
         .onDisappear {
-            cameraManager.stop()
-        }
-        .onReceive(cameraManager.framePublisher) { pixelBuffer in
-            YOLO.shared.detect(pixelBuffer: pixelBuffer) { newPredictions in
-                predictions = newPredictions
-            }
+            viewModel.stop()
         }
     }
 }
 
-struct CameraPreviewView: UIViewRepresentable {
+private struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    let overlayItems: [ScannerOverlayItem]
     
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.frame = view.frame
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
+    func makeUIView(context: Context) -> PreviewContainerView {
+        let view = PreviewContainerView()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        view.overlayItems = overlayItems
         return view
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    func updateUIView(_ uiView: PreviewContainerView, context: Context) {
+        uiView.previewLayer.session = session
+        uiView.overlayItems = overlayItems
+    }
 }
 
-struct DetectionBox: View {
-    let prediction: YOLO.Prediction
-    let viewSize: CGSize
-    
-    var body: some View {
-        let rect = convertRect(prediction.rect, to: viewSize)
-        
-        Rectangle()
-            .stroke(Color.green, lineWidth: 2)
-            .frame(width: rect.width, height: rect.height)
-            .position(x: rect.midX, y: rect.midY)
-            .overlay(
-                Text("\(prediction.label) (\(Int(prediction.confidence * 100))%)")
-                    .foregroundColor(.white)
-                    .padding(4)
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(4)
-                    .offset(x: 0, y: -rect.height/2 - 20)
-            )
+private final class PreviewContainerView: UIView {
+    override class var layerClass: AnyClass {
+        AVCaptureVideoPreviewLayer.self
     }
-    
-    private func convertRect(_ rect: CGRect, to size: CGSize) -> CGRect {
-        return CGRect(
-            x: rect.origin.x * size.width,
-            y: rect.origin.y * size.height,
-            width: rect.width * size.width,
-            height: rect.height * size.height
-        )
+
+    var previewLayer: AVCaptureVideoPreviewLayer {
+        layer as! AVCaptureVideoPreviewLayer
+    }
+
+    var overlayItems: [ScannerOverlayItem] = [] {
+        didSet {
+            drawOverlay()
+        }
+    }
+
+    private let overlayLayer = CALayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.addSublayer(overlayLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        layer.addSublayer(overlayLayer)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        previewLayer.frame = bounds
+        overlayLayer.frame = bounds
+        drawOverlay()
+    }
+
+    private func drawOverlay() {
+        overlayLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+
+        for item in overlayItems {
+            let previewLayerRect = previewLayer.layerRectConverted(fromMetadataOutputRect: item.metadataOutputRect)
+            guard previewLayerRect.width > 2, previewLayerRect.height > 2 else {
+                continue
+            }
+
+            let boxLayer = CAShapeLayer()
+            boxLayer.frame = bounds
+            boxLayer.path = UIBezierPath(roundedRect: previewLayerRect, cornerRadius: 6).cgPath
+            boxLayer.fillColor = UIColor.clear.cgColor
+            boxLayer.strokeColor = color(for: item.confidence).cgColor
+            boxLayer.lineWidth = 3
+            overlayLayer.addSublayer(boxLayer)
+
+            addLabel(for: item, above: previewLayerRect)
+        }
+    }
+
+    private func addLabel(for item: ScannerOverlayItem, above rect: CGRect) {
+        let text = "\(item.title)\n\(item.subtitle)"
+        let maxWidth = min(max(rect.width, 160), bounds.width - 24)
+        let labelHeight: CGFloat = 44
+        let x = min(max(rect.minX, 12), max(bounds.width - maxWidth - 12, 12))
+        let y = max(rect.minY - labelHeight - 6, 12)
+
+        let backgroundLayer = CALayer()
+        backgroundLayer.frame = CGRect(x: x, y: y, width: maxWidth, height: labelHeight)
+        backgroundLayer.backgroundColor = UIColor.black.withAlphaComponent(0.75).cgColor
+        backgroundLayer.cornerRadius = 6
+        overlayLayer.addSublayer(backgroundLayer)
+
+        let textLayer = CATextLayer()
+        textLayer.frame = backgroundLayer.bounds.insetBy(dx: 8, dy: 5)
+        textLayer.contentsScale = UIScreen.main.scale
+        textLayer.string = text
+        textLayer.fontSize = 12
+        textLayer.foregroundColor = UIColor.white.cgColor
+        textLayer.alignmentMode = .left
+        textLayer.isWrapped = true
+        backgroundLayer.addSublayer(textLayer)
+    }
+
+    private func color(for confidence: Float) -> UIColor {
+        if confidence >= 0.85 {
+            return UIColor.systemGreen
+        }
+        if confidence >= 0.6 {
+            return UIColor.systemYellow
+        }
+        return UIColor.systemOrange
     }
 } 

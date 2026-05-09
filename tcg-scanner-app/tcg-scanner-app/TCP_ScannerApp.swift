@@ -1,8 +1,4 @@
 import SwiftUI
-import AVFoundation
-import Vision
-import CoreML
-import UIKit
 
 @main
 struct TCP_ScannerApp: App {

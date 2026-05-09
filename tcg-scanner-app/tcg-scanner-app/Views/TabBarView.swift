@@ -1,14 +1,12 @@
 import SwiftUI
 
 struct TabBarView: View {
-    @State private var predictions: [YOLO.Prediction] = []
-    
     var body: some View {
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
             
-            ContentView()
+            CameraView()
                 .tabItem { Label("Scan", systemImage: "camera.fill") }
             
             SettingsView()
