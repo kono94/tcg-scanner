@@ -1,10 +1,24 @@
 import SwiftUI
+import AVFoundation
+import Vision
+import CoreML
+import UIKit
 
 @main
-struct TCG_ScannerApp: App {
+struct TCP_ScannerApp: App {
     var body: some Scene {
         WindowGroup {
-            TabBarView()
+            TabView {
+                CameraView()
+                    .tabItem {
+                        Label("Scan", systemImage: "camera")
+                    }
+                
+                Text("History")
+                    .tabItem {
+                        Label("History", systemImage: "clock")
+                    }
+            }
         }
     }
 }

@@ -8,7 +8,7 @@ struct TabBarView: View {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
             
-            CameraContainerView(predictions: $predictions)
+            ContentView()
                 .tabItem { Label("Scan", systemImage: "camera.fill") }
             
             SettingsView()

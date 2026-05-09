@@ -1,22 +1,24 @@
+// MARK: - ContentView.swift
 import SwiftUI
-import AVFoundation
-import Vision
-
-struct GuessView: View {
+struct ContentView: View {
     @State private var predictions: [YOLO.Prediction] = []
-    @State private var frameSize: CGSize = .zero
     
     var body: some View {
         ZStack {
-            // Camera view
-            GeometryReader { geometry in
-                CameraView(predictions: $predictions)
-                    .onAppear { frameSize = geometry.size }
-                    .overlay(
-                        PredictionView(predictions: predictions, size: frameSize)
-                    )
-            }
+            CameraView(predictions: $predictions)
+                .edgesIgnoringSafeArea(.all)
+            
+            PredictionView(predictions: predictions,
+                         imageSize: CGSize(width: 640, height: 480))
+                .edgesIgnoringSafeArea(.all)
+                .overlay(
+                    VStack {
+                        Text("Predictions: \(predictions.count)")
+                            .foregroundColor(.white)
+                            .padding()
+                        Spacer()
+                    }
+                )
         }
-        .edgesIgnoringSafeArea(.all)
     }
 }

@@ -1,3 +1,7 @@
+*.DS_Store
+.vscode/
+tcg-scanner-app/.vscode/
+
 *.mlpackage/
 *.db
 *.pt

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3D28DA762D502F7E0028C6D8 /* BoundingBoxLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D28DA752D502F7E0028C6D8 /* BoundingBoxLayer.swift */; };
+		3D28DA782D502FFD0028C6D8 /* VideoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D28DA772D502FFD0028C6D8 /* VideoCapture.swift */; };
+		3D28DA792D503FFF0028C6D8 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D28DA7A2D503FFF0028C6D8 /* CameraManager.swift */; };
 		3D2F7F7D2D4F77F700FEE3E3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3D2F7F7C2D4F77F700FEE3E3 /* Assets.xcassets */; };
 		3D2F7F802D4F77F700FEE3E3 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3D2F7F7F2D4F77F700FEE3E3 /* Preview Assets.xcassets */; };
 		3D2F7F8A2D4F782000FEE3E3 /* YOLO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F892D4F782000FEE3E3 /* YOLO.swift */; };
@@ -20,10 +23,12 @@
 		3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */; };
 		3D2F7FB02D4FA8E500FEE3E3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAF2D4FA8E500FEE3E3 /* SettingsView.swift */; };
 		3D2F7FB22D4FA95E00FEE3E3 /* Info_custom.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3D2F7FB12D4FA95E00FEE3E3 /* Info_custom.plist */; };
-		3D2F7FB42D4FA9FD00FEE3E3 /* CameraContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FB32D4FA9FD00FEE3E3 /* CameraContainerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3D28DA752D502F7E0028C6D8 /* BoundingBoxLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundingBoxLayer.swift; sourceTree = "<group>"; };
+		3D28DA772D502FFD0028C6D8 /* VideoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCapture.swift; sourceTree = "<group>"; };
+		3D28DA7A2D503FFF0028C6D8 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		3D2F7F752D4F77F600FEE3E3 /* tcg-scanner-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "tcg-scanner-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3D2F7F7C2D4F77F700FEE3E3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3D2F7F7F2D4F77F700FEE3E3 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -38,7 +43,6 @@
 		3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		3D2F7FAF2D4FA8E500FEE3E3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3D2F7FB12D4FA95E00FEE3E3 /* Info_custom.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info_custom.plist; sourceTree = "<group>"; };
-		3D2F7FB32D4FA9FD00FEE3E3 /* CameraContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraContainerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +99,8 @@
 			isa = PBXGroup;
 			children = (
 				3D2F7F892D4F782000FEE3E3 /* YOLO.swift */,
+				3D28DA772D502FFD0028C6D8 /* VideoCapture.swift */,
+				3D28DA7A2D503FFF0028C6D8 /* CameraManager.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -116,7 +122,7 @@
 				3D2F7FAB2D4FA89500FEE3E3 /* TabBarView.swift */,
 				3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */,
 				3D2F7FAF2D4FA8E500FEE3E3 /* SettingsView.swift */,
-				3D2F7FB32D4FA9FD00FEE3E3 /* CameraContainerView.swift */,
+				3D28DA752D502F7E0028C6D8 /* BoundingBoxLayer.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -196,12 +202,13 @@
 				3D2F7F8E2D4F784F00FEE3E3 /* PredictionView.swift in Sources */,
 				3D2F7FAC2D4FA89500FEE3E3 /* TabBarView.swift in Sources */,
 				3D2F7FA42D4F8C9400FEE3E3 /* TCP_ScannerApp.swift in Sources */,
-				3D2F7FB42D4FA9FD00FEE3E3 /* CameraContainerView.swift in Sources */,
+				3D28DA782D502FFD0028C6D8 /* VideoCapture.swift in Sources */,
 				3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */,
 				3D2F7F992D4F813F00FEE3E3 /* card_detector.mlpackage in Sources */,
 				3D2F7F902D4F788600FEE3E3 /* GuessView.swift in Sources */,
 				3D2F7F8A2D4F782000FEE3E3 /* YOLO.swift in Sources */,
 				3D2F7F8C2D4F783900FEE3E3 /* CameraView.swift in Sources */,
+				3D28DA762D502F7E0028C6D8 /* BoundingBoxLayer.swift in Sources */,
 				3D2F7FA82D4F8CE300FEE3E3 /* LaunchScreenView.swift in Sources */,
 				3D2F7FB02D4FA8E500FEE3E3 /* SettingsView.swift in Sources */,
 			);
