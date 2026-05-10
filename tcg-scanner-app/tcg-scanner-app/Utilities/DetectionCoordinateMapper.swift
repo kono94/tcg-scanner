@@ -14,12 +14,18 @@ enum DetectionCoordinateMapper {
 
     static func pixelBufferRect(fromMetadataOutputRect rect: CGRect, pixelBufferSize: CGSize) -> CGRect {
         let normalized = rect.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
-        return CGRect(
+        let pixelRect = CGRect(
             x: normalized.minX * pixelBufferSize.width,
             y: normalized.minY * pixelBufferSize.height,
             width: normalized.width * pixelBufferSize.width,
             height: normalized.height * pixelBufferSize.height
-        ).integral
+        )
+        return CGRect(
+            x: pixelRect.origin.x.rounded(),
+            y: pixelRect.origin.y.rounded(),
+            width: pixelRect.width.rounded(),
+            height: pixelRect.height.rounded()
+        )
     }
 
     private static func clamp(_ value: CGFloat) -> CGFloat {
