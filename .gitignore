@@ -2,14 +2,19 @@
 .vscode/
 tcg-scanner-app/.vscode/
 
-*.mlpackage/
-!tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage/
-!tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage/**
-
+# ML model artifacts are generated or supplied out-of-band.
 *.pt
+*.pth
+*.onnx
+*.mlmodel
+*.mlpackage/
+!tcg-scanner-app/tcg-scanner-app/Models/*.mlpackage/
+!tcg-scanner-app/tcg-scanner-app/Models/*.mlpackage/**
+**/weights/*.bin
+!tcg-scanner-app/tcg-scanner-app/Models/*.mlpackage/Data/com.apple.CoreML/weights/*.bin
+
 runs/
 card_detector_dataset/
-*.pth
 *.npy
 *.index
 cards/*

@@ -18,7 +18,7 @@ The project appears to have been paused mid-migration from Python prototypes to 
 - Card recognition exists in Python with a MobileNetV3-based classifier and embeddings.
 - Card detection exists as a YOLO model exported to CoreML.
 - The iOS app has camera capture, Vision/CoreML inference, and SwiftUI overlays, but the camera/model/overlay pieces are not yet cleanly aligned.
-- There is no README, setup guide, test strategy, or source-of-truth architecture doc yet.
+- The old FastAPI upload app has been removed. The Python side is now model/data tooling only.
 
 ## Data And Models
 
@@ -32,42 +32,37 @@ The project appears to have been paused mid-migration from Python prototypes to 
 
 Detection identifies cards in a frame. Relevant files:
 
-- `card_detector.pt`
-- `card_detector.mlpackage/`
-- `cards.yaml`
-- `export_yolo.py`
+- `training/card_detector/export_yolo.py`
+- `training/card_detector/cards.yaml`
+- `tcg-scanner-app/tcg-scanner-app/Models/card_detector.mlpackage/`
 
 `cards.yaml` defines a YOLO dataset with two classes:
 
 - `op`
 - `pokemon`
 
-The current iOS app loads `card_detector` through a generated CoreML model class in `YOLO.swift`.
+The current iOS app loads `card_detector` through the bundled CoreML package.
 
 ### Recognition
 
 Recognition identifies the exact card. Relevant files:
 
 - `model.py`
-- `train.py`
+- `training/card_recognizer/train.py`
 - `inferencer.py`
-- `names.txt`
+- `datasets/card_recognizer/names.txt`
 - `mobile_large_v1_state_dict.pth` if available locally
 
 The recognizer uses MobileNetV3 Large ImageNet weights, adds a 256-dimensional embedding layer, and classifies against the labels in `names.txt`.
 
 ## Python Pipeline
 
-`model.py` defines:
+`model.py` defines `CardModel`, a MobileNetV3 Large backbone with embedding and classification heads.
 
-- `SingleSampleDataset`: loads one image per label from `cards/`.
-- `CardModel`: MobileNetV3 Large backbone with embedding and classification heads.
-- `extract_embedding`: applies model preprocessing and returns a normalized embedding plus logits.
+`training/card_recognizer/train.py`:
 
-`train.py`:
-
-- Builds the dataset from `cards/`.
-- Writes labels to `names.txt`.
+- Builds the dataset from `datasets/card_recognizer/cards`.
+- Writes labels to `datasets/card_recognizer/names.txt`.
 - Trains the classifier briefly with augmentation.
 - Saves a state dict and full PyTorch model.
 
@@ -75,8 +70,11 @@ The recognizer uses MobileNetV3 Large ImageNet weights, adds a 256-dimensional e
 
 - Loads `names.txt`.
 - Loads `mobile_large_v1_state_dict.pth`.
-- Runs classification via `infere`.
+- Runs classification via `classify_image`.
 - Also contains an optional template embedding search path.
+
+`scripts/scrape_prices.py` refreshes the bundled app price snapshot at
+`tcg-scanner-app/tcg-scanner-app/Resources/card_index.json`.
 
 ## iOS Pipeline
 
@@ -86,13 +84,12 @@ Important files:
 
 - `TCP_ScannerApp.swift`: current app entry point.
 - `Views/CameraView.swift`: live preview, frame subscription, overlay rendering.
-- `Utilities/CameraManager.swift`: AVCaptureSession publisher for pixel buffers.
-- `Utilities/VideoCapture.swift`: older alternate camera capture path.
-- `Utilities/YOLO.swift`: Vision/CoreML detector wrapper.
-- `Views/PredictionView.swift`: older prediction overlay path.
-- `Views/BoundingBoxLayer.swift`: UIKit/CALayer overlay helper from another iteration.
+- `Utilities/CameraService.swift`: AVCaptureSession publisher for pixel buffers.
+- `Utilities/CardDetector.swift`: Vision/CoreML detector wrapper.
+- `Utilities/CardRecognizer.swift`: CoreML exact-card recognizer wrapper.
+- `Utilities/PriceService.swift`: bundled snapshot price lookup.
 
-Current app entry point uses `CameraView()` directly. `TabBarView` and `GuessView.swift` look like older UI experiments.
+Current app entry point uses `CameraView()` directly.
 
 ## Main Technical Problem
 
@@ -128,4 +125,3 @@ Make the iOS scanner reliable in this order:
 - Add a local card metadata index generated from `cards/`.
 - Add a price service abstraction with a mock implementation first.
 - Build a debug mode that shows frame size, orientation, detection count, and confidence.
-

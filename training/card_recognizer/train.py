@@ -1,5 +1,7 @@
 import os
 import cv2
+import numpy as np
+import sys
 import torch 
 import torch.nn.functional as F
 from torchvision import transforms
@@ -8,9 +10,12 @@ from torch.utils.data import Dataset
 from PIL import Image
 from pathlib import Path
 from time import time
-from app.model import CardModel, set_seed, extract_embedding
 
-PROJECT_ROOT = Path(os.getenv("PYTHONPATH"))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from model import CardModel
+from util import set_seed
 
 SEED = 42
 set_seed(SEED)
@@ -153,7 +158,7 @@ experiment_folder_path.mkdir(parents=True, exist_ok=True)
 torch.save(model.state_dict(), experiment_folder_path / f'{model.save_name()}_{ITERATION}_state_dict.pth')
 torch.save(model, experiment_folder_path / f'{model.save_name()}_{ITERATION}.pth')
 
-embedding, logits = extract_embedding(model, PROJECT_ROOT / 'resources' / 'test_images' / 'monkey.png', DEVICE)
-predicted_class = torch.argmax(F.softmax(logits, dim=1), dim=1).detach() #.item() if .detach() not working
+_, probs = model.extract_embedding(PROJECT_ROOT / 'resources' / 'test_images' / 'monkey.png', DEVICE)
+predicted_class = int(np.argmax(probs))
 predicted_class_name = classes_list[predicted_class]
 print(predicted_class_name)

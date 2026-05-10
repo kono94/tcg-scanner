@@ -5,13 +5,13 @@ import torch
 from tqdm import tqdm
 from typing import Tuple
 from sklearn.metrics.pairwise import euclidean_distances
-from app.util import PROJECT_ROOT, DATASET_ROOT_DIR, set_seed, extract_prefix, display_top_k_images
-from app.model import  CardModel
+from util import PROJECT_ROOT, DATASET_ROOT_DIR, set_seed, extract_prefix, display_top_k_images
+from model import CardModel
 
 
 SEED = 42
 set_seed(SEED)
-STATE_DICT = PROJECT_ROOT / 'app' / 'weights' / 'mobilenet_v3_large_v3_state_dict.pth'
+STATE_DICT = PROJECT_ROOT / 'mobile_large_v1_state_dict.pth'
 
 classes = None
 with open(DATASET_ROOT_DIR / 'names.txt', 'r') as file:

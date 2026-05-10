@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from pathlib import Path
 
-PROJECT_ROOT = Path(os.getenv("PYTHONPATH"))
+PROJECT_ROOT = Path(os.getenv("PYTHONPATH", Path.cwd()))
 DATASET_ROOT_DIR = PROJECT_ROOT / 'datasets' / 'card_recognizer'
 
 def set_seed(seed):
