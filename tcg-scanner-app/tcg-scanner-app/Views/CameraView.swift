@@ -61,14 +61,12 @@ private struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewContainerView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
-        view.applyPortraitRotation()
         view.overlayItems = overlayItems
         return view
     }
     
     func updateUIView(_ uiView: PreviewContainerView, context: Context) {
         uiView.previewLayer.session = session
-        uiView.applyPortraitRotation()
         uiView.overlayItems = overlayItems
     }
 }
@@ -103,23 +101,8 @@ private final class PreviewContainerView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer.frame = bounds
-        applyPortraitRotation()
         overlayLayer.frame = bounds
         drawOverlay()
-    }
-
-    func applyPortraitRotation() {
-        guard let connection = previewLayer.connection else {
-            return
-        }
-
-        if #available(iOS 17.0, *) {
-            if connection.isVideoRotationAngleSupported(90) {
-                connection.videoRotationAngle = 90
-            }
-        } else if connection.isVideoOrientationSupported {
-            connection.videoOrientation = .portrait
-        }
     }
 
     private func drawOverlay() {

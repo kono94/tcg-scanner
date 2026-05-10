@@ -26,12 +26,13 @@ final class CardDetector {
                 guard let label = observation.labels.first, label.confidence >= self.minimumConfidence else {
                     return nil
                 }
-                let visionRect = observation.boundingBox
+                let modelRect = observation.boundingBox
+                let visionRect = DetectionCoordinateMapper.visionNormalizedRect(fromTopLeftNormalizedRect: modelRect)
                 return DetectedCard(
                     label: label.identifier,
                     confidence: label.confidence,
                     visionNormalizedRect: visionRect,
-                    metadataOutputRect: DetectionCoordinateMapper.metadataOutputRect(fromVisionNormalizedRect: visionRect)
+                    metadataOutputRect: DetectionCoordinateMapper.metadataOutputRect(fromTopLeftNormalizedRect: modelRect)
                 )
             }
         }

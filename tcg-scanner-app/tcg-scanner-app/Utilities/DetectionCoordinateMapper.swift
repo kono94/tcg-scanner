@@ -2,6 +2,20 @@ import CoreGraphics
 import Foundation
 
 enum DetectionCoordinateMapper {
+    static func metadataOutputRect(fromTopLeftNormalizedRect rect: CGRect) -> CGRect {
+        rect.standardized.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    static func visionNormalizedRect(fromTopLeftNormalizedRect rect: CGRect) -> CGRect {
+        let normalized = rect.standardized
+        return CGRect(
+            x: clamp(normalized.minX),
+            y: clamp(1 - normalized.maxY),
+            width: clamp(normalized.width),
+            height: clamp(normalized.height)
+        ).intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
     static func metadataOutputRect(fromVisionNormalizedRect rect: CGRect) -> CGRect {
         let normalized = rect.standardized
         return CGRect(

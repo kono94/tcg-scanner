@@ -14,7 +14,6 @@ final class CameraService: NSObject, ObservableObject {
     private let videoQueue = DispatchQueue(label: "net.lwenstrom.tcg-scanner.camera.frames")
     private let videoOutput = AVCaptureVideoDataOutput()
     private var isConfigured = false
-    private var frameOrientation: CGImagePropertyOrientation = .right
 
     func start() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -103,11 +102,9 @@ final class CameraService: NSObject, ObservableObject {
             if #available(iOS 17.0, *) {
                 if connection.isVideoRotationAngleSupported(90) {
                     connection.videoRotationAngle = 90
-                    frameOrientation = .up
                 }
             } else if connection.isVideoOrientationSupported {
                 connection.videoOrientation = .portrait
-                frameOrientation = .up
             }
         }
 
@@ -129,7 +126,7 @@ extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate {
 
         let frame = CameraFrame(
             pixelBuffer: pixelBuffer,
-            orientation: frameOrientation,
+            orientation: .right,
             timestamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         )
         frameHandler?(frame)

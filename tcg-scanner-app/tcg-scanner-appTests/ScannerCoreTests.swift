@@ -3,6 +3,28 @@ import XCTest
 @testable import tcg_scanner_app
 
 final class DetectionCoordinateMapperTests: XCTestCase {
+    func testTopLeftRectPassesThroughForPreviewMetadata() {
+        let modelRect = CGRect(x: 0.25, y: 0.10, width: 0.50, height: 0.20)
+
+        let metadataRect = DetectionCoordinateMapper.metadataOutputRect(fromTopLeftNormalizedRect: modelRect)
+
+        XCTAssertEqual(metadataRect.origin.x, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(metadataRect.origin.y, 0.10, accuracy: 0.0001)
+        XCTAssertEqual(metadataRect.width, 0.50, accuracy: 0.0001)
+        XCTAssertEqual(metadataRect.height, 0.20, accuracy: 0.0001)
+    }
+
+    func testTopLeftRectConvertsToVisionTrackingCoordinates() {
+        let modelRect = CGRect(x: 0.25, y: 0.10, width: 0.50, height: 0.20)
+
+        let visionRect = DetectionCoordinateMapper.visionNormalizedRect(fromTopLeftNormalizedRect: modelRect)
+
+        XCTAssertEqual(visionRect.origin.x, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(visionRect.origin.y, 0.70, accuracy: 0.0001)
+        XCTAssertEqual(visionRect.width, 0.50, accuracy: 0.0001)
+        XCTAssertEqual(visionRect.height, 0.20, accuracy: 0.0001)
+    }
+
     func testVisionRectConvertsToMetadataTopLeftCoordinates() {
         let visionRect = CGRect(x: 0.25, y: 0.10, width: 0.50, height: 0.20)
 
