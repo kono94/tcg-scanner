@@ -27,14 +27,15 @@ final class ScannerViewModel: ObservableObject {
 
     init(
         cameraService: CameraService = CameraService(),
-        recognizer: CardRecognizing = StubCardRecognizer(),
+        recognizer: CardRecognizing = CoreMLCardRecognizer.makeDefault(),
         metadataStore: CardMetadataStore = CardMetadataStore(),
-        priceService: PriceServing = MockPriceService()
+        priceService: PriceServing = BundledPriceService()
     ) {
         self.cameraService = cameraService
         self.recognizer = recognizer
         self.metadataStore = metadataStore
         self.priceService = priceService
+        self.errorMessage = recognizer.failureDescription
     }
 
     func start() {
@@ -130,6 +131,8 @@ final class ScannerViewModel: ObservableObject {
             recognitionStates[track.id] = state
 
             guard let crop = cropper.crop(pixelBuffer: frame.pixelBuffer, metadataOutputRect: track.metadataOutputRect) else {
+                state.isRecognitionInFlight = false
+                recognitionStates[track.id] = state
                 continue
             }
 
@@ -169,15 +172,19 @@ final class ScannerViewModel: ObservableObject {
             height: CVPixelBufferGetHeight(frame.pixelBuffer)
         )
         let items = tracks.map { track -> ScannerOverlayItem in
-            let recognition = recognitionStates[track.id]?.result
-            let price = recognitionStates[track.id]?.price
-            let title = recognition?.name ?? "Tracking \(track.label)"
+            let recognitionState = recognitionStates[track.id]
+            let recognition = recognitionState?.result
+            let price = recognitionState?.price
+            let title = recognition?.name ?? (recognitionState?.isRecognitionInFlight == true ? "Recognizing..." : "Tracking \(track.label)")
             let confidence = recognition?.confidence ?? track.confidence
-            let subtitleParts = [
-                recognition?.cardID,
-                price?.displayPrice ?? "Price pending",
-                "\(Int(confidence * 100))%"
-            ].compactMap { $0 }
+            var subtitleParts = [String]()
+            if let cardID = recognition?.cardID {
+                subtitleParts.append(cardID)
+            }
+            if let displayPrice = price?.displayPrice {
+                subtitleParts.append(displayPrice)
+            }
+            subtitleParts.append("\(Int(confidence * 100))%")
 
             return ScannerOverlayItem(
                 id: track.id,

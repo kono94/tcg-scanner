@@ -3,7 +3,9 @@
 tcg-scanner-app/.vscode/
 
 *.mlpackage/
-*.db
+!tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage/
+!tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage/**
+
 *.pt
 runs/
 card_detector_dataset/

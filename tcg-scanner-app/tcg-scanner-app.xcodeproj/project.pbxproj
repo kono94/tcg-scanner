@@ -11,6 +11,7 @@
 		3D2F7F802D4F77F700FEE3E3 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3D2F7F7F2D4F77F700FEE3E3 /* Preview Assets.xcassets */; };
 		3D2F7F8C2D4F783900FEE3E3 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F8B2D4F783900FEE3E3 /* CameraView.swift */; };
 		3D2F7F992D4F813F00FEE3E3 /* card_detector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F982D4F813F00FEE3E3 /* card_detector.mlpackage */; };
+		3D2F7F9A2D4F813F00FEE3E3 /* card_recognizer.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F9B2D4F813F00FEE3E3 /* card_recognizer.mlpackage */; };
 		3D2F7FA42D4F8C9400FEE3E3 /* TCP_ScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FA32D4F8C9400FEE3E3 /* TCP_ScannerApp.swift */; };
 		3D2F7FAC2D4FA89500FEE3E3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAB2D4FA89500FEE3E3 /* TabBarView.swift */; };
 		3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */; };
@@ -28,6 +29,7 @@
 		3D90010B2F00000100000001 /* ScannerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D90000B2F00000100000001 /* ScannerViewModel.swift */; };
 		3D9001202F00000100000001 /* ScannerCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9000212F00000100000001 /* ScannerCoreTests.swift */; };
 		3D9001302F00000100000001 /* card_index.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D9000302F00000100000001 /* card_index.json */; };
+		3D9001312F00000100000001 /* recognizer_labels.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D9000322F00000100000001 /* recognizer_labels.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +48,7 @@
 		3D2F7F7F2D4F77F700FEE3E3 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		3D2F7F8B2D4F783900FEE3E3 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		3D2F7F982D4F813F00FEE3E3 /* card_detector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = card_detector.mlpackage; sourceTree = "<group>"; };
+		3D2F7F9B2D4F813F00FEE3E3 /* card_recognizer.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = card_recognizer.mlpackage; sourceTree = "<group>"; };
 		3D2F7FA32D4F8C9400FEE3E3 /* TCP_ScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCP_ScannerApp.swift; sourceTree = "<group>"; };
 		3D2F7FAB2D4FA89500FEE3E3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -65,6 +68,7 @@
 		3D9000212F00000100000001 /* ScannerCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerCoreTests.swift; sourceTree = "<group>"; };
 		3D9000222F00000100000001 /* tcg-scanner-appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "tcg-scanner-appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3D9000302F00000100000001 /* card_index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = card_index.json; sourceTree = "<group>"; };
+		3D9000322F00000100000001 /* recognizer_labels.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = recognizer_labels.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				3D2F7F982D4F813F00FEE3E3 /* card_detector.mlpackage */,
+				3D2F7F9B2D4F813F00FEE3E3 /* card_recognizer.mlpackage */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -175,6 +180,7 @@
 			isa = PBXGroup;
 			children = (
 				3D9000302F00000100000001 /* card_index.json */,
+				3D9000322F00000100000001 /* recognizer_labels.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -263,6 +269,7 @@
 			files = (
 				3D2F7F802D4F77F700FEE3E3 /* Preview Assets.xcassets in Resources */,
 				3D2F7F7D2D4F77F700FEE3E3 /* Assets.xcassets in Resources */,
+				3D9001312F00000100000001 /* recognizer_labels.json in Resources */,
 				3D9001302F00000100000001 /* card_index.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -288,6 +295,7 @@
 				3D2F7FA42D4F8C9400FEE3E3 /* TCP_ScannerApp.swift in Sources */,
 				3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */,
 				3D2F7F992D4F813F00FEE3E3 /* card_detector.mlpackage in Sources */,
+				3D2F7F9A2D4F813F00FEE3E3 /* card_recognizer.mlpackage in Sources */,
 				3D9001082F00000100000001 /* CardRecognizer.swift in Sources */,
 				3D90010A2F00000100000001 /* PriceService.swift in Sources */,
 				3D9001072F00000100000001 /* CardCropper.swift in Sources */,

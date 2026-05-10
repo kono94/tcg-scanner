@@ -11,8 +11,13 @@ struct TrackRecognitionState: Equatable {
     var price: PriceQuote?
     var lastAttempt: Date?
     var lastSuccess: Date?
+    var isRecognitionInFlight = false
 
     func shouldAttemptRecognition(now: Date, policy: RecognitionTimingPolicy) -> Bool {
+        guard !isRecognitionInFlight else {
+            return false
+        }
+
         let interval = hasConfidentMatch(policy: policy) ? policy.knownRefreshInterval : policy.unknownRetryInterval
         guard let lastAttempt else {
             return true
@@ -22,9 +27,11 @@ struct TrackRecognitionState: Equatable {
 
     mutating func markAttempt(now: Date) {
         lastAttempt = now
+        isRecognitionInFlight = true
     }
 
     mutating func apply(result: RecognitionResult?, now: Date, policy: RecognitionTimingPolicy) {
+        isRecognitionInFlight = false
         guard let result else {
             return
         }

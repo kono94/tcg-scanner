@@ -66,7 +66,21 @@ final class RecognitionSchedulerTests: XCTestCase {
         state.markAttempt(now: start)
 
         XCTAssertFalse(state.shouldAttemptRecognition(now: start.addingTimeInterval(0.49), policy: policy))
+        state.apply(result: nil, now: start.addingTimeInterval(0.1), policy: policy)
+        XCTAssertFalse(state.shouldAttemptRecognition(now: start.addingTimeInterval(0.49), policy: policy))
         XCTAssertTrue(state.shouldAttemptRecognition(now: start.addingTimeInterval(0.50), policy: policy))
+    }
+
+    func testInFlightRecognitionBlocksRetry() {
+        let policy = RecognitionTimingPolicy(unknownRetryInterval: 0.5, knownRefreshInterval: 3.0, confidentMatchThreshold: 0.85)
+        var state = TrackRecognitionState()
+        let start = Date(timeIntervalSince1970: 150)
+
+        state.markAttempt(now: start)
+
+        XCTAssertFalse(state.shouldAttemptRecognition(now: start.addingTimeInterval(10), policy: policy))
+        state.apply(result: nil, now: start.addingTimeInterval(0.1), policy: policy)
+        XCTAssertTrue(state.shouldAttemptRecognition(now: start.addingTimeInterval(10), policy: policy))
     }
 
     func testConfidentTrackUsesLongRefreshInterval() {

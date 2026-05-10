@@ -3,6 +3,9 @@ import Foundation
 struct CardMetadata: Decodable, Equatable {
     let id: String
     let name: String
+    let imageLabel: String?
+    let displayPrice: String?
+    let priceSource: String?
 }
 
 final class CardMetadataStore {
