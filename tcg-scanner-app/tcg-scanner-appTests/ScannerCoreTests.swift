@@ -24,6 +24,36 @@ final class DetectionCoordinateMapperTests: XCTestCase {
 
         XCTAssertEqual(pixelRect, CGRect(x: 100, y: 100, width: 300, height: 200))
     }
+
+    func testTopLeftRectMapsToAspectFillPreviewCoordinates() {
+        let rect = CGRect(x: 0.25, y: 0.10, width: 0.50, height: 0.20)
+
+        let previewRect = DetectionCoordinateMapper.previewLayerRect(
+            fromTopLeftNormalizedRect: rect,
+            sourceFrameSize: CGSize(width: 720, height: 1280),
+            previewSize: CGSize(width: 360, height: 640)
+        )
+
+        XCTAssertEqual(previewRect.origin.x, 90, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.origin.y, 64, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.width, 180, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.height, 128, accuracy: 0.0001)
+    }
+
+    func testTopLeftRectMapsToAspectFillPreviewCoordinatesWithHorizontalCrop() {
+        let rect = CGRect(x: 0.10, y: 0.25, width: 0.20, height: 0.50)
+
+        let previewRect = DetectionCoordinateMapper.previewLayerRect(
+            fromTopLeftNormalizedRect: rect,
+            sourceFrameSize: CGSize(width: 720, height: 1280),
+            previewSize: CGSize(width: 390, height: 844)
+        )
+
+        XCTAssertEqual(previewRect.origin.x, 5.1, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.origin.y, 211, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.width, 94.95, accuracy: 0.0001)
+        XCTAssertEqual(previewRect.height, 422, accuracy: 0.0001)
+    }
 }
 
 final class RecognitionSchedulerTests: XCTestCase {

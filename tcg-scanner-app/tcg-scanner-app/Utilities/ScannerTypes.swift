@@ -39,6 +39,7 @@ struct PriceQuote: Equatable {
 struct ScannerOverlayItem: Identifiable, Equatable {
     let id: UUID
     let metadataOutputRect: CGRect
+    let sourceFrameSize: CGSize
     let title: String
     let subtitle: String
     let confidence: Float

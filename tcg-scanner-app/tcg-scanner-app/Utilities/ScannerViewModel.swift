@@ -164,6 +164,10 @@ final class ScannerViewModel: ObservableObject {
     }
 
     private func publish(tracks: [TrackedCard], detections: [DetectedCard], frame: CameraFrame) {
+        let sourceFrameSize = CGSize(
+            width: CVPixelBufferGetWidth(frame.pixelBuffer),
+            height: CVPixelBufferGetHeight(frame.pixelBuffer)
+        )
         let items = tracks.map { track -> ScannerOverlayItem in
             let recognition = recognitionStates[track.id]?.result
             let price = recognitionStates[track.id]?.price
@@ -178,13 +182,14 @@ final class ScannerViewModel: ObservableObject {
             return ScannerOverlayItem(
                 id: track.id,
                 metadataOutputRect: track.metadataOutputRect,
+                sourceFrameSize: sourceFrameSize,
                 title: title,
                 subtitle: subtitleParts.joined(separator: " | "),
                 confidence: confidence
             )
         }
 
-        let frameSize = "\(CVPixelBufferGetWidth(frame.pixelBuffer))x\(CVPixelBufferGetHeight(frame.pixelBuffer))"
+        let frameSize = "\(Int(sourceFrameSize.width))x\(Int(sourceFrameSize.height))"
         let recognitionSummary = recognitionStates.values
             .compactMap { $0.result?.cardID }
             .sorted()
