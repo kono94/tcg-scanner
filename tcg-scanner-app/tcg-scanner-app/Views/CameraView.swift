@@ -43,7 +43,9 @@ public struct CameraView: View {
             }
         }
         .onAppear {
-            viewModel.start()
+            if !ProcessInfo.processInfo.environment.keys.contains("XCTestConfigurationFilePath") {
+                viewModel.start()
+            }
         }
         .onDisappear {
             viewModel.stop()

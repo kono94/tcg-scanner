@@ -11,7 +11,8 @@ final class ScannerViewModel: ObservableObject {
 
     let cameraService: CameraService
 
-    private let detector: CardDetector?
+    private var detector: CardDetector?
+    private var didAttemptDetectorLoad = false
     private let tracker = CardTracker()
     private let cropper = CardCropper()
     private let recognizer: CardRecognizing
@@ -31,14 +32,9 @@ final class ScannerViewModel: ObservableObject {
         priceService: PriceServing = MockPriceService()
     ) {
         self.cameraService = cameraService
-        self.detector = try? CardDetector()
         self.recognizer = recognizer
         self.metadataStore = metadataStore
         self.priceService = priceService
-
-        if detector == nil {
-            errorMessage = "The card detector model could not be loaded."
-        }
     }
 
     func start() {
@@ -84,7 +80,7 @@ final class ScannerViewModel: ObservableObject {
         }
 
         lastDetectionTime = now
-        guard let detector else {
+        guard let detector = loadDetectorIfNeeded() else {
             return []
         }
 
@@ -95,6 +91,27 @@ final class ScannerViewModel: ObservableObject {
                 self.errorMessage = "Detection failed: \(error.localizedDescription)"
             }
             return []
+        }
+    }
+
+    private func loadDetectorIfNeeded() -> CardDetector? {
+        if let detector {
+            return detector
+        }
+        guard !didAttemptDetectorLoad else {
+            return nil
+        }
+
+        didAttemptDetectorLoad = true
+        do {
+            let detector = try CardDetector()
+            self.detector = detector
+            return detector
+        } catch {
+            DispatchQueue.main.async {
+                self.errorMessage = "The card detector model could not be loaded: \(error.localizedDescription)"
+            }
+            return nil
         }
     }
 

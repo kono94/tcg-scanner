@@ -12,7 +12,6 @@
 		3D2F7F8C2D4F783900FEE3E3 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F8B2D4F783900FEE3E3 /* CameraView.swift */; };
 		3D2F7F992D4F813F00FEE3E3 /* card_detector.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7F982D4F813F00FEE3E3 /* card_detector.mlpackage */; };
 		3D2F7FA42D4F8C9400FEE3E3 /* TCP_ScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FA32D4F8C9400FEE3E3 /* TCP_ScannerApp.swift */; };
-		3D2F7FA82D4F8CE300FEE3E3 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FA72D4F8CE300FEE3E3 /* LaunchScreenView.swift */; };
 		3D2F7FAC2D4FA89500FEE3E3 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAB2D4FA89500FEE3E3 /* TabBarView.swift */; };
 		3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */; };
 		3D2F7FB02D4FA8E500FEE3E3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F7FAF2D4FA8E500FEE3E3 /* SettingsView.swift */; };
@@ -48,7 +47,6 @@
 		3D2F7F8B2D4F783900FEE3E3 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		3D2F7F982D4F813F00FEE3E3 /* card_detector.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = card_detector.mlpackage; sourceTree = "<group>"; };
 		3D2F7FA32D4F8C9400FEE3E3 /* TCP_ScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCP_ScannerApp.swift; sourceTree = "<group>"; };
-		3D2F7FA72D4F8CE300FEE3E3 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
 		3D2F7FAB2D4FA89500FEE3E3 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		3D2F7FAD2D4FA8D700FEE3E3 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		3D2F7FAF2D4FA8E500FEE3E3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -115,7 +113,6 @@
 				3D2F7F7C2D4F77F700FEE3E3 /* Assets.xcassets */,
 				3D2F7F7E2D4F77F700FEE3E3 /* Preview Content */,
 				3D2F7FA32D4F8C9400FEE3E3 /* TCP_ScannerApp.swift */,
-				3D2F7FA72D4F8CE300FEE3E3 /* LaunchScreenView.swift */,
 				3D2F7FB12D4FA95E00FEE3E3 /* Info_custom.plist */,
 			);
 			path = "tcg-scanner-app";
@@ -300,7 +297,6 @@
 				3D2F7F8C2D4F783900FEE3E3 /* CameraView.swift in Sources */,
 				3D9001022F00000100000001 /* DetectionCoordinateMapper.swift in Sources */,
 				3D9001052F00000100000001 /* CardDetector.swift in Sources */,
-				3D2F7FA82D4F8CE300FEE3E3 /* LaunchScreenView.swift in Sources */,
 				3D2F7FB02D4FA8E500FEE3E3 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -459,7 +455,6 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Need camera access for real-time detection";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arm64;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -493,7 +488,6 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Need camera access for real-time detection";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arm64;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
