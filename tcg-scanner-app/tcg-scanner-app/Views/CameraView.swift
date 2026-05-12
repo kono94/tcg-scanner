@@ -2,18 +2,25 @@ import SwiftUI
 import AVFoundation
 import UIKit
 
-public struct CameraView: View {
-    @StateObject private var viewModel = ScannerViewModel()
+struct CameraView: View {
+    @ObservedObject private var viewModel: ScannerViewModel
     
-    public init() {}
+    init(viewModel: ScannerViewModel) {
+        self.viewModel = viewModel
+    }
     
-    public var body: some View {
+    var body: some View {
         ZStack(alignment: .topLeading) {
             CameraPreviewView(
                 session: viewModel.cameraService.session,
                 overlayItems: viewModel.overlayItems
             )
             .ignoresSafeArea()
+
+            if !viewModel.isCameraReady && viewModel.errorMessage == nil {
+                CameraLoadingView()
+                    .ignoresSafeArea()
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Frame \(viewModel.debugInfo.frameSize)")
@@ -49,6 +56,25 @@ public struct CameraView: View {
         }
         .onDisappear {
             viewModel.stop()
+        }
+    }
+}
+
+private struct CameraLoadingView: View {
+    var body: some View {
+        ZStack {
+            Color.black
+
+            VStack(spacing: 14) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .scaleEffect(1.2)
+
+                Text("Starting camera")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
         }
     }
 }
@@ -148,9 +174,8 @@ private final class PreviewContainerView: UIView {
     }
 
     private func addLabel(for item: ScannerOverlayItem, above rect: CGRect) {
-        let text = "\(item.title)\n\(item.subtitle)"
-        let maxWidth = min(max(rect.width, 160), bounds.width - 24)
-        let labelHeight: CGFloat = 44
+        let maxWidth = min(max(rect.width, 236), bounds.width - 24)
+        let labelHeight: CGFloat = 58
         let x = min(max(rect.minX, 12), max(bounds.width - maxWidth - 12, 12))
         let y = max(rect.minY - labelHeight - 6, 12)
 
@@ -160,15 +185,27 @@ private final class PreviewContainerView: UIView {
         backgroundLayer.cornerRadius = 6
         overlayLayer.addSublayer(backgroundLayer)
 
-        let textLayer = CATextLayer()
-        textLayer.frame = backgroundLayer.bounds.insetBy(dx: 8, dy: 5)
-        textLayer.contentsScale = UIScreen.main.scale
-        textLayer.string = text
-        textLayer.fontSize = 12
-        textLayer.foregroundColor = UIColor.white.cgColor
-        textLayer.alignmentMode = .left
-        textLayer.isWrapped = true
-        backgroundLayer.addSublayer(textLayer)
+        let titleLayer = CATextLayer()
+        titleLayer.frame = CGRect(x: 8, y: 6, width: maxWidth - 16, height: 20)
+        titleLayer.contentsScale = UIScreen.main.scale
+        titleLayer.string = item.title
+        titleLayer.fontSize = 12
+        titleLayer.foregroundColor = UIColor.white.cgColor
+        titleLayer.alignmentMode = .left
+        titleLayer.truncationMode = .end
+        titleLayer.isWrapped = false
+        backgroundLayer.addSublayer(titleLayer)
+
+        let subtitleLayer = CATextLayer()
+        subtitleLayer.frame = CGRect(x: 8, y: 28, width: maxWidth - 16, height: 22)
+        subtitleLayer.contentsScale = UIScreen.main.scale
+        subtitleLayer.string = item.subtitle
+        subtitleLayer.fontSize = 11
+        subtitleLayer.foregroundColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        subtitleLayer.alignmentMode = .left
+        subtitleLayer.truncationMode = .end
+        subtitleLayer.isWrapped = false
+        backgroundLayer.addSublayer(subtitleLayer)
     }
 
     private func color(for confidence: Float) -> UIColor {
@@ -180,4 +217,4 @@ private final class PreviewContainerView: UIView {
         }
         return UIColor.systemOrange
     }
-} 
+}

@@ -98,4 +98,68 @@ final class RecognitionSchedulerTests: XCTestCase {
         XCTAssertFalse(state.shouldAttemptRecognition(now: start.addingTimeInterval(2.99), policy: policy))
         XCTAssertTrue(state.shouldAttemptRecognition(now: start.addingTimeInterval(3.0), policy: policy))
     }
+
+    func testTrackKeepsHighestRecognitionScore() {
+        let policy = RecognitionTimingPolicy(unknownRetryInterval: 0.5, knownRefreshInterval: 3.0, confidentMatchThreshold: 0.85)
+        var state = TrackRecognitionState()
+        let start = Date(timeIntervalSince1970: 250)
+
+        state.apply(
+            result: RecognitionResult(cardID: "OP01-001", name: "Lower", confidence: 0.72),
+            now: start,
+            policy: policy
+        )
+        state.apply(
+            result: RecognitionResult(cardID: "OP01-002", name: "Worse", confidence: 0.60),
+            now: start.addingTimeInterval(1),
+            policy: policy
+        )
+        XCTAssertEqual(state.result?.cardID, "OP01-001")
+        XCTAssertEqual(state.result?.confidence, 0.72)
+
+        state.apply(
+            result: RecognitionResult(cardID: "OP01-003", name: "Better", confidence: 0.91),
+            now: start.addingTimeInterval(2),
+            policy: policy
+        )
+        XCTAssertEqual(state.result?.cardID, "OP01-003")
+        XCTAssertEqual(state.result?.confidence, 0.91)
+    }
+}
+
+final class PriceFormatterTests: XCTestCase {
+    func testFormatsUSD() {
+        let displayPrice = PriceFormatter.displayPrice(usdAmount: 12.5, currency: .usd)
+
+        XCTAssertTrue(displayPrice.contains("12.50"))
+    }
+
+    func testFormatsEURFromBundledUSDSnapshotValue() {
+        let displayPrice = PriceFormatter.displayPrice(usdAmount: 10, currency: .eur)
+
+        XCTAssertTrue(displayPrice.contains("9.20"))
+    }
+}
+
+final class ScannerSettingsTests: XCTestCase {
+    func testDuplicateCardsAreDisabledByDefault() {
+        let suiteName = "ScannerSettingsTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = ScannerSettings(userDefaults: userDefaults)
+
+        XCTAssertFalse(settings.allowDuplicateCards)
+    }
+
+    func testDuplicateCardsSettingPersists() {
+        let suiteName = "ScannerSettingsTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = ScannerSettings(userDefaults: userDefaults)
+        settings.allowDuplicateCards = true
+
+        XCTAssertTrue(ScannerSettings(userDefaults: userDefaults).allowDuplicateCards)
+    }
 }

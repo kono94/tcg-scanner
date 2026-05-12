@@ -35,7 +35,10 @@ struct TrackRecognitionState: Equatable {
         guard let result else {
             return
         }
-        self.result = result
+        if self.result == nil || result.confidence > self.result!.confidence {
+            self.result = result
+            price = nil
+        }
         if hasConfidentMatch(policy: policy) {
             lastSuccess = now
         }

@@ -6,10 +6,13 @@ import Foundation
 
 final class ScannerViewModel: ObservableObject {
     @Published private(set) var overlayItems: [ScannerOverlayItem] = []
+    @Published private(set) var sessionCards: [SessionCard] = []
     @Published private(set) var debugInfo = ScannerDebugInfo()
     @Published private(set) var errorMessage: String?
+    @Published private(set) var isCameraReady = false
 
     let cameraService: CameraService
+    let settings: ScannerSettings
 
     private var detector: CardDetector?
     private var didAttemptDetectorLoad = false
@@ -21,24 +24,36 @@ final class ScannerViewModel: ObservableObject {
     private let scannerQueue = DispatchQueue(label: "net.lwenstrom.tcg-scanner.scanner")
     private let recognitionPolicy = RecognitionTimingPolicy()
     private var recognitionStates: [UUID: TrackRecognitionState] = [:]
+    private var sessionCardsStorage: [SessionCard] = []
     private var lastDetectionTime: Date = .distantPast
     private var isProcessingFrame = false
     private let detectionInterval: TimeInterval = 0.2
+    private let sessionStorageKey = "scannerSessionCards"
+    private let userDefaults: UserDefaults
 
     init(
         cameraService: CameraService = CameraService(),
+        settings: ScannerSettings = ScannerSettings(),
         recognizer: CardRecognizing = CoreMLCardRecognizer.makeDefault(),
         metadataStore: CardMetadataStore = CardMetadataStore(),
-        priceService: PriceServing = BundledPriceService()
+        priceService: PriceServing = BundledPriceService(),
+        userDefaults: UserDefaults = .standard
     ) {
         self.cameraService = cameraService
+        self.settings = settings
         self.recognizer = recognizer
         self.metadataStore = metadataStore
         self.priceService = priceService
+        self.userDefaults = userDefaults
+        self.sessionCardsStorage = Self.loadSessionCards(from: userDefaults, key: sessionStorageKey)
+        self.sessionCards = sessionCardsStorage
         self.errorMessage = recognizer.failureDescription
     }
 
     func start() {
+        DispatchQueue.main.async {
+            self.isCameraReady = false
+        }
         cameraService.frameHandler = { [weak self] frame in
             self?.handle(frame: frame)
         }
@@ -48,9 +63,43 @@ final class ScannerViewModel: ObservableObject {
     func stop() {
         cameraService.stop()
         cameraService.frameHandler = nil
+        DispatchQueue.main.async {
+            self.isCameraReady = false
+        }
         scannerQueue.async { [weak self] in
-            self?.tracker.reset()
-            self?.recognitionStates.removeAll()
+            guard let self else { return }
+            self.finalizeSessionCards(forLostTrackIDs: Set(self.recognitionStates.keys))
+            self.tracker.reset()
+            self.recognitionStates.removeAll()
+        }
+    }
+
+    func resetSession() {
+        scannerQueue.async { [weak self] in
+            guard let self else { return }
+            self.sessionCardsStorage.removeAll()
+            self.persistSessionCards()
+            DispatchQueue.main.async {
+                self.sessionCards = []
+            }
+        }
+    }
+
+    func deleteSessionCards(ids: Set<UUID>) {
+        scannerQueue.async { [weak self] in
+            guard let self else { return }
+            self.sessionCardsStorage.removeAll { ids.contains($0.id) }
+            self.persistSessionCards()
+            self.publishSessionCards()
+        }
+    }
+
+    func deleteSessionCards(cardIDs: Set<String>) {
+        scannerQueue.async { [weak self] in
+            guard let self else { return }
+            self.sessionCardsStorage.removeAll { cardIDs.contains($0.cardID) }
+            self.persistSessionCards()
+            self.publishSessionCards()
         }
     }
 
@@ -118,6 +167,8 @@ final class ScannerViewModel: ObservableObject {
 
     private func scheduleRecognitionIfNeeded(for tracks: [TrackedCard], frame: CameraFrame, now: Date) {
         let activeIDs = Set(tracks.map(\.id))
+        let lostTrackIDs = Set(recognitionStates.keys).subtracting(activeIDs)
+        finalizeSessionCards(forLostTrackIDs: lostTrackIDs)
         recognitionStates = recognitionStates.filter { activeIDs.contains($0.key) }
 
         for track in tracks {
@@ -144,9 +195,12 @@ final class ScannerViewModel: ObservableObject {
                     updatedState.apply(result: enrichedResult, now: Date(), policy: self.recognitionPolicy)
                     self.recognitionStates[track.id] = updatedState
 
-                    if let cardID = enrichedResult?.cardID {
+                    if let cardID = updatedState.result?.cardID {
                         self.priceService.price(for: cardID) { [weak self] quote in
                             self?.scannerQueue.async {
+                                guard self?.recognitionStates[track.id]?.result?.cardID == cardID else {
+                                    return
+                                }
                                 self?.recognitionStates[track.id]?.price = quote
                             }
                         }
@@ -166,6 +220,77 @@ final class ScannerViewModel: ObservableObject {
         return RecognitionResult(cardID: result.cardID, name: metadata.name, confidence: result.confidence)
     }
 
+    private func finalizeSessionCards(forLostTrackIDs lostTrackIDs: Set<UUID>) {
+        guard !lostTrackIDs.isEmpty else {
+            return
+        }
+
+        var didChange = false
+        for trackID in lostTrackIDs {
+            guard let state = recognitionStates[trackID],
+                  let result = state.result,
+                  !sessionCardsStorage.contains(where: { $0.trackID == trackID }) else {
+                continue
+            }
+            guard settings.allowDuplicateCards || !sessionCardsStorage.contains(where: { $0.cardID == result.cardID }) else {
+                continue
+            }
+
+            let sessionCard = SessionCard(
+                id: UUID(),
+                trackID: trackID,
+                cardID: result.cardID,
+                name: result.name,
+                matchingScore: result.confidence,
+                price: state.price,
+                recognizedAt: Date()
+            )
+            sessionCardsStorage.append(sessionCard)
+            didChange = true
+
+            if state.price == nil {
+                priceService.price(for: result.cardID) { [weak self] quote in
+                    self?.scannerQueue.async {
+                        guard let self,
+                              let index = self.sessionCardsStorage.firstIndex(where: { $0.trackID == trackID }) else {
+                            return
+                        }
+                        self.sessionCardsStorage[index].price = quote
+                        self.persistSessionCards()
+                        self.publishSessionCards()
+                    }
+                }
+            }
+        }
+
+        if didChange {
+            persistSessionCards()
+            publishSessionCards()
+        }
+    }
+
+    private func publishSessionCards() {
+        let cards = sessionCardsStorage
+        DispatchQueue.main.async {
+            self.sessionCards = cards
+        }
+    }
+
+    private func persistSessionCards() {
+        guard let data = try? JSONEncoder().encode(sessionCardsStorage) else {
+            return
+        }
+        userDefaults.set(data, forKey: sessionStorageKey)
+    }
+
+    private static func loadSessionCards(from userDefaults: UserDefaults, key: String) -> [SessionCard] {
+        guard let data = userDefaults.data(forKey: key),
+              let cards = try? JSONDecoder().decode([SessionCard].self, from: data) else {
+            return []
+        }
+        return cards
+    }
+
     private func publish(tracks: [TrackedCard], detections: [DetectedCard], frame: CameraFrame) {
         let sourceFrameSize = CGSize(
             width: CVPixelBufferGetWidth(frame.pixelBuffer),
@@ -176,15 +301,17 @@ final class ScannerViewModel: ObservableObject {
             let recognition = recognitionState?.result
             let price = recognitionState?.price
             let title = recognition?.name ?? (recognitionState?.isRecognitionInFlight == true ? "Recognizing..." : "Tracking \(track.label)")
-            let confidence = recognition?.confidence ?? track.confidence
+            let matchingScore = recognition?.confidence
             var subtitleParts = [String]()
             if let cardID = recognition?.cardID {
                 subtitleParts.append(cardID)
             }
-            if let displayPrice = price?.displayPrice {
+            if let displayPrice = price?.displayPrice(currency: settings.priceCurrency) {
                 subtitleParts.append(displayPrice)
             }
-            subtitleParts.append("\(Int(confidence * 100))%")
+            if let matchingScore {
+                subtitleParts.append("Match \(Int(matchingScore * 100))%")
+            }
 
             return ScannerOverlayItem(
                 id: track.id,
@@ -192,7 +319,7 @@ final class ScannerViewModel: ObservableObject {
                 sourceFrameSize: sourceFrameSize,
                 title: title,
                 subtitle: subtitleParts.joined(separator: " | "),
-                confidence: confidence
+                confidence: matchingScore ?? 0
             )
         }
 
@@ -203,6 +330,7 @@ final class ScannerViewModel: ObservableObject {
             .joined(separator: ", ")
 
         DispatchQueue.main.async {
+            self.isCameraReady = true
             self.overlayItems = items
             self.debugInfo = ScannerDebugInfo(
                 frameSize: frameSize,
