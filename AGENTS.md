@@ -57,15 +57,7 @@ For iOS:
 
 ```bash
 xcodebuild -project tcg-scanner-app/tcg-scanner-app.xcodeproj -scheme tcg-scanner-app -destination 'generic/platform=iOS' build
+xcodebuild -project tcg-scanner-app/tcg-scanner-app.xcodeproj -scheme tcg-scanner-app -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.4' test
 ```
 
 Camera behavior still needs physical-device testing. Simulator-only verification is not enough for this project.
-
-## Known High-Risk Areas
-
-- `GuessView.swift` still calls an older `CameraView(predictions:)` initializer while `CameraView` now owns its own prediction state.
-- The app currently has multiple camera paths: `CameraManager` and `VideoCapture`.
-- Bounding boxes are scaled directly to the SwiftUI view, which is likely wrong with `resizeAspectFill`.
-- The detector model is present as a CoreML package, but recognizer export/integration for iOS is not yet represented.
-- Price lookup is not implemented as an app service.
-

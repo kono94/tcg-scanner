@@ -12,26 +12,31 @@ The iOS app should provide a minimal live scanner:
 
 ## Current Files
 
-- `tcg-scanner-app/TCP_ScannerApp.swift`: app entry point. Currently shows a two-tab `TabView` with `CameraView()` and a placeholder History tab.
-- `Views/CameraView.swift`: current live camera screen.
-- `Utilities/CameraManager.swift`: current camera session and pixel-buffer publisher.
-- `Utilities/YOLO.swift`: Vision/CoreML detector wrapper.
-- `Utilities/VideoCapture.swift`: older camera capture implementation.
-- `Views/PredictionView.swift`: older SwiftUI overlay implementation.
-- `Views/BoundingBoxLayer.swift`: older CALayer overlay helper.
-- `Views/GuessView.swift`: stale view that calls an outdated `CameraView(predictions:)` initializer.
+- `tcg-scanner-app/TCP_ScannerApp.swift`: app entry point. Creates shared settings and scanner state for the Scan, Session, and Settings tabs.
+- `Views/CameraView.swift`: live camera screen, loading overlay, preview layer, and bounding-box label rendering.
+- `Views/HomeView.swift`: Session tab with persisted recognized cards, total price, sorting, reset, and swipe delete.
+- `Views/SettingsView.swift`: persisted settings for EUR display and duplicate-card session behavior.
+- `Utilities/CameraService.swift`: active camera session and pixel-buffer publisher.
+- `Utilities/CardDetector.swift`: Vision/CoreML detector wrapper.
+- `Utilities/CardTracker.swift`: track identity across frames.
+- `Utilities/CardCropper.swift`: pixel-buffer crop extraction for recognition.
+- `Utilities/CardRecognizer.swift`: exact-card CoreML recognizer wrapper.
+- `Utilities/CardMetadataStore.swift`: local card metadata lookup from `card_index.json`.
+- `Utilities/PriceService.swift`: bundled snapshot price lookup behind `PriceServing`.
+- `Utilities/RecognitionScheduler.swift`: per-track recognition retry/refresh policy.
+- `Utilities/ScannerViewModel.swift`: coordinates camera, detection, tracking, recognition, prices, overlays, and session persistence.
+- `Utilities/DetectionCoordinateMapper.swift`: coordinate conversion helpers with unit tests.
 
 ## Known Problems
 
-- There are multiple camera implementations. Prefer consolidating around one.
-- `GuessView.swift` is out of sync with `CameraView`.
-- Overlay boxes are scaled directly from normalized Vision coordinates to SwiftUI size. This likely breaks with `AVCaptureVideoPreviewLayer.videoGravity = .resizeAspectFill`.
-- The detector is integrated, but exact-card recognizer integration is not.
-- Model orientation and crop/scale assumptions are not documented in code.
+- Camera and overlay behavior still needs physical-device verification; simulator-only testing cannot validate real camera timing, orientation, and preview alignment.
+- Detection is throttled in `ScannerViewModel` with a fixed interval. If runtime FPS drops, inspect model latency, thermal state, and frame backpressure before changing tracker logic.
+- Price data is currently a bundled snapshot, not a live market API.
+- Session cards are finalized when a track is lost or scanning stops. Matching can improve while the track is active; only the best per-track recognition state should be saved.
 
 ## Target Architecture
 
-Suggested structure:
+Current intended structure:
 
 - `CameraService`: owns `AVCaptureSession`, authorization, lifecycle, and frame publishing.
 - `CardDetector`: wraps `VNCoreMLRequest` and emits normalized detections.
@@ -39,9 +44,9 @@ Suggested structure:
 - `CardCropper`: extracts corrected card crops from pixel buffers.
 - `CardRecognizer`: identifies the exact card from a crop.
 - `CardMetadataStore`: local lookup from card ID to JSON metadata.
-- `PriceService`: async live price lookup behind a protocol.
+- `PriceService`: price lookup behind a protocol. Keep live APIs out of camera and inference code.
 - `ScannerViewModel`: coordinates camera, detector, recognizer, tracking, and UI state.
-- `ScannerView`: SwiftUI screen only; no model math.
+- SwiftUI views: render scanner/session/settings UI only; no model math.
 
 ## Coordinate Guidance
 
@@ -53,19 +58,12 @@ Always name the coordinate space in variable names or comments:
 - `pixelBufferRect`
 - `viewRect`
 
-For the live overlay, prefer using the preview layer conversion APIs rather than hand-scaling:
-
-- `AVCaptureVideoPreviewLayer.layerRectConverted(fromMetadataOutputRect:)`
-- `AVCaptureVideoPreviewLayer.metadataOutputRectConverted(fromLayerRect:)`
-
-If using SwiftUI overlays, pass the preview layer bounds and converted rectangles from a UIKit bridge instead of duplicating aspect-fill math in SwiftUI.
+For the live overlay, keep conversion logic inside `DetectionCoordinateMapper` or a preview-layer bridge. Do not embed coordinate math directly in SwiftUI views.
 
 ## Immediate Fix Order
 
-1. Make the Xcode target compile.
-2. Remove or quarantine stale views that are not used by `TCP_ScannerApp`.
-3. Keep only one camera frame path.
-4. Move detection throttling into the view model so the app does not run inference on every frame unless intended.
-5. Fix overlay conversion while showing debug labels for frame size, confidence, and orientation.
-6. Add crop capture and save debug images for recognizer testing.
-
+1. Verify camera preview, boxes, recognition, and session finalization on a physical device.
+2. Measure detector and recognizer latency over a longer scan, especially after the first 10-20 seconds.
+3. Add still-frame debug capture so a bad frame can be saved and reproduced.
+4. Improve price data refresh while keeping it behind `PriceServing`.
+5. Keep expanding unit tests around coordinate mapping, recognition scheduling, session persistence, and settings.
