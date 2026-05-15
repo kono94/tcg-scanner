@@ -12,9 +12,17 @@ struct TrackRecognitionState: Equatable {
     var lastAttempt: Date?
     var lastSuccess: Date?
     var isRecognitionInFlight = false
+    var unsupportedGameName: String?
+
+    var isExactRecognitionUnsupported: Bool {
+        unsupportedGameName != nil
+    }
 
     func shouldAttemptRecognition(now: Date, policy: RecognitionTimingPolicy) -> Bool {
         guard !isRecognitionInFlight else {
+            return false
+        }
+        guard !isExactRecognitionUnsupported else {
             return false
         }
 
@@ -28,10 +36,12 @@ struct TrackRecognitionState: Equatable {
     mutating func markAttempt(now: Date) {
         lastAttempt = now
         isRecognitionInFlight = true
+        unsupportedGameName = nil
     }
 
     mutating func apply(result: RecognitionResult?, now: Date, policy: RecognitionTimingPolicy) {
         isRecognitionInFlight = false
+        unsupportedGameName = nil
         guard let result else {
             return
         }
@@ -49,5 +59,16 @@ struct TrackRecognitionState: Equatable {
             return false
         }
         return result.confidence >= policy.confidentMatchThreshold
+    }
+
+    mutating func markUnsupported(gameName: String) {
+        result = nil
+        price = nil
+        isRecognitionInFlight = false
+        unsupportedGameName = gameName
+    }
+
+    mutating func clearUnsupported() {
+        unsupportedGameName = nil
     }
 }

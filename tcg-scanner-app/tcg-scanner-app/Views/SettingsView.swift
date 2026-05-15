@@ -2,6 +2,18 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: ScannerSettings
+    @ObservedObject var scannerViewModel: ScannerViewModel
+    let modelManifest: AppModelManifest
+
+    init(
+        settings: ScannerSettings,
+        scannerViewModel: ScannerViewModel,
+        modelManifest: AppModelManifest = .load()
+    ) {
+        self.settings = settings
+        self.scannerViewModel = scannerViewModel
+        self.modelManifest = modelManifest
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,8 +31,39 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("Scanner Diagnostics") {
+                    InfoRow(title: "Detector latency", value: scannerViewModel.debugInfo.detectorLatencyDisplay)
+                    InfoRow(title: "Recognizer latency", value: scannerViewModel.debugInfo.recognizerLatencyDisplay)
+                    InfoRow(title: "Frame", value: scannerViewModel.debugInfo.frameSize)
+                    InfoRow(title: "Detections", value: "\(scannerViewModel.debugInfo.detectionCount)")
+                    InfoRow(title: "Active tracks", value: "\(scannerViewModel.debugInfo.activeTrackCount)")
+                }
+
+                Section("Model Versions") {
+                    InfoRow(title: "Detector", value: modelManifest.detectorVersion)
+                    InfoRow(title: "Recognizer", value: modelManifest.recognizerVersion)
+                    InfoRow(title: "Card DB", value: modelManifest.cardDBVersion)
+                    InfoRow(title: "Price snapshot", value: modelManifest.priceSnapshotDate)
+                }
             }
             .navigationTitle("Settings")
+        }
+    }
+}
+
+private struct InfoRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+            Spacer(minLength: 12)
+            Text(value)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+                .font(.footnote.monospacedDigit())
         }
     }
 }

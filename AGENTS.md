@@ -21,13 +21,13 @@ The practical near-term goal is not a polished app. It is a reliable vertical sl
 
 ## Repo Map
 
-- `cards/`: local card image and metadata corpus, grouped by card prefix/set.
+- `datasets/card_recognizer/cards/`: local card image and metadata corpus, grouped by card prefix/set.
 - `htmls/`: saved One Piece card list HTML pages used by the fetcher notebook.
 - `card-fetcher.ipynb`: scraper/parser notebook that created the local card corpus.
 - `cardtrainer.ipynb`: exploratory notebook for detector and recognizer experiments.
 - `model.py`: PyTorch MobileNetV3 recognizer model and preprocessing.
-- `train.py`: recognizer training script.
-- `inferencer.py`: recognizer inference plus optional embedding/template search.
+- `training/card_recognizer/train_lightning.py`: config-driven recognizer training script.
+- `inferencer.py`: classifier-based recognizer inference.
 - `export_yolo.py`: exports `card_detector.pt` to CoreML.
 - `cards.yaml`: YOLO dataset config for card detection.
 - `my.yaml`: ByteTrack tracker config.
@@ -39,7 +39,7 @@ The practical near-term goal is not a polished app. It is a reliable vertical sl
 - Do not rewrite notebooks as part of unrelated app fixes.
 - Keep camera capture, model inference, coordinate conversion, and UI overlay code separated.
 - Treat coordinate systems explicitly. Document whether a rectangle is normalized Vision coordinates, pixel-buffer coordinates, preview-layer coordinates, or SwiftUI view coordinates.
-- Prefer small testable helpers for geometry conversions instead of embedding math in SwiftUI views.
+- Prefer small testable helpers for geometry conversions instead of burying math in SwiftUI views.
 - Do not assume the camera frame aspect ratio matches the preview. The current preview uses `resizeAspectFill`.
 - Avoid adding live price APIs directly into camera/inference code. Put them behind a service protocol.
 
@@ -49,8 +49,8 @@ For Python:
 
 ```bash
 python main.py
-python train.py
-python export_yolo.py
+python training/card_recognizer/train_lightning.py --config training/card_recognizer/configs/mobilenetv3_classifier.yaml
+python training/card_detector/export_yolo.py
 ```
 
 For iOS:

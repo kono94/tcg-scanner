@@ -125,6 +125,67 @@ final class RecognitionSchedulerTests: XCTestCase {
         XCTAssertEqual(state.result?.cardID, "OP01-003")
         XCTAssertEqual(state.result?.confidence, 0.91)
     }
+
+    func testUnsupportedGameDoesNotAttemptExactRecognition() {
+        let policy = RecognitionTimingPolicy(unknownRetryInterval: 0.5, knownRefreshInterval: 3.0, confidentMatchThreshold: 0.85)
+        var state = TrackRecognitionState()
+        state.markUnsupported(gameName: "Pokemon")
+
+        XCTAssertFalse(state.shouldAttemptRecognition(now: Date(timeIntervalSince1970: 300), policy: policy))
+        XCTAssertNil(state.result)
+        XCTAssertTrue(state.isExactRecognitionUnsupported)
+    }
+}
+
+final class CardGameTests: XCTestCase {
+    func testOnePieceLabelsSupportExactRecognition() {
+        XCTAssertEqual(CardGame(detectionLabel: "op"), .onePiece)
+        XCTAssertTrue(CardGame(detectionLabel: "one piece").supportsExactRecognition)
+    }
+
+    func testPokemonLabelsDoNotSupportExactRecognition() {
+        let game = CardGame(detectionLabel: "pokemon")
+
+        XCTAssertEqual(game, .pokemon)
+        XCTAssertEqual(game.displayName, "Pokemon")
+        XCTAssertFalse(game.supportsExactRecognition)
+    }
+}
+
+final class AppModelManifestTests: XCTestCase {
+    func testManifestDecodesVersionFields() throws {
+        let json = """
+        {
+          "detectorVersion": "detector-test",
+          "recognizerVersion": "recognizer-test",
+          "cardDBVersion": "cards-test",
+          "priceSnapshotDate": "2026-05-10"
+        }
+        """
+
+        let manifest = try AppModelManifest.decode(Data(json.utf8))
+
+        XCTAssertEqual(manifest.detectorVersion, "detector-test")
+        XCTAssertEqual(manifest.recognizerVersion, "recognizer-test")
+        XCTAssertEqual(manifest.cardDBVersion, "cards-test")
+        XCTAssertEqual(manifest.priceSnapshotDate, "2026-05-10")
+    }
+}
+
+final class ScannerDebugInfoTests: XCTestCase {
+    func testLatencyDisplaysUseMilliseconds() {
+        let debugInfo = ScannerDebugInfo(detectorLatencyMS: 12.345, recognizerLatencyMS: 67.89)
+
+        XCTAssertEqual(debugInfo.detectorLatencyDisplay, "12.3 ms")
+        XCTAssertEqual(debugInfo.recognizerLatencyDisplay, "67.9 ms")
+    }
+
+    func testMissingLatencyDisplaysPlaceholder() {
+        let debugInfo = ScannerDebugInfo()
+
+        XCTAssertEqual(debugInfo.detectorLatencyDisplay, "-")
+        XCTAssertEqual(debugInfo.recognizerLatencyDisplay, "-")
+    }
 }
 
 final class PriceFormatterTests: XCTestCase {

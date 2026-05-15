@@ -68,6 +68,10 @@ struct TrackedCard {
     let confidence: Float
     let visionNormalizedRect: CGRect
     let metadataOutputRect: CGRect
+
+    var cardGame: CardGame {
+        CardGame(detectionLabel: label)
+    }
 }
 
 struct RecognitionResult: Equatable {
@@ -102,7 +106,62 @@ struct ScannerDebugInfo: Equatable {
     var frameSize: String = "-"
     var detectionCount: Int = 0
     var activeTrackCount: Int = 0
+    var detectorLatencyMS: Double?
+    var recognizerLatencyMS: Double?
     var lastRecognitionSummary: String = "No recognition yet"
+
+    var detectorLatencyDisplay: String {
+        Self.latencyDisplay(detectorLatencyMS)
+    }
+
+    var recognizerLatencyDisplay: String {
+        Self.latencyDisplay(recognizerLatencyMS)
+    }
+
+    private static func latencyDisplay(_ milliseconds: Double?) -> String {
+        guard let milliseconds else {
+            return "-"
+        }
+        return String(format: "%.1f ms", milliseconds)
+    }
+}
+
+enum CardGame: Equatable {
+    case onePiece
+    case pokemon
+    case unsupported(String)
+
+    init(detectionLabel: String) {
+        let normalizedLabel = detectionLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalizedLabel {
+        case "op", "onepiece", "one_piece", "one piece":
+            self = .onePiece
+        case "pokemon", "pokémon":
+            self = .pokemon
+        default:
+            self = .unsupported(detectionLabel)
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .onePiece:
+            return "One Piece"
+        case .pokemon:
+            return "Pokemon"
+        case .unsupported(let label):
+            return label.isEmpty ? "Unknown" : label.capitalized
+        }
+    }
+
+    var supportsExactRecognition: Bool {
+        switch self {
+        case .onePiece:
+            return true
+        case .pokemon, .unsupported:
+            return false
+        }
+    }
 }
 
 struct SessionCard: Codable, Identifiable, Equatable {

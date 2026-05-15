@@ -18,7 +18,7 @@ struct TabBarView: View {
             SessionView(viewModel: scannerViewModel, settings: settings)
                 .tabItem { Label("Session", systemImage: "list.bullet.rectangle") }
 
-            SettingsView(settings: settings)
+            SettingsView(settings: settings, scannerViewModel: scannerViewModel)
                 .tabItem { Label("Settings", systemImage: "gear") }
         }
         .accentColor(.blue)

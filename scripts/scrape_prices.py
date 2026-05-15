@@ -5,12 +5,15 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from tqdm.auto import tqdm
+
 
 PRICE_API_URL = "https://api.dotgg.gg/cgfw/getcards?game=onepiece&mode=indexed"
 DEFAULT_CARD_INDEX_PATH = Path("tcg-scanner-app/tcg-scanner-app/Resources/card_index.json")
 
 
 def fetch_onepiece_price_rows() -> tuple[list[str], list[list[object]]]:
+    print(f"Fetching price rows from {PRICE_API_URL}...")
     request = Request(PRICE_API_URL, headers={"User-Agent": "tcg-scanner-price-snapshot"})
     with urlopen(request, timeout=30) as response:
         data = json.load(response)
@@ -42,10 +45,11 @@ def display_price(price: float | None) -> str | None:
 
 def update_card_index_prices(card_index_path: Path = DEFAULT_CARD_INDEX_PATH) -> None:
     names, rows = fetch_onepiece_price_rows()
+    print(f"Fetched {len(rows)} price rows.")
     indexes = {name: index for index, name in enumerate(names)}
 
     prices_by_id = {}
-    for row in rows:
+    for row in tqdm(rows, desc="Indexing price rows", unit="card"):
         card_id = row[indexes["id"]]
         price, source = selected_price(row, indexes)
         prices_by_id[card_id] = {
@@ -53,12 +57,13 @@ def update_card_index_prices(card_index_path: Path = DEFAULT_CARD_INDEX_PATH) ->
             "priceSource": source,
         }
 
+    print(f"Loading card index from {card_index_path}...")
     with card_index_path.open("r", encoding="utf-8") as handle:
         cards = json.load(handle)
 
     updated_count = 0
     priced_count = 0
-    for card in cards:
+    for card in tqdm(cards, desc="Updating card index prices", unit="card"):
         price_snapshot = prices_by_id.get(card["id"])
         if price_snapshot is None:
             card["displayPrice"] = None
@@ -71,6 +76,7 @@ def update_card_index_prices(card_index_path: Path = DEFAULT_CARD_INDEX_PATH) ->
         if card["displayPrice"] is not None:
             priced_count += 1
 
+    print(f"Writing updated card index to {card_index_path}...")
     with card_index_path.open("w", encoding="utf-8") as handle:
         json.dump(cards, handle, indent=2, ensure_ascii=True)
         handle.write("\n")

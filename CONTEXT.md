@@ -15,7 +15,7 @@ The repository currently contains:
 
 The project is mid-migration from Python prototypes to iOS:
 
-- Card recognition exists in Python with a MobileNetV3-based classifier and embeddings.
+- Card recognition exists in Python with a MobileNetV3-based classifier.
 - Card detection exists as a YOLO model exported to CoreML.
 - The iOS app has one active scanner path built around `CameraService`, `ScannerViewModel`, `CardDetector`, `CardTracker`, `CardCropper`, `CardRecognizer`, local metadata, and bundled snapshot prices.
 - The app has Scan, Session, and Settings tabs. Session cards persist on device until reset, and Settings persist price currency plus whether duplicate card IDs are allowed in the session.
@@ -25,7 +25,8 @@ The project is mid-migration from Python prototypes to iOS:
 
 ### Card Corpus
 
-`cards/` contains card images and JSON metadata, grouped by card prefix/set such as `OP01`, `OP02`, `ST01`, and `EB01`.
+`datasets/card_recognizer/cards/` contains card images and JSON metadata, grouped by card prefix/set such as `OP01`, `OP02`, `ST01`, and `EB01`.
+Additional samples for the same class can be added as `CARDID__sample.jpg` in the set folder or under a `CARDID/` class folder. Single-underscore IDs such as `_p1` remain separate classes.
 
 `htmls/` contains saved source HTML pages used to build that corpus.
 
@@ -49,32 +50,32 @@ The current iOS app loads `card_detector` through the bundled CoreML package.
 Recognition identifies the exact card. Relevant files:
 
 - `model.py`
-- `training/card_recognizer/train.py`
+- `training/card_recognizer/train_lightning.py`
+- `training/card_recognizer/evaluate_checkpoint.py`
+- `training/card_recognizer/regression_report.py`
+- `training/card_recognizer/configs/mobilenetv3_classifier.yaml`
 - `inferencer.py`
-- `datasets/card_recognizer/names.txt`
 - `tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage/`
 - `tcg-scanner-app/tcg-scanner-app/Resources/recognizer_labels.json`
-- `mobile_large_v1_state_dict.pth` if available locally
 
-The recognizer uses MobileNetV3 Large ImageNet weights, adds a 256-dimensional embedding layer, and classifies against the labels in `names.txt`.
+The recognizer uses MobileNetV3 Large ImageNet weights with a classifier head aligned to the labels in the experiment-local `names.txt`.
 
 ## Python Pipeline
 
-`model.py` defines `CardModel`, a MobileNetV3 Large backbone with embedding and classification heads.
+`model.py` defines `CardModel`, a MobileNetV3 Large classifier.
 
-`training/card_recognizer/train.py`:
+`training/card_recognizer/train_lightning.py`:
 
-- Builds the dataset from `datasets/card_recognizer/cards`.
-- Writes labels to `datasets/card_recognizer/names.txt`.
-- Trains the classifier briefly with augmentation.
-- Saves a state dict and full PyTorch model.
+- Builds an experiment-local dataset manifest: all scraped images in `datasets/card_recognizer/cards/` for training, and one manual phone-image folder for validation.
+- Writes labels and dataset manifests under `runs/card_recognizer/experiments/<experiment_id>/dataset/`.
+- Trains the classifier with PyTorch Lightning, deterministic seeding, configurable augmentation, checkpoints, and CSV/TensorBoard logs.
+- Supports optional backbone freeze warmup with `model.freeze_backbone_epochs`.
 
 `inferencer.py`:
 
 - Loads `names.txt`.
 - Loads `mobile_large_v1_state_dict.pth`.
 - Runs classification via `classify_image`.
-- Also contains an optional template embedding search path.
 
 `scripts/scrape_prices.py` refreshes the bundled app price snapshot at
 `tcg-scanner-app/tcg-scanner-app/Resources/card_index.json`.

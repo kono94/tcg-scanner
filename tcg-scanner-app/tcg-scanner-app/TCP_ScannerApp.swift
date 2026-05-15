@@ -31,7 +31,7 @@ private struct ScannerRootView: View {
                     Label("Session", systemImage: "list.bullet.rectangle")
                 }
 
-            SettingsView(settings: settings)
+            SettingsView(settings: settings, scannerViewModel: scannerViewModel)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }

@@ -26,6 +26,8 @@ final class ScannerViewModel: ObservableObject {
     private var recognitionStates: [UUID: TrackRecognitionState] = [:]
     private var sessionCardsStorage: [SessionCard] = []
     private var lastDetectionTime: Date = .distantPast
+    private var latestDetectorLatencyMS: Double?
+    private var latestRecognizerLatencyMS: Double?
     private var isProcessingFrame = false
     private let detectionInterval: TimeInterval = 0.2
     private let sessionStorageKey = "scannerSessionCards"
@@ -134,9 +136,13 @@ final class ScannerViewModel: ObservableObject {
             return []
         }
 
+        let startTime = DispatchTime.now()
         do {
-            return try detector.detect(pixelBuffer: frame.pixelBuffer, orientation: frame.orientation)
+            let detectedCards = try detector.detect(pixelBuffer: frame.pixelBuffer, orientation: frame.orientation)
+            recordDetectorLatency(since: startTime)
+            return detectedCards
         } catch {
+            recordDetectorLatency(since: startTime)
             DispatchQueue.main.async {
                 self.errorMessage = "Detection failed: \(error.localizedDescription)"
             }
@@ -173,6 +179,13 @@ final class ScannerViewModel: ObservableObject {
 
         for track in tracks {
             var state = recognitionStates[track.id] ?? TrackRecognitionState()
+            guard track.cardGame.supportsExactRecognition else {
+                state.markUnsupported(gameName: track.cardGame.displayName)
+                recognitionStates[track.id] = state
+                continue
+            }
+
+            state.clearUnsupported()
             guard state.shouldAttemptRecognition(now: now, policy: recognitionPolicy) else {
                 recognitionStates[track.id] = state
                 continue
@@ -187,9 +200,12 @@ final class ScannerViewModel: ObservableObject {
                 continue
             }
 
+            let recognitionStartTime = DispatchTime.now()
             recognizer.recognize(crop: crop) { [weak self] result in
+                let recognitionLatencyMS = Self.elapsedMilliseconds(since: recognitionStartTime)
                 self?.scannerQueue.async {
                     guard let self else { return }
+                    self.recordRecognizerLatency(recognitionLatencyMS)
                     var updatedState = self.recognitionStates[track.id] ?? TrackRecognitionState()
                     let enrichedResult = self.enrich(result: result)
                     updatedState.apply(result: enrichedResult, now: Date(), policy: self.recognitionPolicy)
@@ -300,9 +316,19 @@ final class ScannerViewModel: ObservableObject {
             let recognitionState = recognitionStates[track.id]
             let recognition = recognitionState?.result
             let price = recognitionState?.price
-            let title = recognition?.name ?? (recognitionState?.isRecognitionInFlight == true ? "Recognizing..." : "Tracking \(track.label)")
+            let title: String
+            if let recognition {
+                title = recognition.name
+            } else if let unsupportedGameName = recognitionState?.unsupportedGameName {
+                title = "Tracking \(unsupportedGameName)"
+            } else {
+                title = recognitionState?.isRecognitionInFlight == true ? "Recognizing..." : "Tracking \(track.cardGame.displayName)"
+            }
             let matchingScore = recognition?.confidence
             var subtitleParts = [String]()
+            if recognitionState?.isExactRecognitionUnsupported == true {
+                subtitleParts.append("Unsupported")
+            }
             if let cardID = recognition?.cardID {
                 subtitleParts.append(cardID)
             }
@@ -336,9 +362,31 @@ final class ScannerViewModel: ObservableObject {
                 frameSize: frameSize,
                 detectionCount: detections.count,
                 activeTrackCount: tracks.count,
+                detectorLatencyMS: self.latestDetectorLatencyMS,
+                recognizerLatencyMS: self.latestRecognizerLatencyMS,
                 lastRecognitionSummary: recognitionSummary.isEmpty ? "No recognition yet" : recognitionSummary
             )
             self.errorMessage = self.errorMessage ?? self.cameraService.errorMessage
         }
+    }
+
+    private func recordDetectorLatency(since startTime: DispatchTime) {
+        let latencyMS = Self.elapsedMilliseconds(since: startTime)
+        latestDetectorLatencyMS = latencyMS
+        DispatchQueue.main.async {
+            self.debugInfo.detectorLatencyMS = latencyMS
+        }
+    }
+
+    private func recordRecognizerLatency(_ latencyMS: Double) {
+        latestRecognizerLatencyMS = latencyMS
+        DispatchQueue.main.async {
+            self.debugInfo.recognizerLatencyMS = latencyMS
+        }
+    }
+
+    private static func elapsedMilliseconds(since startTime: DispatchTime) -> Double {
+        let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds
+        return Double(elapsedNanoseconds) / 1_000_000
     }
 }

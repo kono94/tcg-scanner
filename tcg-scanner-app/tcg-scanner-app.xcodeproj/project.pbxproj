@@ -27,9 +27,11 @@
 		3D9001092F00000100000001 /* CardMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9000092F00000100000001 /* CardMetadataStore.swift */; };
 		3D90010A2F00000100000001 /* PriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D90000A2F00000100000001 /* PriceService.swift */; };
 		3D90010B2F00000100000001 /* ScannerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D90000B2F00000100000001 /* ScannerViewModel.swift */; };
+		3D90010C2F00000100000001 /* AppModelManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D90000C2F00000100000001 /* AppModelManifest.swift */; };
 		3D9001202F00000100000001 /* ScannerCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9000212F00000100000001 /* ScannerCoreTests.swift */; };
 		3D9001302F00000100000001 /* card_index.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D9000302F00000100000001 /* card_index.json */; };
 		3D9001312F00000100000001 /* recognizer_labels.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D9000322F00000100000001 /* recognizer_labels.json */; };
+		3D9001322F00000100000001 /* app_model_manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D9000332F00000100000001 /* app_model_manifest.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,10 +67,12 @@
 		3D9000092F00000100000001 /* CardMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardMetadataStore.swift; sourceTree = "<group>"; };
 		3D90000A2F00000100000001 /* PriceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
 		3D90000B2F00000100000001 /* ScannerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerViewModel.swift; sourceTree = "<group>"; };
+		3D90000C2F00000100000001 /* AppModelManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelManifest.swift; sourceTree = "<group>"; };
 		3D9000212F00000100000001 /* ScannerCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerCoreTests.swift; sourceTree = "<group>"; };
 		3D9000222F00000100000001 /* tcg-scanner-appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "tcg-scanner-appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3D9000302F00000100000001 /* card_index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = card_index.json; sourceTree = "<group>"; };
 		3D9000322F00000100000001 /* recognizer_labels.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = recognizer_labels.json; sourceTree = "<group>"; };
+		3D9000332F00000100000001 /* app_model_manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = app_model_manifest.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +137,7 @@
 		3D2F7F862D4F77FD00FEE3E3 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				3D90000C2F00000100000001 /* AppModelManifest.swift */,
 				3D9000042F00000100000001 /* CameraService.swift */,
 				3D9000072F00000100000001 /* CardCropper.swift */,
 				3D9000052F00000100000001 /* CardDetector.swift */,
@@ -179,6 +184,7 @@
 		3D9000312F00000100000001 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				3D9000332F00000100000001 /* app_model_manifest.json */,
 				3D9000302F00000100000001 /* card_index.json */,
 				3D9000322F00000100000001 /* recognizer_labels.json */,
 			);
@@ -269,6 +275,7 @@
 			files = (
 				3D2F7F802D4F77F700FEE3E3 /* Preview Assets.xcassets in Resources */,
 				3D2F7F7D2D4F77F700FEE3E3 /* Assets.xcassets in Resources */,
+				3D9001322F00000100000001 /* app_model_manifest.json in Resources */,
 				3D9001312F00000100000001 /* recognizer_labels.json in Resources */,
 				3D9001302F00000100000001 /* card_index.json in Resources */,
 			);
@@ -296,6 +303,7 @@
 				3D2F7FAE2D4FA8D700FEE3E3 /* HomeView.swift in Sources */,
 				3D2F7F992D4F813F00FEE3E3 /* card_detector.mlpackage in Sources */,
 				3D2F7F9A2D4F813F00FEE3E3 /* card_recognizer.mlpackage in Sources */,
+				3D90010C2F00000100000001 /* AppModelManifest.swift in Sources */,
 				3D9001082F00000100000001 /* CardRecognizer.swift in Sources */,
 				3D90010A2F00000100000001 /* PriceService.swift in Sources */,
 				3D9001072F00000100000001 /* CardCropper.swift in Sources */,
