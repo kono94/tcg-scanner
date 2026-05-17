@@ -21,6 +21,13 @@ enum PriceCurrency: String, CaseIterable, Identifiable {
     }
 }
 
+struct RecognitionThresholds: Equatable {
+    let minimumConfidence: Float
+    let minimumMargin: Float
+
+    static let fallback = RecognitionThresholds(minimumConfidence: 0, minimumMargin: 0)
+}
+
 final class ScannerSettings: ObservableObject {
     @Published var useEuroPrices: Bool {
         didSet {
@@ -34,18 +41,67 @@ final class ScannerSettings: ObservableObject {
         }
     }
 
+    @Published var recognizerMinimumConfidence: Float {
+        didSet {
+            userDefaults.set(recognizerMinimumConfidence, forKey: Self.recognizerMinimumConfidenceKey)
+        }
+    }
+
+    @Published var recognizerMinimumMargin: Float {
+        didSet {
+            userDefaults.set(recognizerMinimumMargin, forKey: Self.recognizerMinimumMarginKey)
+        }
+    }
+
     var priceCurrency: PriceCurrency {
         useEuroPrices ? .eur : .usd
     }
 
+    var recognitionThresholds: RecognitionThresholds {
+        RecognitionThresholds(
+            minimumConfidence: recognizerMinimumConfidence,
+            minimumMargin: recognizerMinimumMargin
+        )
+    }
+
+    let defaultRecognitionThresholds: RecognitionThresholds
+
     private static let useEuroPricesKey = "useEuroPrices"
     private static let allowDuplicateCardsKey = "allowDuplicateCards"
+    private static let recognizerMinimumConfidenceKey = "recognizerMinimumConfidence"
+    private static let recognizerMinimumMarginKey = "recognizerMinimumMargin"
     private let userDefaults: UserDefaults
 
-    init(userDefaults: UserDefaults = .standard) {
+    init(
+        userDefaults: UserDefaults = .standard,
+        defaultRecognitionThresholds: RecognitionThresholds = .fallback
+    ) {
         self.userDefaults = userDefaults
+        self.defaultRecognitionThresholds = defaultRecognitionThresholds
         useEuroPrices = userDefaults.bool(forKey: Self.useEuroPricesKey)
         allowDuplicateCards = userDefaults.bool(forKey: Self.allowDuplicateCardsKey)
+        recognizerMinimumConfidence = Self.float(
+            forKey: Self.recognizerMinimumConfidenceKey,
+            in: userDefaults,
+            defaultValue: defaultRecognitionThresholds.minimumConfidence
+        )
+        recognizerMinimumMargin = Self.float(
+            forKey: Self.recognizerMinimumMarginKey,
+            in: userDefaults,
+            defaultValue: defaultRecognitionThresholds.minimumMargin
+        )
+    }
+
+    func resetRecognitionThresholdsToDefaults() {
+        recognizerMinimumConfidence = defaultRecognitionThresholds.minimumConfidence
+        recognizerMinimumMargin = defaultRecognitionThresholds.minimumMargin
+    }
+
+    private static func float(forKey key: String, in userDefaults: UserDefaults, defaultValue: Float) -> Float {
+        guard let value = userDefaults.object(forKey: key) as? NSNumber else {
+            return defaultValue
+        }
+        return value.floatValue
     }
 }
 

@@ -6,15 +6,21 @@ import ImageIO
 import Vision
 
 final class CardDetector {
+    private static let fallbackMinimumConfidence: Float = 0.4
+
     private let model: VNCoreMLModel
     private let minimumConfidence: Float
 
-    init(minimumConfidence: Float = 0.4) throws {
+    init(minimumConfidence: Float? = nil) throws {
         let config = MLModelConfiguration()
         config.computeUnits = .all
         let coreMLModel = try card_detector(configuration: config)
         model = try VNCoreMLModel(for: coreMLModel.model)
-        self.minimumConfidence = minimumConfidence
+        self.minimumConfidence = minimumConfidence ?? Self.modelMetadataFloat(
+            "detector_min_confidence",
+            from: coreMLModel.model,
+            fallback: Self.fallbackMinimumConfidence
+        )
     }
 
     func detect(pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation) throws -> [DetectedCard] {
@@ -40,5 +46,14 @@ final class CardDetector {
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation, options: [:])
         try handler.perform([request])
         return detectedCards
+    }
+
+    private static func modelMetadataFloat(_ key: String, from model: MLModel, fallback: Float) -> Float {
+        guard let creatorDefined = model.modelDescription.metadata[.creatorDefinedKey] as? [String: String],
+              let rawValue = creatorDefined[key],
+              let value = Float(rawValue) else {
+            return fallback
+        }
+        return value
     }
 }

@@ -88,6 +88,83 @@ def per_set_accuracy(probs: np.ndarray, labels: np.ndarray, records: list[dict[s
     return result
 
 
+def threshold_sweep_payload(probs: np.ndarray, labels: np.ndarray, thresholds: list[float]) -> list[dict[str, float | int | None]]:
+    if len(labels) == 0:
+        return []
+
+    confidences = probs.max(axis=1)
+    predictions = probs.argmax(axis=1)
+    correct = predictions == labels
+    rows: list[dict[str, float | int | None]] = []
+    for threshold in sorted(set(float(value) for value in thresholds)):
+        accepted = confidences >= threshold
+        accepted_count = int(np.sum(accepted))
+        precision = float(np.mean(correct[accepted])) if accepted_count else None
+        rows.append(
+            {
+                "threshold": threshold,
+                "accepted": accepted_count,
+                "rejected": int(len(labels) - accepted_count),
+                "coverage": float(np.mean(accepted)),
+                "precision": precision,
+            }
+        )
+    return rows
+
+
+def margin_sweep_payload(probs: np.ndarray, labels: np.ndarray, thresholds: list[float]) -> list[dict[str, float | int | None]]:
+    if len(labels) == 0:
+        return []
+
+    if probs.shape[1] < 2:
+        margins = np.ones(len(labels), dtype=np.float32)
+    else:
+        top2 = np.partition(probs, kth=-2, axis=1)[:, -2:]
+        margins = top2.max(axis=1) - top2.min(axis=1)
+    predictions = probs.argmax(axis=1)
+    correct = predictions == labels
+    rows: list[dict[str, float | int | None]] = []
+    for threshold in sorted(set(float(value) for value in thresholds)):
+        accepted = margins >= threshold
+        accepted_count = int(np.sum(accepted))
+        precision = float(np.mean(correct[accepted])) if accepted_count else None
+        rows.append(
+            {
+                "threshold": threshold,
+                "accepted": accepted_count,
+                "rejected": int(len(labels) - accepted_count),
+                "coverage": float(np.mean(accepted)),
+                "precision": precision,
+            }
+        )
+    return rows
+
+
+def select_threshold(
+    rows: list[dict[str, float | int | None]],
+    target_precision: float,
+    min_coverage: float,
+) -> dict[str, float | int | None] | None:
+    viable = [
+        row
+        for row in rows
+        if row["precision"] is not None
+        and float(row["precision"]) >= target_precision
+        and float(row["coverage"]) >= min_coverage
+    ]
+    if viable:
+        return max(viable, key=lambda row: (float(row["coverage"]), -float(row["threshold"])))
+
+    return None
+
+
+def best_threshold_row(rows: list[dict[str, float | int | None]]) -> dict[str, float | int | None] | None:
+    eligible = [row for row in rows if row["precision"] is not None]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda row: (float(row["precision"]), float(row["coverage"])))
+
+
 def classification_report_payload(outputs: dict[str, Any], idx_to_label: dict[int, str]) -> dict[str, Any]:
     logits = outputs["logits"]
     labels = outputs["labels"]
@@ -104,6 +181,44 @@ def classification_report_payload(outputs: dict[str, Any], idx_to_label: dict[in
         "ece": expected_calibration_error(probs, labels),
         "per_set": per_set_accuracy(probs, labels, outputs["records"]),
         "labels": [idx_to_label[index] for index in range(len(idx_to_label))],
+    }
+
+
+def app_threshold_report_payload(
+    outputs: dict[str, Any],
+    confidence_thresholds: list[float],
+    margin_thresholds: list[float],
+    target_precision: float,
+    min_coverage: float,
+) -> dict[str, Any]:
+    logits = outputs["logits"]
+    labels = outputs["labels"]
+    if logits.size == 0:
+        return {
+            "target_precision": target_precision,
+            "min_coverage": min_coverage,
+            "confidence": [],
+            "margin": [],
+            "recommended_min_confidence": None,
+            "recommended_min_margin": None,
+        }
+
+    probs = torch.softmax(torch.from_numpy(logits), dim=1).numpy()
+    confidence = threshold_sweep_payload(probs, labels, confidence_thresholds)
+    margin = margin_sweep_payload(probs, labels, margin_thresholds)
+    selected_confidence = select_threshold(confidence, target_precision, min_coverage)
+    selected_margin = select_threshold(margin, target_precision, min_coverage)
+    return {
+        "target_precision": target_precision,
+        "min_coverage": min_coverage,
+        "confidence": confidence,
+        "margin": margin,
+        "recommended_min_confidence": selected_confidence["threshold"] if selected_confidence else None,
+        "recommended_min_margin": selected_margin["threshold"] if selected_margin else None,
+        "selected_confidence_row": selected_confidence,
+        "selected_margin_row": selected_margin,
+        "best_confidence_row": best_threshold_row(confidence),
+        "best_margin_row": best_threshold_row(margin),
     }
 
 

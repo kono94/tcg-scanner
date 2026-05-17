@@ -36,20 +36,25 @@ final class ScannerViewModel: ObservableObject {
     init(
         cameraService: CameraService = CameraService(),
         settings: ScannerSettings = ScannerSettings(),
-        recognizer: CardRecognizing = CoreMLCardRecognizer.makeDefault(),
+        recognizer: CardRecognizing? = nil,
         metadataStore: CardMetadataStore = CardMetadataStore(),
         priceService: PriceServing = BundledPriceService(),
         userDefaults: UserDefaults = .standard
     ) {
         self.cameraService = cameraService
         self.settings = settings
-        self.recognizer = recognizer
+        let activeRecognizer = recognizer ?? CoreMLCardRecognizer.makeDefault(
+            thresholdProvider: { [weak settings] in
+                settings?.recognitionThresholds ?? .fallback
+            }
+        )
+        self.recognizer = activeRecognizer
         self.metadataStore = metadataStore
         self.priceService = priceService
         self.userDefaults = userDefaults
         self.sessionCardsStorage = Self.loadSessionCards(from: userDefaults, key: sessionStorageKey)
         self.sessionCards = sessionCardsStorage
-        self.errorMessage = recognizer.failureDescription
+        self.errorMessage = activeRecognizer.failureDescription
     }
 
     func start() {
@@ -211,7 +216,7 @@ final class ScannerViewModel: ObservableObject {
                     updatedState.apply(result: enrichedResult, now: Date(), policy: self.recognitionPolicy)
                     self.recognitionStates[track.id] = updatedState
 
-                    if let cardID = updatedState.result?.cardID {
+                    if let cardID = updatedState.result?.cardID, updatedState.price == nil {
                         self.priceService.price(for: cardID) { [weak self] quote in
                             self?.scannerQueue.async {
                                 guard self?.recognitionStates[track.id]?.result?.cardID == cardID else {

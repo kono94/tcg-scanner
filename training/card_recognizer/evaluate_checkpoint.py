@@ -10,6 +10,7 @@ from pipeline.checkpoints import load_lightning_or_state_dict
 from pipeline.config import write_json
 from pipeline.data import CardRecognizerDataModule
 from pipeline.evaluation import (
+    app_threshold_report_payload,
     classification_report_payload,
     collect_outputs,
     save_confusion_matrix,
@@ -45,6 +46,8 @@ def main() -> None:
         help="val points to the manual phone-image folder.",
     )
     parser.add_argument("--output-dir", default=None, type=Path)
+    parser.add_argument("--target-precision", default=None, type=float)
+    parser.add_argument("--min-coverage", default=None, type=float)
     args = parser.parse_args()
 
     run_dir = experiment_dir(args.experiment_id, root=args.experiments_root)
@@ -67,11 +70,21 @@ def main() -> None:
     requested_dataset = args.dataset
     dataset_name = requested_dataset
     outputs = collect_outputs(model, datamodule.dataset_dataloader(dataset_name), device, desc=f"Evaluating {dataset_name}")
+    eval_cfg = cfg.get("evaluation", {})
+    target_precision = float(args.target_precision if args.target_precision is not None else eval_cfg.get("app_target_precision", 0.95))
+    min_coverage = float(args.min_coverage if args.min_coverage is not None else eval_cfg.get("app_min_coverage", 0.5))
     report = {
         "experiment_id": args.experiment_id,
         "checkpoint": str(checkpoint_path),
         "dataset": dataset_name,
         "classification": classification_report_payload(outputs, datamodule.idx_to_label),
+        "app_thresholds": app_threshold_report_payload(
+            outputs,
+            confidence_thresholds=eval_cfg.get("softmax_thresholds", [0.0, 0.03, 0.05, 0.1, 0.5]),
+            margin_thresholds=eval_cfg.get("margin_thresholds", [0.0, 0.01, 0.03, 0.05, 0.1]),
+            target_precision=target_precision,
+            min_coverage=min_coverage,
+        ),
     }
 
     output_dir.mkdir(parents=True, exist_ok=True)

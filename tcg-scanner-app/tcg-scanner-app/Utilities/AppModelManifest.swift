@@ -5,12 +5,18 @@ struct AppModelManifest: Decodable, Equatable {
     let recognizerVersion: String
     let cardDBVersion: String
     let priceSnapshotDate: String
+    let recognizerMinConfidence: Float?
+    let recognizerMinMargin: Float?
+    let recognizerThresholdSource: String?
 
     static let unavailable = AppModelManifest(
         detectorVersion: "Unavailable",
         recognizerVersion: "Unavailable",
         cardDBVersion: "Unavailable",
-        priceSnapshotDate: "Unavailable"
+        priceSnapshotDate: "Unavailable",
+        recognizerMinConfidence: nil,
+        recognizerMinMargin: nil,
+        recognizerThresholdSource: nil
     )
 
     static func load(bundle: Bundle = .main) -> AppModelManifest {

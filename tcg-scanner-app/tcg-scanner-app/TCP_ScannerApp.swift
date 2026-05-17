@@ -14,7 +14,7 @@ private struct ScannerRootView: View {
     @StateObject private var scannerViewModel: ScannerViewModel
 
     init() {
-        let settings = ScannerSettings()
+        let settings = ScannerSettings(defaultRecognitionThresholds: CoreMLCardRecognizer.defaultThresholds())
         _settings = StateObject(wrappedValue: settings)
         _scannerViewModel = StateObject(wrappedValue: ScannerViewModel(settings: settings))
     }

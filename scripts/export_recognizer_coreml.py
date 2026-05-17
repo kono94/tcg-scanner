@@ -20,6 +20,8 @@ from pipeline.paths import resolve_path
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
+DEFAULT_RECOGNIZER_MIN_CONFIDENCE = 0.0
+DEFAULT_RECOGNIZER_MIN_MARGIN = 0.0
 
 
 class LogitsOnlyModel(torch.nn.Module):
@@ -95,12 +97,37 @@ def run_coreml_smoke_test(coreml_model, output_count: int) -> None:
         raise AssertionError(f"Unexpected CoreML logits shape {logits.shape}")
 
 
-def update_app_manifest(manifest_path: Path, experiment_id: str) -> None:
+def load_app_thresholds(report_path: Path | None) -> dict[str, float | str]:
+    thresholds: dict[str, float | str] = {
+        "recognizer_min_confidence": DEFAULT_RECOGNIZER_MIN_CONFIDENCE,
+        "recognizer_min_margin": DEFAULT_RECOGNIZER_MIN_MARGIN,
+        "recognizer_threshold_source": "default",
+    }
+    if report_path is None or not report_path.exists():
+        return thresholds
+
+    with report_path.open("r", encoding="utf-8") as handle:
+        report = json.load(handle)
+    app_thresholds = report.get("app_thresholds", {})
+    min_confidence = app_thresholds.get("recommended_min_confidence")
+    min_margin = app_thresholds.get("recommended_min_margin")
+    if min_confidence is not None:
+        thresholds["recognizer_min_confidence"] = float(min_confidence)
+        thresholds["recognizer_threshold_source"] = str(report_path)
+    if min_margin is not None:
+        thresholds["recognizer_min_margin"] = float(min_margin)
+    return thresholds
+
+
+def update_app_manifest(manifest_path: Path, experiment_id: str, thresholds: dict[str, float | str]) -> None:
     payload = {}
     if manifest_path.exists():
         with manifest_path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
     payload["recognizerVersion"] = f"experiment:{experiment_id}"
+    payload["recognizerMinConfidence"] = thresholds["recognizer_min_confidence"]
+    payload["recognizerMinMargin"] = thresholds["recognizer_min_margin"]
+    payload["recognizerThresholdSource"] = thresholds["recognizer_threshold_source"]
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     with manifest_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=True)
@@ -114,6 +141,14 @@ def main() -> None:
     parser.add_argument("--checkpoint", default=None, type=Path, help="Lightning checkpoint or plain CardModel state dict.")
     parser.add_argument("--labels", default=None, type=Path)
     parser.add_argument("--cards-dir", default=None, type=Path)
+    parser.add_argument(
+        "--evaluation-report",
+        default=None,
+        type=Path,
+        help="Evaluation report containing app_thresholds. Defaults to reports/eval/val_classification_report.json when present.",
+    )
+    parser.add_argument("--recognizer-min-confidence", default=None, type=float)
+    parser.add_argument("--recognizer-min-margin", default=None, type=float)
     parser.add_argument(
         "--model-output",
         default="tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage",
@@ -142,10 +177,20 @@ def main() -> None:
     checkpoint_path = resolve_path(args.checkpoint) if args.checkpoint else checkpoint_for_experiment(run_dir)
     labels_path = resolve_path(args.labels) if args.labels else resolve_path(cfg["dataset"]["labels_path"])
     cards_dir = resolve_path(args.cards_dir) if args.cards_dir else resolve_path(cfg["dataset"]["cards_dir"])
+    default_eval_report = run_dir / "reports" / "eval" / "val_classification_report.json"
+    evaluation_report = resolve_path(args.evaluation_report) if args.evaluation_report else default_eval_report
+    thresholds = load_app_thresholds(evaluation_report)
+    if args.recognizer_min_confidence is not None:
+        thresholds["recognizer_min_confidence"] = float(args.recognizer_min_confidence)
+        thresholds["recognizer_threshold_source"] = "export-override"
+    if args.recognizer_min_margin is not None:
+        thresholds["recognizer_min_margin"] = float(args.recognizer_min_margin)
     print(f"Exporting recognizer for experiment {args.experiment_id}")
     print(f"Experiment directory: {run_dir}")
     print(f"Checkpoint: {checkpoint_path}")
     print(f"Cards directory: {cards_dir}")
+    print(f"App min confidence: {thresholds['recognizer_min_confidence']} ({thresholds['recognizer_threshold_source']})")
+    print(f"App min margin: {thresholds['recognizer_min_margin']}")
     if not args.install_to_app:
         args.model_output = run_dir / "app_export" / "card_recognizer.mlpackage"
         args.labels_output = run_dir / "app_export" / "recognizer_labels.json"
@@ -194,6 +239,9 @@ def main() -> None:
     coreml_model.user_defined_metadata["label_count"] = str(len(labels))
     coreml_model.user_defined_metadata["source_checkpoint"] = str(checkpoint_path)
     coreml_model.user_defined_metadata["experiment_id"] = args.experiment_id
+    coreml_model.user_defined_metadata["recognizer_min_confidence"] = str(thresholds["recognizer_min_confidence"])
+    coreml_model.user_defined_metadata["recognizer_min_margin"] = str(thresholds["recognizer_min_margin"])
+    coreml_model.user_defined_metadata["recognizer_threshold_source"] = str(thresholds["recognizer_threshold_source"])
 
     if args.model_output.exists():
         shutil.rmtree(args.model_output)
@@ -217,13 +265,16 @@ def main() -> None:
 
     if args.install_to_app:
         print("Updating app model manifest...")
-        update_app_manifest(args.app_manifest_output, args.experiment_id)
+        update_app_manifest(args.app_manifest_output, args.experiment_id, thresholds)
     write_experiment_metadata(
         run_dir,
         {
             "coreml_export": str(args.model_output),
             "coreml_labels": str(args.labels_output),
             "installed_to_app": bool(args.install_to_app),
+            "recognizer_min_confidence": thresholds["recognizer_min_confidence"],
+            "recognizer_min_margin": thresholds["recognizer_min_margin"],
+            "recognizer_threshold_source": thresholds["recognizer_threshold_source"],
         },
     )
 

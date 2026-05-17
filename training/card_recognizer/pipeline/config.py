@@ -79,8 +79,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "tensorboard": False,
     },
     "evaluation": {
-        "softmax_thresholds": [0.5, 0.7, 0.85, 0.95],
-        "margin_thresholds": [0.0, 0.05, 0.1, 0.2],
+        "app_target_precision": 0.95,
+        "app_min_coverage": 0.5,
+        "softmax_thresholds": [0.0, 0.01, 0.02, 0.03, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 0.85, 0.95],
+        "margin_thresholds": [0.0, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2],
     },
 }
 

@@ -1,7 +1,6 @@
 import CoreGraphics
 import CoreML
 import Foundation
-import Vision
 
 protocol CardRecognizing {
     var failureDescription: String? { get }
@@ -13,57 +12,149 @@ extension CardRecognizing {
     var failureDescription: String? { nil }
 }
 
+struct RecognizerCandidate: Equatable {
+    let index: Int
+    let confidence: Float
+    let margin: Float
+}
+
+enum RecognizerScoring {
+    static func bestCandidate(
+        from logits: [Float],
+        minimumConfidence: Float,
+        minimumMargin: Float = 0
+    ) -> RecognizerCandidate? {
+        guard let maximum = logits.max() else {
+            return nil
+        }
+
+        var bestIndex = 0
+        var bestExp: Float = 0
+        var secondBestExp: Float = 0
+        var expSum: Float = 0
+
+        for (index, value) in logits.enumerated() {
+            let expValue = expf(value - maximum)
+            expSum += expValue
+            if expValue > bestExp {
+                secondBestExp = bestExp
+                bestExp = expValue
+                bestIndex = index
+            } else if expValue > secondBestExp {
+                secondBestExp = expValue
+            }
+        }
+
+        guard expSum > 0 else {
+            return nil
+        }
+
+        let confidence = bestExp / expSum
+        let margin = (bestExp - secondBestExp) / expSum
+        guard confidence >= minimumConfidence, margin >= minimumMargin else {
+            return nil
+        }
+
+        return RecognizerCandidate(index: bestIndex, confidence: confidence, margin: margin)
+    }
+
+    static func logits(from multiArray: MLMultiArray) -> [Float] {
+        (0..<multiArray.count).map { multiArray[$0].floatValue }
+    }
+}
+
 final class CoreMLCardRecognizer: CardRecognizing {
+    private static let fallbackMinimumConfidence: Float = 0
+    private static let fallbackMinimumMargin: Float = 0
+
     private struct RecognizerLabel: Decodable {
         let classIndex: Int
         let cardID: String
         let name: String
     }
 
-    private let model: VNCoreMLModel
+    private let model: card_recognizer
     private let labelsByIndex: [Int: RecognizerLabel]
-    private let minimumConfidence: Float
+    private let thresholdProvider: () -> RecognitionThresholds
     private let recognitionQueue = DispatchQueue(label: "net.lwenstrom.tcg-scanner.recognizer")
 
-    init(bundle: Bundle = .main, minimumConfidence: Float = 0.5) throws {
+    init(
+        bundle: Bundle = .main,
+        minimumConfidence: Float? = nil,
+        minimumMargin: Float? = nil,
+        thresholdProvider: (() -> RecognitionThresholds)? = nil
+    ) throws {
         let config = MLModelConfiguration()
         config.computeUnits = .all
-        let coreMLModel = try card_recognizer(configuration: config)
-        model = try VNCoreMLModel(for: coreMLModel.model)
+        model = try card_recognizer(configuration: config)
         labelsByIndex = try Self.loadLabels(from: bundle)
-        self.minimumConfidence = minimumConfidence
+        if let thresholdProvider {
+            self.thresholdProvider = thresholdProvider
+        } else {
+            let metadataDefaults = Self.defaultThresholds(from: model.model)
+            let thresholds = RecognitionThresholds(
+                minimumConfidence: minimumConfidence ?? metadataDefaults.minimumConfidence,
+                minimumMargin: minimumMargin ?? metadataDefaults.minimumMargin
+            )
+            self.thresholdProvider = { thresholds }
+        }
     }
 
-    static func makeDefault() -> CardRecognizing {
+    static func makeDefault(thresholdProvider: (() -> RecognitionThresholds)? = nil) -> CardRecognizing {
         do {
-            return try CoreMLCardRecognizer()
+            return try CoreMLCardRecognizer(thresholdProvider: thresholdProvider)
         } catch {
             return UnavailableCardRecognizer(error: error)
         }
     }
 
+    static func defaultThresholds(bundle: Bundle = .main) -> RecognitionThresholds {
+        do {
+            let config = MLModelConfiguration()
+            config.computeUnits = .all
+            let model = try card_recognizer(configuration: config)
+            return defaultThresholds(from: model.model)
+        } catch {
+            return .fallback
+        }
+    }
+
+    private static func defaultThresholds(from model: MLModel) -> RecognitionThresholds {
+        RecognitionThresholds(
+            minimumConfidence: modelMetadataFloat(
+                "recognizer_min_confidence",
+                from: model,
+                fallback: fallbackMinimumConfidence
+            ),
+            minimumMargin: modelMetadataFloat(
+                "recognizer_min_margin",
+                from: model,
+                fallback: fallbackMinimumMargin
+            )
+        )
+    }
+
     func recognize(crop: CGImage, completion: @escaping (RecognitionResult?) -> Void) {
-        recognitionQueue.async { [model, labelsByIndex, minimumConfidence] in
-            var recognitionResult: RecognitionResult?
-            let request = VNCoreMLRequest(model: model) { request, _ in
-                guard let logits = Self.logits(from: request.results),
-                      let best = Self.bestSoftmaxCandidate(from: logits),
-                      best.confidence >= minimumConfidence,
-                      let label = labelsByIndex[best.index] else {
+        recognitionQueue.async { [model, labelsByIndex, thresholdProvider] in
+            do {
+                let input = try card_recognizerInput(imageWith: crop)
+                let output = try model.prediction(input: input)
+                let logits = RecognizerScoring.logits(from: output.logits)
+                let thresholds = thresholdProvider()
+                guard let best = RecognizerScoring.bestCandidate(
+                    from: logits,
+                    minimumConfidence: thresholds.minimumConfidence,
+                    minimumMargin: thresholds.minimumMargin
+                ), let label = labelsByIndex[best.index] else {
+                    completion(nil)
                     return
                 }
 
-                recognitionResult = RecognitionResult(
+                let recognitionResult = RecognitionResult(
                     cardID: label.cardID,
                     name: label.name,
                     confidence: best.confidence
                 )
-            }
-            request.imageCropAndScaleOption = .centerCrop
-
-            let handler = VNImageRequestHandler(cgImage: crop, options: [:])
-            do {
-                try handler.perform([request])
                 completion(recognitionResult)
             } catch {
                 completion(nil)
@@ -81,37 +172,13 @@ final class CoreMLCardRecognizer: CardRecognizing {
         return Dictionary(uniqueKeysWithValues: labels.map { ($0.classIndex, $0) })
     }
 
-    private static func logits(from results: [Any]?) -> [Float]? {
-        guard let observation = results?.compactMap({ $0 as? VNCoreMLFeatureValueObservation }).first,
-              let multiArray = observation.featureValue.multiArrayValue else {
-            return nil
+    private static func modelMetadataFloat(_ key: String, from model: MLModel, fallback: Float) -> Float {
+        guard let creatorDefined = model.modelDescription.metadata[.creatorDefinedKey] as? [String: String],
+              let rawValue = creatorDefined[key],
+              let value = Float(rawValue) else {
+            return fallback
         }
-
-        return (0..<multiArray.count).map { multiArray[$0].floatValue }
-    }
-
-    private static func bestSoftmaxCandidate(from logits: [Float]) -> (index: Int, confidence: Float)? {
-        guard let maximum = logits.max() else {
-            return nil
-        }
-
-        var bestIndex = 0
-        var bestExp: Float = 0
-        var expSum: Float = 0
-
-        for (index, value) in logits.enumerated() {
-            let expValue = expf(value - maximum)
-            expSum += expValue
-            if expValue > bestExp {
-                bestExp = expValue
-                bestIndex = index
-            }
-        }
-
-        guard expSum > 0 else {
-            return nil
-        }
-        return (bestIndex, bestExp / expSum)
+        return value
     }
 }
 

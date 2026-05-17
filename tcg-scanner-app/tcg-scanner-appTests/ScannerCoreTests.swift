@@ -137,6 +137,26 @@ final class RecognitionSchedulerTests: XCTestCase {
     }
 }
 
+final class RecognizerScoringTests: XCTestCase {
+    func testBestCandidateAllowsClassifierResultBelowLegacyThreshold() {
+        let logits: [Float] = [0.0, -0.35, -2.5, -2.5, -2.5]
+
+        XCTAssertNil(RecognizerScoring.bestCandidate(from: logits, minimumConfidence: 0.5))
+
+        let candidate = RecognizerScoring.bestCandidate(from: logits, minimumConfidence: 0.03)
+
+        XCTAssertEqual(candidate?.index, 0)
+        XCTAssertEqual(candidate?.confidence ?? 0, 0.4687, accuracy: 0.001)
+    }
+
+    func testBestCandidateCanRejectTinyTopTwoMargin() {
+        let logits: [Float] = [0.0, -0.001, -4.0]
+
+        XCTAssertNotNil(RecognizerScoring.bestCandidate(from: logits, minimumConfidence: 0.03, minimumMargin: 0))
+        XCTAssertNil(RecognizerScoring.bestCandidate(from: logits, minimumConfidence: 0.03, minimumMargin: 0.01))
+    }
+}
+
 final class CardGameTests: XCTestCase {
     func testOnePieceLabelsSupportExactRecognition() {
         XCTAssertEqual(CardGame(detectionLabel: "op"), .onePiece)
@@ -159,7 +179,10 @@ final class AppModelManifestTests: XCTestCase {
           "detectorVersion": "detector-test",
           "recognizerVersion": "recognizer-test",
           "cardDBVersion": "cards-test",
-          "priceSnapshotDate": "2026-05-10"
+          "priceSnapshotDate": "2026-05-10",
+          "recognizerMinConfidence": 0.03,
+          "recognizerMinMargin": 0.005,
+          "recognizerThresholdSource": "test-report"
         }
         """
 
@@ -169,6 +192,26 @@ final class AppModelManifestTests: XCTestCase {
         XCTAssertEqual(manifest.recognizerVersion, "recognizer-test")
         XCTAssertEqual(manifest.cardDBVersion, "cards-test")
         XCTAssertEqual(manifest.priceSnapshotDate, "2026-05-10")
+        XCTAssertEqual(manifest.recognizerMinConfidence, 0.03)
+        XCTAssertEqual(manifest.recognizerMinMargin, 0.005)
+        XCTAssertEqual(manifest.recognizerThresholdSource, "test-report")
+    }
+
+    func testManifestDecodesWithoutRecognizerThresholdFields() throws {
+        let json = """
+        {
+          "detectorVersion": "detector-test",
+          "recognizerVersion": "recognizer-test",
+          "cardDBVersion": "cards-test",
+          "priceSnapshotDate": "2026-05-10"
+        }
+        """
+
+        let manifest = try AppModelManifest.decode(Data(json.utf8))
+
+        XCTAssertNil(manifest.recognizerMinConfidence)
+        XCTAssertNil(manifest.recognizerMinMargin)
+        XCTAssertNil(manifest.recognizerThresholdSource)
     }
 }
 
@@ -222,5 +265,50 @@ final class ScannerSettingsTests: XCTestCase {
         settings.allowDuplicateCards = true
 
         XCTAssertTrue(ScannerSettings(userDefaults: userDefaults).allowDuplicateCards)
+    }
+
+    func testRecognitionThresholdsUseProvidedDefaults() {
+        let suiteName = "ScannerSettingsTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let defaults = RecognitionThresholds(minimumConfidence: 0.4, minimumMargin: 0.01)
+
+        let settings = ScannerSettings(userDefaults: userDefaults, defaultRecognitionThresholds: defaults)
+
+        XCTAssertEqual(settings.recognizerMinimumConfidence, 0.4)
+        XCTAssertEqual(settings.recognizerMinimumMargin, 0.01)
+        XCTAssertEqual(settings.recognitionThresholds, defaults)
+    }
+
+    func testRecognitionThresholdsPersist() {
+        let suiteName = "ScannerSettingsTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let defaults = RecognitionThresholds(minimumConfidence: 0.4, minimumMargin: 0.01)
+
+        let settings = ScannerSettings(userDefaults: userDefaults, defaultRecognitionThresholds: defaults)
+        settings.recognizerMinimumConfidence = 0.25
+        settings.recognizerMinimumMargin = 0.05
+
+        let reloaded = ScannerSettings(userDefaults: userDefaults, defaultRecognitionThresholds: defaults)
+        XCTAssertEqual(reloaded.recognizerMinimumConfidence, 0.25)
+        XCTAssertEqual(reloaded.recognizerMinimumMargin, 0.05)
+    }
+
+    func testResetRecognitionThresholdsRestoresDefaults() {
+        let suiteName = "ScannerSettingsTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let defaults = RecognitionThresholds(minimumConfidence: 0.4, minimumMargin: 0.01)
+        let settings = ScannerSettings(userDefaults: userDefaults, defaultRecognitionThresholds: defaults)
+        settings.recognizerMinimumConfidence = 0.25
+        settings.recognizerMinimumMargin = 0.05
+
+        settings.resetRecognitionThresholdsToDefaults()
+
+        XCTAssertEqual(settings.recognizerMinimumConfidence, 0.4)
+        XCTAssertEqual(settings.recognizerMinimumMargin, 0.01)
+        let reloaded = ScannerSettings(userDefaults: userDefaults, defaultRecognitionThresholds: defaults)
+        XCTAssertEqual(reloaded.recognitionThresholds, defaults)
     }
 }

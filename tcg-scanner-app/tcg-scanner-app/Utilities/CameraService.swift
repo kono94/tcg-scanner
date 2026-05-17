@@ -68,7 +68,12 @@ final class CameraService: NSObject, ObservableObject {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
-        session.sessionPreset = .hd1280x720
+        if session.canSetSessionPreset(.hd1920x1080) {
+            session.sessionPreset = .hd1920x1080
+        } else {
+            publish(error: "1080p camera capture is not available on this device.")
+            return
+        }
 
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
             publish(error: "Back camera is not available.")
