@@ -72,6 +72,18 @@ Being steady does not imply that nine cards are sharp, large enough, unoccluded,
 - A repeat capture replaces the active page's candidate result revision atomically. Do not union old and new detections or match pockets by raw screen position. Keep earlier saved revisions inspectable; do not silently overwrite a saved page. Updating a saved page is explicit.
 - Freeze automatic replacement while the user reviews details or edits a result; require an explicit return to scanning. An explicit next-page boundary creates a new page generation. Scene motion alone does not establish a new page.
 
+## Batch workflow (browser pilot, implemented 2026-10-17)
+
+An optional "review at the end" workflow for binders: each capture is a new page. After detection the
+straightened crops of every card are stored and the capture is released at once, so acquisition of
+the next page starts immediately and nothing capture-sized is retained between pages. Recognition
+runs later from the stored crops, one card at a time, and results are written into the saved page.
+Still one active capture; the background queue is bounded by admission control before a capture
+(backlog limit), persisted with the saved pages and resumed after a reload. In auto mode the next
+automatic capture waits for a page turn (scene motion followed by a steady view that differs from
+the previous capture); manual capture stays available. Review happens per card afterwards. See
+`web/README.md`; thresholds are uncalibrated and the workflow is not device-verified.
+
 ## Retries without tracking
 
 Retry recognition/verification on the same crop when appropriate, or recapture the whole active page as a new candidate revision. For a closer/detail capture, first select the target instance; bind that capture to the selected pocket explicitly and require review if other identities conflict. Do not automatically merge a new close-up into old page coordinates. Cross-capture automatic reassociation is deferred with continuous tracking.
