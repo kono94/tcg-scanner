@@ -1,0 +1,5 @@
+outs:
+- md5: 5b1a4b278e897b0ddf3eea7edbc159c0
+  size: 3127067
+  hash: md5
+  path: prices.json

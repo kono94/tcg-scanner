@@ -1,0 +1,6 @@
+outs:
+- md5: f3a58eb8565e8bfd86a344dcc4781415.dir
+  size: 3065941472
+  nfiles: 49597
+  hash: md5
+  path: curated

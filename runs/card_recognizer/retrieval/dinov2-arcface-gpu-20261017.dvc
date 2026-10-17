@@ -1,0 +1,6 @@
+outs:
+- md5: 112e415677a3377461dc07f4df52fd5f.dir
+  size: 394941875
+  nfiles: 28
+  hash: md5
+  path: dinov2-arcface-gpu-20261017

@@ -1,0 +1,6 @@
+outs:
+- md5: bc19cf16df171bc0c45378e03ea2a66b.dir
+  size: 52573266
+  nfiles: 229
+  hash: md5
+  path: staging

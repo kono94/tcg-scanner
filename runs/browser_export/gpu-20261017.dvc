@@ -1,0 +1,6 @@
+outs:
+- md5: 06e54ba95081ba9b5ae0038b382a6a2e.dir
+  size: 188057132
+  nfiles: 82
+  hash: md5
+  path: gpu-20261017
