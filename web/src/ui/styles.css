@@ -63,6 +63,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .st-confirmed.cue .br { stroke: #9CC3FF; }
 .st-needs-attention .br { stroke: #FF8A4C; opacity: 1; }
 .st-skipped .br { opacity: .25; stroke-dasharray: 3 3; }
+/* Card backs: dimmed dashed outline plus a 'Back' text pill (not a card result). */
+.st-back .br { opacity: .35; stroke-dasharray: 2 4; }
+.st-back .badge rect { fill: rgba(15, 14, 13, .72); }
+.st-back .badge text { font: 500 9px var(--sans); letter-spacing: .02em; }
 .sel .br { stroke-width: 3; }
 .dim { fill: rgba(15, 14, 13, .55); transition: opacity .3s; }
 .badge circle { fill: rgba(15, 14, 13, .86); }
@@ -109,6 +113,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .slot.filled { border: 0; }
 .slot.st-confirmed { box-shadow: inset 0 -3px 0 var(--ok); }
 .slot.st-skipped { opacity: .4; }
+.slot.st-back { opacity: .3; border-style: dotted; }
 .slot.on { outline: 1.5px solid var(--ink); outline-offset: 2px; }
 
 .fly { position: absolute; left: 0; top: 0; width: 224px; height: 312px; transform-origin: 0 0; z-index: 15; pointer-events: none; border-radius: 6px; overflow: hidden; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }

@@ -1,6 +1,6 @@
 // Match decision and preferred-language resolution (docs/MATCH_AND_VALUE_POLICY.md).
 // Retrieval identifies an artwork family; language/printing stay unresolved unless observed.
-import { Catalog, type CatalogCard } from './catalog';
+import { Catalog, isBack, type CatalogCard } from './catalog';
 import type { Hit } from './gallery';
 
 export interface MatchThresholds {
@@ -14,6 +14,23 @@ export interface MatchThresholds {
 
 /** Placeholder pilot values. Not calibrated and not chosen from test results. */
 export const PILOT_THRESHOLDS: MatchThresholds = { minScore: 0.45, minMargin: 0.05, calibrated: false };
+
+export interface BackThresholds {
+  /** Minimum cosine similarity of the best card-back reference. */
+  minScore: number;
+  /** Minimum gap from the best card-back hit to the best real-card hit. */
+  minMargin: number;
+  calibrated: boolean;
+}
+
+/**
+ * Uncalibrated pilot values for card backs (scripts/evaluate_card_backs.py, 2026-10-17): the 298
+ * real front crops scored at most 0.34 against a back row and the closest card references (Poké
+ * Ball trainers) 0.57, while held-out real back scans and synthetic photo-like back views scored
+ * at least 0.77 with a margin of at least 0.35 to the best card. Few, partly synthetic positives
+ * and no phone captures: not a calibrated operating point.
+ */
+export const PILOT_BACK_THRESHOLDS: BackThresholds = { minScore: 0.65, minMargin: 0.1, calibrated: false };
 
 /** 'setting': the user scoped the app to one card language (EN or DE) in Settings. */
 export type LanguageEvidence = 'observed' | 'not-read' | 'user' | 'setting';
@@ -50,7 +67,19 @@ export interface NoMatch {
   thresholds: MatchThresholds;
 }
 
-export type MatchDecision = MatchResult | NoMatch;
+/** The crop shows a card back: not a card match, never priced or counted as a card. */
+export interface BackResult {
+  kind: 'back';
+  /** Best card-back hit (identity `back:<game>`). */
+  top: Hit;
+  game: string;
+  /** Best real-card hit, used for the margin. */
+  competitor: Hit | null;
+  margin: number;
+  thresholds: BackThresholds;
+}
+
+export type MatchDecision = MatchResult | NoMatch | BackResult;
 
 export interface MatchOptions {
   preferredLanguage: string;
@@ -59,12 +88,24 @@ export interface MatchOptions {
   /** The user collects one language: that version is the card (not an assumption among alternatives). */
   languageFromSetting?: boolean;
   thresholds?: MatchThresholds;
+  backThresholds?: BackThresholds;
 }
 
 export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: MatchOptions): MatchDecision {
   const thresholds = options.thresholds ?? PILOT_THRESHOLDS;
   const top = hits[0] ?? null;
   if (!top) return { kind: 'not-found', top: null, competitor: null, margin: 0, thresholds };
+  const topCard = catalog.get(top.identity);
+  if (isBack(topCard)) {
+    // A back is never a card match: either a confident back, or unresolved.
+    const back = options.backThresholds ?? PILOT_BACK_THRESHOLDS;
+    const competitor = hits.find((h) => !isBack(catalog.get(h.identity))) ?? null;
+    const margin = competitor ? top.score - competitor.score : top.score;
+    if (top.score >= back.minScore && margin >= back.minMargin) {
+      return { kind: 'back', top, game: topCard!.game, competitor, margin, thresholds: back };
+    }
+    return { kind: top.score < thresholds.minScore ? 'not-found' : 'match-unclear', top, competitor, margin, thresholds };
+  }
   const family = catalog.family(top.identity);
   const familyIds = new Set(family.map((c) => c.id));
   // Ambiguity is measured against the next distinct artwork, not another version of the same one.
@@ -114,6 +155,7 @@ export function userChoiceMatch(catalog: Catalog, identity: string, hits: readon
   languageConfirmed: boolean, thresholds: MatchThresholds = PILOT_THRESHOLDS): MatchResult {
   const card = catalog.get(identity);
   if (!card) throw new Error(`Unknown catalog entry ${identity}`);
+  if (isBack(card)) throw new Error(`${identity} is a card back, not a card`);
   const versions = catalog.family(identity);
   const family = new Set(versions.map((c) => c.id));
   const languageOpen = !languageConfirmed && new Set(versions.map((c) => c.language)).size > 1;
@@ -143,7 +185,7 @@ export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLang
   const seen = new Set<string>();
   for (const h of hits) {
     const card = catalog.get(h.identity);
-    if (!card || seen.has(card.family)) continue;
+    if (!card || isBack(card) || seen.has(card.family)) continue;
     seen.add(card.family);
     const versions = catalog.family(h.identity);
     out.push({ family: card.family, card: versions.find((v) => v.language === preferredLanguage) ?? card, versions, score: h.score });

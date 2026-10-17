@@ -93,6 +93,29 @@ Check variant · Range incomplete
 [Inspect this card]
 ```
 
+## Card backs (implemented in the browser pilot, 2026-10-17)
+
+Binder pages often show a card face down. Backs are enrolled as special gallery
+rows (`back:pokemon`, `back:onepiece`; catalog `kind: 'back'`, own family, no
+price), so the normal similarity search recognizes them:
+
+- Best hit is a back with score ≥ 0.65 and a margin ≥ 0.10 to the best real
+  card: the instance becomes **Card back** (session state `back`). Uncalibrated
+  pilot values (`PILOT_BACK_THRESHOLDS`, chosen from
+  `scripts/evaluate_card_backs.py`; see `web/README.md`).
+- A weaker back hit is never turned into a card match: it stays
+  `match-unclear`/`not-found` (needs attention). A back close behind a card hit
+  counts as the competitor for the card margin.
+- A back is terminal and settled, but it is not a card: it is not priced, not
+  reviewed or listed in the check flow, not counted as ready or needs-attention,
+  does not make a page partial, and is **not saved** to the collection (so it
+  never enters collection counts or totals). Page counts show it separately,
+  e.g. `7 ready · 2 backs`; the overlay badge is a small `Back` pill.
+- Backs are never offered as candidates, manual-search results or user choices.
+  The user can still correct a misread back to a card by picking a front.
+- Not covered: Japanese/Asian Pokémon backs, One Piece DON!! backs, empty
+  pockets and other non-cards (these stay unresolved as before).
+
 ## Acceptance and evaluation
 
 - Unknown language plus English preference: English is assumed; a compatible

@@ -131,6 +131,8 @@ export async function savePage(page: PageState, catalog: Catalog, displayCrop?: 
   const cards: SavedCard[] = [];
   const key = `page-${page.generation}`;
   for (const i of page.instances) {
+    // Card backs are not cards: they are never saved, so they never enter counts or totals.
+    if (i.state === 'back') continue;
     let hasCrop = false;
     if (i.crop) {
       try {
@@ -153,7 +155,7 @@ export async function savePage(page: PageState, catalog: Catalog, displayCrop?: 
   }
   const saved: SavedPage = {
     key, sessionId: currentSession(), pageNumber: page.pageNumber, revision: page.revision, savedAt: new Date().toISOString(),
-    partial: page.instances.some((i) => i.state !== 'confirmed') || page.overLimit > 0, cards,
+    partial: page.instances.some((i) => i.state !== 'confirmed' && i.state !== 'back') || page.overLimit > 0, cards,
   };
   const pages = loadPages().filter((p) => p.key !== key);
   pages.push(saved);

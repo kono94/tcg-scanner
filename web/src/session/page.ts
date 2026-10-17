@@ -2,14 +2,18 @@
 // a single bounded recognizer and explicit per-card states (docs/SCANNER_UX.md).
 import { Catalog } from '../recognition/catalog';
 import type { Hit } from '../recognition/gallery';
-import { decideMatch, userChoiceMatch, type MatchDecision, type MatchThresholds } from '../recognition/policy';
+import { decideMatch, userChoiceMatch, type BackThresholds, type MatchDecision, type MatchThresholds } from '../recognition/policy';
 import { summarizeValue, type ValueSettings, type ValueSummary } from '../recognition/value';
 import type { PriceService } from '../prices/service';
 import type { Quality, RecognitionStep } from '../inference/protocol';
 import type { Quad } from '../vision/image';
 import { boxCorners, portraitQuad, readingOrder, type OrientedBox } from '../vision/obb';
 
-export type CardState = 'queued' | 'recognizing' | 'verifying' | 'confirmed' | 'needs-attention' | 'skipped';
+/**
+ * 'back': the crop shows a card back. Terminal like 'confirmed', but not a card: never priced,
+ * reviewed, counted as ready/attention or saved to the collection.
+ */
+export type CardState = 'queued' | 'recognizing' | 'verifying' | 'confirmed' | 'needs-attention' | 'skipped' | 'back';
 export type Step = 'rectify' | 'embed' | 'search' | 'verify';
 export type AttentionReason = 'glare' | 'move-closer' | 'not-found' | 'match-unclear' | 'timeout' | 'error';
 export type ValueState = 'idle' | 'loading' | 'ready' | 'failed';
@@ -85,6 +89,7 @@ export interface SessionOptions {
   prices: PriceService;
   preferredLanguage: () => string;
   thresholds?: MatchThresholds;
+  backThresholds?: BackThresholds;
   valueSettings?: ValueSettings;
   /** Per-card budget before an explicit timeout state. */
   cardTimeoutMs?: number;
@@ -178,7 +183,7 @@ export class PageSession {
 
   private settleIfDone() {
     if (this.page.status !== 'processing') return;
-    if (this.page.instances.every((i) => i.state === 'confirmed' || i.state === 'needs-attention' || i.state === 'skipped')) {
+    if (this.page.instances.every((i) => i.state === 'confirmed' || i.state === 'needs-attention' || i.state === 'skipped' || i.state === 'back')) {
       this.page = { ...this.page, status: 'settled' };
     }
   }
@@ -228,13 +233,15 @@ export class PageSession {
       const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), timeoutMs); });
       const out = await Promise.race([work, timeout]);
       current();
-      const decision = decideMatch(out.hits, this.options.catalog, { preferredLanguage: this.options.preferredLanguage(), languageFromSetting: true, thresholds: this.options.thresholds });
+      const decision = decideMatch(out.hits, this.options.catalog, { preferredLanguage: this.options.preferredLanguage(), languageFromSetting: true,
+        thresholds: this.options.thresholds, backThresholds: this.options.backThresholds });
       const matched = decision.kind === 'matched';
-      const reason: AttentionReason | null = matched ? null
+      const back = decision.kind === 'back';
+      const reason: AttentionReason | null = matched || back ? null
         : out.quality.glare > GLARE_LIMIT ? 'glare'
           : out.quality.shortSide < MIN_SHORT_SIDE ? 'move-closer'
             : decision.kind === 'match-unclear' ? 'match-unclear' : 'not-found';
-      this.update(card.id, { state: matched ? 'confirmed' : 'needs-attention', step: null, decision, quality: out.quality, reason,
+      this.update(card.id, { state: matched ? 'confirmed' : back ? 'back' : 'needs-attention', step: null, decision, quality: out.quality, reason,
         settledAt: this.now(), ms: out.ms, valueState: matched ? 'loading' : 'idle', hits: out.hits });
       this.emit();
       if (matched) void this.price(card.id, revision, generation);
@@ -270,7 +277,7 @@ export class PageSession {
   /** Retry one card on the same crop. */
   retry(id: string): void {
     const card = this.instance(id);
-    if (!card || (card.state !== 'needs-attention' && card.state !== 'skipped') || this.page.captureId === null) return;
+    if (!card || (card.state !== 'needs-attention' && card.state !== 'skipped' && card.state !== 'back') || this.page.captureId === null) return;
     card.crop?.close();
     this.update(id, { state: 'queued', step: null, revision: card.revision + 1, queuedAt: this.now(), crop: null, reason: null, value: null, valueState: 'idle', userChoice: null, hits: null });
     this.queue.push(id);
@@ -281,7 +288,7 @@ export class PageSession {
 
   skip(id: string): void {
     const card = this.instance(id);
-    if (!card || card.state === 'confirmed' || card.state === 'recognizing' || card.state === 'verifying') return;
+    if (!card || card.state === 'confirmed' || card.state === 'back' || card.state === 'recognizing' || card.state === 'verifying') return;
     this.update(id, { state: 'skipped', step: null, revision: card.revision + 1, settledAt: this.now() });
     this.queue = this.queue.filter((q) => q !== id);
     this.settleIfDone();
@@ -364,5 +371,7 @@ export function pageCounts(page: PageState) {
     checking: count('queued') + count('recognizing') + count('verifying'),
     attention: count('needs-attention'),
     skipped: count('skipped'),
+    /** Card backs: physical cards shown face down, not counted as cards to review or value. */
+    backs: count('back'),
   };
 }

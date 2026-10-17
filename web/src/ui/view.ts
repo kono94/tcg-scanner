@@ -232,6 +232,7 @@ export function stateLabel(card: CardInstance): string {
     case 'recognizing': return 'Checking card';
     case 'verifying': return 'Confirming match';
     case 'skipped': return 'Skipped';
+    case 'back': return 'Card back · not counted';
     case 'needs-attention': return 'Needs attention · ' + REASON[card.reason ?? 'error'];
     case 'confirmed': {
       const m = card.decision as MatchResult;
@@ -426,6 +427,7 @@ export class View {
     if (c.checking) parts.push(`${c.checking} checking`);
     if (c.attention) parts.push(`${c.attention} need${c.attention === 1 ? 's' : ''} attention`);
     if (c.skipped) parts.push(`${c.skipped} skipped`);
+    if (c.backs) parts.push(`${c.backs} back${c.backs === 1 ? '' : 's'}`);
     return parts.join(' · ');
   }
 
@@ -530,20 +532,28 @@ export class View {
       const badge = document.createElementNS(SVG, 'g');
       badge.setAttribute('class', 'badge');
       badge.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)})`);
-      const circle = document.createElementNS(SVG, 'circle');
-      circle.setAttribute('r', '11');
-      badge.append(circle);
       const mark = document.createElementNS(SVG, 'path');
       if (card.state === 'confirmed' && !isCue(card)) mark.setAttribute('d', 'M-4.5 0.4 -1.5 3.4 4.5 -3.4');
       else if (card.state === 'confirmed') mark.setAttribute('d', 'M0 -5 5 0 0 5 -5 0z');
       else if (card.state === 'needs-attention') mark.setAttribute('d', 'M0 -5 5.2 4H-5.2z M0 -1.5v2.6');
-      if (mark.getAttribute('d')) badge.append(mark);
-      else {
-        const t = document.createElementNS(SVG, 'text');
-        t.setAttribute('text-anchor', 'middle');
-        t.setAttribute('dy', '3.5');
-        t.textContent = String(card.number);
-        badge.append(t);
+      const t = document.createElementNS(SVG, 'text');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('dy', '3.5');
+      if (card.state === 'back') {
+        // Compact text pill: a non-colour cue that this outline is a card back, not a card.
+        const pill = document.createElementNS(SVG, 'rect');
+        for (const [k, v] of [['x', '-17'], ['y', '-9'], ['width', '34'], ['height', '18'], ['rx', '9']]) pill.setAttribute(k, v);
+        t.textContent = 'Back';
+        badge.append(pill, t);
+      } else {
+        const circle = document.createElementNS(SVG, 'circle');
+        circle.setAttribute('r', '11');
+        badge.append(circle);
+        if (mark.getAttribute('d')) badge.append(mark);
+        else {
+          t.textContent = String(card.number);
+          badge.append(t);
+        }
       }
       g.append(badge);
       this.svg.append(g);
@@ -1158,7 +1168,7 @@ export class View {
     const page = s.page;
     const index = page.instances.findIndex((i) => i.id === card.id);
     const review = s.settings.reviewMode === 'review' || !!s.checking;
-    const settled = card.state === 'confirmed' || card.state === 'needs-attention' || card.state === 'skipped';
+    const settled = card.state === 'confirmed' || card.state === 'needs-attention' || card.state === 'skipped' || card.state === 'back';
     const m = card.decision?.kind === 'matched' ? card.decision : null;
     const shown = card.state === 'confirmed' && m ? displayCard(m, catalog) : undefined;
     const list = settled && card.hits ? candidates(card.hits, catalog, s.settings.preferredLanguage) : [];
@@ -1209,7 +1219,8 @@ export class View {
 
     // Result
     const subject = comparing?.card ?? shown;
-    const name = el('div', 'vname', subject?.name ?? (card.state === 'needs-attention' || card.state === 'skipped' ? 'Not identified' : 'Checking…'));
+    const name = el('div', 'vname', subject?.name ?? (card.state === 'back' ? 'Card back'
+      : card.state === 'needs-attention' || card.state === 'skipped' ? 'Not identified' : 'Checking…'));
     if (subject) name.append(el('span', 'vid', subject.cardId));
     body.append(name);
     if (!comparing) body.append(el('div', 'k', stateLabel(card) + (s.settings.diagnostics && shown ? ` · ${shown.id}` : '')));
@@ -1232,6 +1243,9 @@ export class View {
       body.append(el('div', 'k', `No ${languageName(m.preferredLanguage)} version in the catalog · ${languageName(shown.language)} card and price shown`));
     }
     if (!comparing && m && card.state === 'confirmed') body.append(...this.valueBlock(card, m, catalog));
+    if (!comparing && card.state === 'back') {
+      body.append(el('div', 'k', 'Shows the back of a card. It is not matched, valued, reviewed or saved. If it is a card front, tap the matching card below.'));
+    }
     if (!comparing && (card.state === 'needs-attention' || card.state === 'skipped')) {
       const box = el('div', 'cuebox');
       box.innerHTML = ICONS.att;
@@ -1248,7 +1262,7 @@ export class View {
     // Candidates: tap one to compare it side by side with your card.
     if (list.length) {
       const cands = el('div', 'cands');
-      if (!comparing) cands.append(el('div', 'k', card.state === 'confirmed' ? 'Closest matches' : 'Tap the matching card'));
+      if (!comparing) cands.append(el('div', 'k', card.state === 'confirmed' ? 'Closest matches' : card.state === 'back' ? 'Closest card fronts' : 'Tap the matching card'));
       const row = el('div', 'crow');
       row.style.marginTop = comparing ? '0' : '8px';
       for (const c of list) {
@@ -1282,7 +1296,11 @@ export class View {
     } else if (settled) {
       const none = el('button', 'linkbtn', 'None of these');
       none.onclick = () => this.handlers.chooseNone(card.id);
-      if (card.state === 'confirmed') {
+      if (card.state === 'back') {
+        const next = el('button', 'primary', index < page.instances.length - 1 ? 'Next' : 'Done');
+        next.onclick = () => (index < page.instances.length - 1 ? this.handlers.step(1) : this.handlers.select(null));
+        act.append(next);
+      } else if (card.state === 'confirmed') {
         const ok = el('button', 'primary', review ? (index < page.instances.length - 1 ? 'Correct · next' : 'Correct · done') : 'Next');
         ok.onclick = () => (review && shown ? this.handlers.choose(card.id, shown.id, false, true) : this.handlers.step(1));
         if (!review && index >= page.instances.length - 1) ok.textContent = 'Done', ok.onclick = () => this.handlers.select(null);
@@ -1379,7 +1397,7 @@ export class View {
       tile.append(i.crop ? cropCanvas(i.crop, 110, 154) : el('div', 'ph'));
       const m = i.decision?.kind === 'matched' ? i.decision : null;
       const shown = m ? displayCard(m, catalog) : undefined;
-      tile.append(el('div', 'tn', `${i.number} · ${shown?.name ?? (i.state === 'needs-attention' ? REASON[i.reason ?? 'error'] : i.state === 'skipped' ? 'Skipped' : 'Checking')}`));
+      tile.append(el('div', 'tn', `${i.number} · ${shown?.name ?? (i.state === 'needs-attention' ? REASON[i.reason ?? 'error'] : i.state === 'skipped' ? 'Skipped' : i.state === 'back' ? 'Card back' : 'Checking')}`));
       const v = i.value;
       const line = i.state !== 'confirmed' ? stateLabel(i)
         : i.valueState === 'loading' ? 'Loading price'
@@ -1399,7 +1417,8 @@ export class View {
     again.onclick = () => this.handlers.rescan();
     const next = el('button', 'ghost', 'Next page');
     next.onclick = () => this.handlers.nextPage();
-    const partial = page.instances.some((i) => i.state !== 'confirmed') || !complete || page.overLimit > 0;
+    // Card backs are settled results, not missing cards: they do not make a page partial.
+    const partial = page.instances.some((i) => i.state !== 'confirmed' && i.state !== 'back') || !complete || page.overLimit > 0;
     const saved = page.savedRevision === page.revision;
     const save = el('button', 'primary', saved ? 'Saved' : partial ? 'Save partial page' : 'Save page');
     save.disabled = saved || page.instances.length === 0 || !complete;
