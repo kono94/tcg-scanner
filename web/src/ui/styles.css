@@ -297,7 +297,7 @@ input.search { width: 100%; box-sizing: border-box; min-height: 44px; margin: 6p
 /* Batch mode: compact status under the preview, capture feedback over it, review list. */
 .batchbar { flex: none; margin: 10px 16px 0; min-height: 44px; display: flex; align-items: center; gap: 10px; }
 .batchbar .bt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
-.batchbar .bt span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.batchbar .btx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batchbar .fin { flex: none; min-height: 44px; font-size: 14px; padding: 0 14px; }
 .batchbar .fin:disabled { opacity: .4; cursor: default; }
 .toast { position: absolute; left: 50%; bottom: 14px; z-index: 6; transform: translate(-50%, 8px); opacity: 0; pointer-events: none;

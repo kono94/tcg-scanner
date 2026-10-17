@@ -39,7 +39,7 @@ then embeds + searches one stored crop at a time (FIFO across pages, yields to s
 paused while hidden) and writes each result into the saved card. The queue is rebuilt from the
 saved pages at boot, so a reload or killed tab loses nothing. Admission control: no capture while
 90 cards wait (resumes at 60). Auto mode waits for a page turn (scene moved and differs from the
-last capture; uncalibrated threshold) before the next automatic capture. "Finish & review" lists
+last capture; uncalibrated threshold) before the next automatic capture. "Review" (finish the batch) lists
 the cards that need the user and opens the Collection card screen for each. On desktop Chrome
 (WebGPU) the stored-crop path gave identical top-1 identities and scores to direct recognition on
 six cards of the test video; not measured on a phone.

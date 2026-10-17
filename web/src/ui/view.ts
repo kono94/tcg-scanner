@@ -463,9 +463,9 @@ export class View {
     if (b.waiting) parts.push(`${b.waiting} waiting`);
     if (b.needsUser) parts.push(`${b.needsUser} need${b.needsUser === 1 ? 's' : ''} you`);
     const working = !!b.running && !b.paused && !b.stalled;
-    const html = `<div class="bt">${working ? '<span class="spin" aria-hidden="true"></span>' : ''}<span></span></div><button class="ghost fin" type="button">Finish &amp; review</button>`;
+    const html = `<div class="bt">${working ? '<span class="spin" aria-hidden="true"></span>' : ''}<span class="btx"></span></div><button class="ghost fin" type="button" aria-label="Finish batch and review">Review</button>`;
     setHtml(this.batchBar, html);
-    setText(this.batchBar.querySelector('.bt span')!, parts.join(' · ') + (b.paused && b.waiting ? ' · paused' : ''));
+    setText(this.batchBar.querySelector('.btx')!, parts.join(' · ') + (b.paused && b.waiting ? ' · paused' : ''));
     const fin = this.batchBar.querySelector<HTMLButtonElement>('.fin')!;
     fin.disabled = !b.active;
     fin.onclick = () => this.handlers.finishBatch();

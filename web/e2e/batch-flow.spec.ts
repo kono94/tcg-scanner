@@ -26,7 +26,7 @@ test('batch: scan pages, reload, review at the end', async ({ page }) => {
   // Reload while cards may still wait: pages and the queue survive, checking resumes.
   await page.reload();
   await expect(bar).toContainText('Batch · 2 pages', { timeout: 120000 });
-  await page.getByRole('button', { name: 'Finish & review' }).click();
+  await page.getByRole('button', { name: 'Finish batch and review' }).click();
   await expect(page.getByRole('heading', { name: 'Batch review' })).toBeVisible();
   await expect(page.getByText(/still being checked/)).toHaveCount(0, { timeout: 120000 });
   if (shots) await page.screenshot({ path: `${shots}/b2-review.png` });
