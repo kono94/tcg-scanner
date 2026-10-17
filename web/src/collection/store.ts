@@ -2,6 +2,7 @@
 // Saving the same page generation again replaces it: quantities never double.
 import { Catalog } from '../recognition/catalog';
 import { displayCard, type MatchResult } from '../recognition/policy';
+import type { ValueSummary } from '../recognition/value';
 import type { PriceService } from '../prices/service';
 import { deletePageCrops, encodeBitmap, putCrops } from './crops';
 import type { PageState } from '../session/page';
@@ -40,6 +41,15 @@ export interface SavedCard {
   hasCrop?: boolean;
   /** The user picked the match (or "not in the catalog") from the collection. */
   correctedAt?: string;
+  /** Batch mode: why an unresolved card needs the user (AttentionReason of the session). */
+  reason?: string;
+  /** Batch mode: job token of a card waiting to be checked ('queued'); late results for another token are dropped. */
+  queued?: number;
+  /** Crop quality measured when the card was extracted (capture pixels, glare fraction). */
+  quality?: { shortSide: number; glare: number };
+  /** Closest catalog matches at recognition time (kept for unresolved cards), with the bundle version used. */
+  hits?: { identity: string; score: number }[];
+  bundle?: string;
 }
 
 export interface SavedPage {
@@ -50,7 +60,12 @@ export interface SavedPage {
   savedAt: string;
   partial: boolean;
   cards: SavedCard[];
+  /** Pages scanned in batch mode belong to one batch (review at the end). */
+  batchId?: string;
 }
+
+/** Unique per page load: page generations restart at 1 after a reload and must not overwrite older saves. */
+const BOOT = Date.now().toString(36);
 
 const PAGES = 'tcg-scanner-collection-v1';
 const SESSION = 'tcg-scanner-session-v1';
@@ -103,12 +118,43 @@ export function deleteSavedCard(pageKey: string, number: number): void {
 
 /** Apply a user decision to a saved card (identity, versions, flags); the value is repriced on reload. */
 export function updateSavedCard(pageKey: string, number: number, patch: Partial<SavedCard>): boolean {
+  return patchSavedCard(pageKey, number, { ...patch, correctedAt: new Date().toISOString() });
+}
+
+/** Machine update of a saved card (batch recognition result); keeps the page's partial flag current. */
+export function patchSavedCard(pageKey: string, number: number, patch: Partial<SavedCard>): boolean {
   const pages = loadPages();
-  const card = pages.find((p) => p.key === pageKey)?.cards.find((c) => c.number === number);
-  if (!card) return false;
-  Object.assign(card, patch, { correctedAt: new Date().toISOString() });
+  const page = pages.find((p) => p.key === pageKey);
+  const card = page?.cards.find((c) => c.number === number);
+  if (!page || !card) return false;
+  Object.assign(card, patch);
+  for (const [k, v] of Object.entries(patch)) if (v === undefined) delete (card as unknown as Record<string, unknown>)[k];
   delete card.current;
+  if (page.batchId) page.partial = page.cards.some((c) => c.state !== 'confirmed');
   return write(PAGES, pages);
+}
+
+/** Add or replace one saved page (by key). */
+export function writePage(page: SavedPage): boolean {
+  const pages = loadPages().filter((p) => p.key !== page.key);
+  pages.push(page);
+  return write(PAGES, pages);
+}
+
+/** Saved-card fields for a match (identity, versions, scan-time value), shared by page saves and batch results. */
+export function matchFields(m: MatchResult | null, v: ValueSummary | null, catalog: Catalog): Pick<SavedCard, 'identity' | 'name' | 'cardId' | 'languageAssumed' | 'versions' | 'preferredId' | 'checkVariant' | 'value'> {
+  const card = m ? displayCard(m, catalog) : undefined;
+  return {
+    identity: card?.id ?? null, name: card?.name ?? null, cardId: card?.cardId ?? null, languageAssumed: m?.languageAssumed ?? false,
+    versions: m?.plausible.map((c) => c.id), preferredId: m ? m.preferred?.id ?? null : undefined, checkVariant: v?.cue?.kind === 'check-variant',
+    value: m && v && v.currency ? { currency: v.currency, preferred: v.preferred?.amount ?? null, low: v.low, high: v.high,
+      cue: !!v.cue || v.rangeIncomplete, converted: !!v.preferred?.converted } : null,
+  };
+}
+
+/** A saved card the user still has to look at: unresolved, or matched with a pricier variant possible. */
+export function savedNeedsUser(c: SavedCard): boolean {
+  return !c.checkedByUser && (c.state === 'needs-attention' || (c.state === 'confirmed' && !!c.checkVariant));
 }
 
 async function thumbnail(bitmap: ImageBitmap | null): Promise<string | null> {
@@ -129,7 +175,7 @@ async function thumbnail(bitmap: ImageBitmap | null): Promise<string | null> {
  */
 export async function savePage(page: PageState, catalog: Catalog, displayCrop?: (id: string) => Promise<ImageBitmap | null>): Promise<boolean> {
   const cards: SavedCard[] = [];
-  const key = `page-${page.generation}`;
+  const key = `page-${BOOT}-${page.generation}`;
   for (const i of page.instances) {
     let hasCrop = false;
     if (i.crop) {
@@ -139,14 +185,8 @@ export async function savePage(page: PageState, catalog: Catalog, displayCrop?: 
       } catch { hasCrop = false; }
     }
     const m: MatchResult | null = i.decision?.kind === 'matched' && i.state === 'confirmed' ? i.decision : null;
-    const card = m ? displayCard(m, catalog) : undefined;
-    const v = i.value;
     cards.push({
-      number: i.number, identity: card?.id ?? null, name: card?.name ?? null, cardId: card?.cardId ?? null,
-      state: i.state, languageAssumed: m?.languageAssumed ?? false, checkedByUser: !!i.userChoice?.identity,
-      versions: m?.plausible.map((c) => c.id), preferredId: m ? m.preferred?.id ?? null : undefined, checkVariant: v?.cue?.kind === 'check-variant',
-      value: m && v && v.currency ? { currency: v.currency, preferred: v.preferred?.amount ?? null, low: v.low, high: v.high,
-        cue: !!v.cue || v.rangeIncomplete, converted: !!v.preferred?.converted } : null,
+      number: i.number, ...matchFields(m, i.value, catalog), state: i.state, checkedByUser: !!i.userChoice?.identity,
       thumb: await thumbnail(i.crop),
       hasCrop,
     });
@@ -155,9 +195,7 @@ export async function savePage(page: PageState, catalog: Catalog, displayCrop?: 
     key, sessionId: currentSession(), pageNumber: page.pageNumber, revision: page.revision, savedAt: new Date().toISOString(),
     partial: page.instances.some((i) => i.state !== 'confirmed') || page.overLimit > 0, cards,
   };
-  const pages = loadPages().filter((p) => p.key !== key);
-  pages.push(saved);
-  return write(PAGES, pages);
+  return writePage(saved);
 }
 
 /**

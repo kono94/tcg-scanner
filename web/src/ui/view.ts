@@ -14,7 +14,8 @@ import type { Quad } from '../vision/image';
 import { bracketPath, centroid, mapQuad, PREVIEW_ZOOM, quadMatrix3d, rectQuad, zoomedFit, type ContainFit } from './geometry';
 import type { Geometry, Presenter } from './presenter';
 import type { Settings } from './settings';
-import { scanAmountIn, totals, type SavedPage } from '../collection/store';
+import { savedNeedsUser, scanAmountIn, totals, type SavedCard, type SavedPage } from '../collection/store';
+import type { BatchStatus } from '../batch/session';
 
 export interface AppSnapshot {
   page: PageState;
@@ -35,7 +36,13 @@ export interface AppSnapshot {
   /** Large display crop for the open card, when loaded. */
   bigCrop: ImageBitmap | null;
   expanded: boolean;
-  overlay: 'none' | 'review' | 'settings' | 'collection' | 'start';
+  overlay: 'none' | 'review' | 'settings' | 'collection' | 'start' | 'batch';
+  /** Batch workflow status (null in single-page mode). */
+  batch: BatchStatus | null;
+  /** Short capture feedback over the live preview (batch mode), e.g. "Page 3 saved · 9 cards". */
+  toast: string | null;
+  /** Batch auto mode: waiting for the next page before scanning automatically. */
+  awaitingChange: boolean;
   /** Saved pages for the Collection tab, and the one opened there. */
   collection: CollectionState;
   sweepAt: number;
@@ -96,6 +103,10 @@ export interface Handlers {
   savedChoose(identity: string | null, languageConfirmed: boolean): void;
   nextPage(): void;
   save(): void;
+  /** Batch mode: open the review of the batch, go back to scanning, or close the batch. */
+  finishBatch(): void;
+  scanMore(): void;
+  doneBatch(): void;
   useCamera(): void;
   useVideo(v: MockVideo): void;
   resume(): void;
@@ -226,6 +237,16 @@ export function isCue(card: CardInstance): boolean {
   return card.state === 'confirmed' && (!!card.value?.cue || (!!card.value?.rangeIncomplete && card.value.priced > 0));
 }
 
+/** Short status of a saved card (Collection and batch review). */
+export function savedLabel(c: SavedCard): string {
+  if (c.state === 'queued') return 'Waiting to check';
+  if (c.state === 'needs-attention') return REASON[c.reason as AttentionReason] ?? 'Needs attention';
+  if (c.state === 'confirmed' && c.checkVariant && !c.checkedByUser) return 'Check variant';
+  if (c.state === 'skipped') return 'Not identified';
+  if (c.state === 'not-in-catalog') return 'Not in the catalog';
+  return c.name ?? 'Unresolved';
+}
+
 export function stateLabel(card: CardInstance): string {
   switch (card.state) {
     case 'queued': return 'Waiting to check';
@@ -274,6 +295,8 @@ export class View {
   private readonly flights = el('div');
   private readonly layer = el('div');
   private readonly announce = el('div', 'sr');
+  private readonly batchBar = el('div', 'batchbar');
+  private readonly toast = el('div', 'toast');
   private stillBitmap: ImageBitmap | null = null;
   private fit: ContainFit | null = null;
   private lastSweep = 0;
@@ -300,7 +323,8 @@ export class View {
     this.expandBtn.innerHTML = ICONS.expand;
     this.expandBtn.onclick = () => this.handlers.expand(!this.cam.classList.contains('expanded'));
     // The processing panel floats over the photo so it never takes layout space.
-    this.cam.append(this.video, this.still, this.svg, this.hits, this.chip, this.fx, this.diag, this.expandBtn, this.loupe);
+    this.cam.append(this.video, this.still, this.svg, this.hits, this.chip, this.fx, this.diag, this.expandBtn, this.loupe, this.toast);
+    this.toast.setAttribute('role', 'status');
     this.loupe.setAttribute('aria-hidden', 'true');
     const bot = el('div', 'bot');
     const actions = el('div', 'actions');
@@ -316,7 +340,7 @@ export class View {
     this.homeBtn.innerHTML = ICONS.back + ' Home';
     this.homeBtn.onclick = () => this.handlers.tab('home');
     nav.append(this.homeBtn);
-    root.append(nav, top, this.cam, this.strip, bot, this.flights, this.layer, this.announce);
+    root.append(nav, top, this.cam, this.strip, this.batchBar, bot, this.flights, this.layer, this.announce);
     this.settingsBtn.onclick = () => this.handlers.settings();
     this.rescanBtn.onclick = () => this.handlers.rescan();
     this.themeBtn.onclick = () => this.handlers.theme();
@@ -381,7 +405,14 @@ export class View {
   clearStill() {
     this.stillBitmap?.close();
     this.stillBitmap = null;
+    // WebKit frees canvas backing stores late: shrink it now rather than keep a screen-sized buffer.
+    this.still.width = this.still.height = 0;
     this.cam.classList.remove('captured');
+  }
+
+  /** Display copy of the capture held by the view (for memory breadcrumbs). */
+  get stillPixels(): number {
+    return this.stillBitmap ? this.stillBitmap.width * this.stillBitmap.height : 0;
   }
 
   redrawStill() {
@@ -416,7 +447,28 @@ export class View {
     this.renderStrip(s, presenter);
     this.renderFlights(s, presenter, geo);
     this.renderButtons(s, captured);
+    this.renderBatch(s);
     this.renderLayer(s, catalog);
+  }
+
+  /** Batch mode: compact status under the preview and the capture feedback over it. */
+  private renderBatch(s: AppSnapshot) {
+    const b = s.batch;
+    this.batchBar.style.display = b ? '' : 'none';
+    this.strip.style.display = b ? 'none' : '';
+    setText(this.toast, s.toast ?? '');
+    this.toast.classList.toggle('show', !!s.toast && !!b);
+    if (!b) return;
+    const parts = b.active ? [`Batch · ${b.pages} page${b.pages === 1 ? '' : 's'}`, `${b.cards} card${b.cards === 1 ? '' : 's'}`] : ['Batch · no pages yet'];
+    if (b.waiting) parts.push(`${b.waiting} waiting`);
+    if (b.needsUser) parts.push(`${b.needsUser} need${b.needsUser === 1 ? 's' : ''} you`);
+    const working = !!b.running && !b.paused && !b.stalled;
+    const html = `<div class="bt">${working ? '<span class="spin" aria-hidden="true"></span>' : ''}<span></span></div><button class="ghost fin" type="button">Finish &amp; review</button>`;
+    setHtml(this.batchBar, html);
+    setText(this.batchBar.querySelector('.bt span')!, parts.join(' · ') + (b.paused && b.waiting ? ' · paused' : ''));
+    const fin = this.batchBar.querySelector<HTMLButtonElement>('.fin')!;
+    fin.disabled = !b.active;
+    fin.onclick = () => this.handlers.finishBatch();
   }
 
   private counts(page: PageState): string {
@@ -435,7 +487,13 @@ export class View {
     const counts = this.counts(page);
     if (s.runtime.stage === 'failed') { title = 'Models failed to load'; sub = s.runtime.detail; }
     else if (!s.camera) { title = s.hiddenStop ? 'Paused' : 'Choose a camera'; sub = s.hiddenStop ? 'Camera stopped while the app was hidden' : ''; }
-    else if (s.cyclePhase === 'live' || page.status === 'empty') {
+    else if (s.batch && s.runtime.stage === 'ready' && (s.batch.capturing || s.batch.full || s.batch.stalled || s.awaitingChange)) {
+      const b = s.batch;
+      if (b.capturing) { title = `Saving page ${(b.active?.nextPage ?? 1)}`; sub = 'Finding the cards and storing them'; }
+      else if (b.stalled) { title = 'Checking stopped'; sub = `${b.stalled}. Scanned pages are saved; reload to continue checking.`; }
+      else if (b.full) { title = 'Batch paused'; sub = `${b.waiting} cards are still being checked. Scanning resumes when fewer are waiting.`; }
+      else { title = 'Turn the page'; sub = 'Scans once the next page is steady, or tap Scan now'; }
+    } else if (s.cyclePhase === 'live' || page.status === 'empty') {
       if (s.runtime.stage !== 'ready') { title = 'Loading models'; sub = s.runtime.detail; }
       else if (s.settings.mode === 'manual') { title = 'Fit the page in view'; sub = 'Tap Scan now when ready'; }
       else if (s.countdownMs === 0 && !s.stability.sharp) { title = 'Hold steady'; sub = 'Waiting for a sharp image'; }
@@ -494,7 +552,7 @@ export class View {
     this.expandBtn.style.display = captured ? '' : 'none';
     setHtml(this.expandBtn, expanded ? ICONS.shrink : ICONS.expand);
     this.expandBtn.setAttribute('aria-label', expanded ? 'Shrink captured image' : 'Show captured image full screen');
-    const chipText = `Page ${page.pageNumber} · ` + (!s.camera ? 'No camera' : captured ? 'Captured' : s.camera.mock ? 'Test video' : 'Live');
+    const chipText = (s.batch ? `Batch · page ${s.batch.active?.nextPage ?? 1} · ` : `Page ${page.pageNumber} · `) + (!s.camera ? 'No camera' : captured ? 'Captured' : s.camera.mock ? 'Test video' : 'Live');
     setHtml(this.chip, `<span class="${captured ? 'still-mark' : 'live'}"></span><span class="t"></span>`);
     setText(this.chip.querySelector('.t')!, chipText + (captured && s.camera?.mock ? ' · test video' : ''));
     if (s.sweepAt !== this.lastSweep) {
@@ -676,7 +734,16 @@ export class View {
     this.rescanBtn.style.visibility = captured ? '' : 'hidden';
     const page = s.page;
     let label = 'Scan now', disabled = false;
+    if (s.batch) {
+      this.themeBtn.style.visibility = 'hidden';
+      this.rescanBtn.style.visibility = 'hidden';
+    }
     if (!s.camera) label = s.hiddenStop ? 'Resume camera' : 'Choose camera';
+    else if (s.batch) {
+      const b = s.batch;
+      disabled = s.runtime.stage !== 'ready' || b.capturing || b.full || !!b.stalled || s.cyclePhase !== 'live';
+      label = b.capturing ? 'Saving page…' : b.full ? 'Waiting for the backlog' : 'Scan now';
+    }
     else if (s.cyclePhase === 'live') { disabled = s.runtime.stage !== 'ready'; }
     else if (page.status === 'detecting') { label = 'Finding cards…'; disabled = true; }
     else if (page.status === 'processing') label = 'Review so far';
@@ -699,6 +766,7 @@ export class View {
     const key = s.overlay === 'review' ? `review|${this.reviewKey(s)}|${viewerKey}`
       : s.overlay === 'settings' ? `settings|${JSON.stringify(s.settings)}|${s.runtime.provider}`
       : s.overlay === 'collection' ? `collection|${s.collection.rev}|${s.collection.open}|${s.settings.priceMarket}`
+      : s.overlay === 'batch' ? `batch|${s.collection.rev}|${JSON.stringify(s.batch)}|${s.settings.priceMarket}`
         : s.overlay === 'start' ? `start|${s.videos.length}|${s.error}|${s.runtime.stage}|${!!s.camera}|${s.collection.pages.length}`
           : card ? `viewer|${viewerKey}` : '';
     if (key === this.layerKey) {
@@ -707,7 +775,7 @@ export class View {
     }
     this.layerKey = key;
     // Redrawing the same screen keeps its scroll position and the search field's focus and caret.
-    const screenId = s.overlay === 'collection' ? `collection|${s.collection.open}|${s.collection.card?.pageKey}#${s.collection.card?.number}` : s.overlay;
+    const screenId = s.overlay === 'collection' || s.overlay === 'batch' ? `${s.overlay}|${s.collection.open}|${s.collection.card?.pageKey}#${s.collection.card?.number}` : s.overlay;
     const prevScroll = screenId === this.screenId ? (this.layer.querySelector('.screen') as HTMLElement | null)?.scrollTop ?? 0 : 0;
     const input = this.searchInput;
     const focused = !!input && document.activeElement === input;
@@ -717,6 +785,7 @@ export class View {
     if (s.overlay === 'start') this.layer.append(this.startScreen(s));
     else if (s.overlay === 'settings') this.layer.append(this.settingsScreen(s));
     else if (s.overlay === 'collection') this.layer.append(this.collectionScreen(s, catalog));
+    else if (s.overlay === 'batch') this.layer.append(this.batchScreen(s, catalog));
     else if (s.overlay === 'review') this.layer.append(this.reviewPage(s, catalog));
     const screen = this.layer.querySelector('.screen') as HTMLElement | null;
     if (screen && prevScroll) screen.scrollTop = prevScroll;
@@ -724,12 +793,13 @@ export class View {
       input!.focus({ preventScroll: true });
       if (caret) input!.setSelectionRange(caret[0], caret[1]);
     }
-    if (card && s.overlay !== 'start' && s.overlay !== 'settings' && s.overlay !== 'collection') {
+    const viewer = !!card && (s.overlay === 'none' || s.overlay === 'review');
+    if (card && viewer) {
       const v = this.viewer(card, s, catalog);
       if (this.viewerOpen) v.classList.add('swap'); // already open: switch content without the open animation
       this.layer.append(v);
     }
-    this.viewerOpen = !!card && s.overlay !== 'start' && s.overlay !== 'settings' && s.overlay !== 'collection';
+    this.viewerOpen = viewer;
   }
 
   private cardKey(c: CardInstance): string {
@@ -813,15 +883,20 @@ export class View {
       sheet.append(l);
     };
     select('Theme', 'theme', [['system', 'System'], ['dark', 'Dark'], ['light', 'Light']]);
-    select('After a scan', 'reviewMode', [['trust', 'Show a Check button'], ['review', 'Open the check automatically']]);
+    select('Scan workflow', 'workflow', [['page', 'One page (review each)'], ['batch', 'Batch (review at the end)']]);
+    if (s.settings.workflow === 'page') select('After a scan', 'reviewMode', [['trust', 'Show a Check button'], ['review', 'Open the check automatically']]);
     select('Card language', 'preferredLanguage', [['en', 'English'], ['de', 'German']]);
     select('Prices', 'priceMarket', [['EUR', 'Cardmarket (€)'], ['USD', 'TCGplayer ($)']]);
-    select('Trigger', 'mode', [['auto', 'Auto when steady'], ['manual', 'Manual'], ['repeat', 'Repeat while steady']]);
+    // Batch mode: every capture is a new page, so "repeat" (re-scan the same page) does not apply.
+    select('Trigger', 'mode', s.settings.workflow === 'batch' ? [['auto', 'Auto when steady'], ['manual', 'Manual']]
+      : [['auto', 'Auto when steady'], ['manual', 'Manual'], ['repeat', 'Repeat while steady']]);
     select('Steady duration', 'dwellMs', [[400, '0.4 s'], [800, '0.8 s'], [1200, '1.2 s'], [2000, '2 s']]);
     select('Repeat interval', 'cooldownMs', [[1000, '1 s'], [3000, '3 s'], [5000, '5 s'], [10000, '10 s']]);
     select('Motion tolerance', 'tolerance', [['sensitive', 'Sensitive'], ['normal', 'Normal'], ['relaxed', 'Relaxed']]);
     select('GPU inference (reload to apply)', 'preferWebGPU', [[true, 'WebGPU if available'], [false, 'WASM only']]);
     select('Diagnostics', 'diagnostics', [[false, 'Off'], [true, 'On']]);
+    // Dev server only: full captures with detections go to runs/captures/ for training.
+    if (import.meta.env.DEV) select('Save captures for training (dev)', 'saveCaptures', [[false, 'Off'], [true, 'On']]);
     sheet.append(el('div', 'k', `Runtime: ${s.runtime.provider ?? s.runtime.detail}${s.runtime.fallbackReason ? ` (${s.runtime.fallbackReason})` : ''} · bundle ${s.manifest.version}`));
     return sheet;
   }
@@ -848,7 +923,7 @@ export class View {
         row.setAttribute('aria-label', `Card ${c.number}: ${c.name ?? 'not identified'}. Open to check again`);
         if (c.thumb) { const img = el('img'); img.src = c.thumb; img.alt = ''; row.append(img); } else row.append(el('div', 'ph'));
         const info = el('div', 'ci');
-        info.append(el('div', 'cn2', c.name ?? (c.state === 'skipped' ? 'Not identified' : c.state === 'not-in-catalog' ? 'Not in the catalog' : 'Unresolved')),
+        info.append(el('div', 'cn2', c.name ?? savedLabel(c)),
           el('div', 'k', [c.cardId, c.languageAssumed ? 'language assumed' : '', c.checkedByUser ? 'checked by you' : ''].filter(Boolean).join(' · ') || `card ${c.number}`));
         row.append(info);
         const v = c.current !== undefined ? c.current : c.value;
@@ -905,11 +980,12 @@ export class View {
   }
 
   /** One saved card: its crop, current match and value; check again, pick another card, or search the catalog. */
-  private savedCardScreen(s: AppSnapshot, page: SavedPage, saved: SavedPage['cards'][number], catalog: Catalog): HTMLElement {
+  private savedCardScreen(s: AppSnapshot, page: SavedPage, saved: SavedPage['cards'][number], catalog: Catalog, backLabel = `Page ${page.pageNumber}`): HTMLElement {
     const sc = s.collection.card!;
     const wrap = el('div', 'screen collection savedcard');
     const back = el('button', 'back');
-    back.innerHTML = ICONS.back + ` Page ${page.pageNumber}`;
+    back.innerHTML = ICONS.back + ' ';
+    back.append(backLabel);
     back.onclick = () => this.handlers.openSavedCard(page.key, null);
     wrap.append(back);
     const top = el('div', 'sctop');
@@ -942,7 +1018,8 @@ export class View {
       row.append(use, cancel);
       wrap.append(row);
     } else {
-      wrap.append(el('div', 'k', [saved.checkedByUser ? 'checked by you' : 'matched by the scanner', saved.languageAssumed ? `${languageName(s.settings.preferredLanguage)} assumed` : ''].filter(Boolean).join(' · ')));
+      if (s.overlay === 'batch') wrap.append(el('div', 'k', `Page ${page.pageNumber} · card ${saved.number} · ${savedLabel(saved)}`));
+      wrap.append(el('div', 'k', [saved.checkedByUser ? 'checked by you' : saved.identity ? 'matched by the scanner' : '', saved.languageAssumed ? `${languageName(s.settings.preferredLanguage)} assumed` : ''].filter(Boolean).join(' · ')));
       const v = saved.current !== undefined ? saved.current : saved.value;
       if (v?.preferred != null) wrap.append(el('div', 'big', formatMoney(v.preferred, v.currency, v.converted)));
       // Language versions of the current artwork: one tap confirms the exact version.
@@ -992,6 +1069,83 @@ export class View {
     del.onclick = () => { if (confirm('Delete this card from the collection?')) this.handlers.deleteSavedCard(page.key, saved.number); };
     foot.append(none, del);
     wrap.append(foot);
+    return wrap;
+  }
+
+  /** Batch review: the cards that need the user first, then every page of the batch. */
+  private batchScreen(s: AppSnapshot, catalog: Catalog): HTMLElement {
+    const b = s.batch;
+    const keys = b?.active?.pageKeys ?? [];
+    const byKey = new Map(s.collection.pages.map((p) => [p.key, p]));
+    const pages = keys.map((k) => byKey.get(k)).filter((p): p is SavedPage => !!p);
+    const sc = s.collection.card;
+    const open = sc ? pages.find((p) => p.key === sc.pageKey) : undefined;
+    const saved = open?.cards.find((c) => c.number === sc!.number);
+    if (open && saved) return this.savedCardScreen(s, open, saved, catalog, 'Batch review');
+    const wrap = el('div', 'screen collection batchrev');
+    const back = el('button', 'back');
+    back.innerHTML = ICONS.back + ' Scanner';
+    back.onclick = () => this.handlers.scanMore();
+    wrap.append(back, el('h1', 'title', 'Batch review'));
+    const cards = pages.flatMap((p) => p.cards.map((c) => ({ p, c })));
+    const identified = cards.filter(({ c }) => c.identity).length;
+    wrap.append(el('div', 'sub', `${pages.length} page${pages.length === 1 ? '' : 's'} · ${cards.length} card${cards.length === 1 ? '' : 's'} · ${identified} identified`));
+    if (b && b.waiting) {
+      const w = el('div', 'wait');
+      const working = !!b.running && !b.paused && !b.stalled;
+      if (working) w.append(el('span', 'spin'));
+      w.append(document.createTextNode(b.stalled ? `Checking stopped: ${b.stalled}. Reload to continue; nothing is lost.`
+        : `${b.waiting} card${b.waiting === 1 ? '' : 's'} still being checked${working ? ' in the background' : ' (paused)'}. Results appear here as they finish.`));
+      wrap.append(w);
+    }
+    const need = cards.filter(({ c }) => savedNeedsUser(c));
+    const row = (p: SavedPage, c: SavedCard) => {
+      const r = el('button', 'crow2');
+      r.setAttribute('aria-label', `Page ${p.pageNumber}, card ${c.number}: ${savedLabel(c)}. Open to check`);
+      if (c.thumb) { const img = el('img'); img.src = c.thumb; img.alt = ''; r.append(img); } else r.append(el('div', 'ph'));
+      const info = el('div', 'ci');
+      const attn = c.state === 'needs-attention';
+      const label = el('div', `k${attn ? ' attn' : ''}`);
+      label.innerHTML = attn ? ICONS.att + ' ' : c.checkVariant ? ICONS.cue + ' ' : '';
+      label.append(savedLabel(c));
+      info.append(el('div', 'cn2', c.name ?? `Page ${p.pageNumber} · card ${c.number}`), label);
+      r.append(info, el('div', 'cv', c.name ? `p${p.pageNumber} · ${c.number}` : ''));
+      r.onclick = () => this.handlers.openSavedCard(p.key, c.number);
+      return r;
+    };
+    const head = (text: string) => { const h = el('div', 'shead'); h.append(el('div', 'sn', text)); return h; };
+    wrap.append(head(`Needs you · ${need.length}`));
+    if (need.length) {
+      const list = el('div', 'clist');
+      for (const { p, c } of need) list.append(row(p, c));
+      wrap.append(list);
+    } else {
+      wrap.append(el('p', 'note', b?.waiting ? 'Nothing so far. Cards that need you appear here while the rest is checked.' : 'Nothing needs you: every card was matched.'));
+    }
+    wrap.append(head('Pages'));
+    for (const p of pages) {
+      const waiting = p.cards.filter((c) => c.state === 'queued').length;
+      const box = el('div', 'bpage');
+      box.append(el('div', 'k', `Page ${p.pageNumber} · ${p.cards.length} card${p.cards.length === 1 ? '' : 's'}${waiting ? ` · ${waiting} waiting` : p.partial ? ' · partial' : ''}`));
+      const thumbs = el('div', 'bthumbs');
+      for (const c of p.cards) {
+        const t = el('button', `bthumb st-${c.state}${savedNeedsUser(c) ? ' need' : ''}`);
+        t.setAttribute('aria-label', `Page ${p.pageNumber}, card ${c.number}: ${savedLabel(c)}`);
+        if (c.thumb) { const img = el('img'); img.src = c.thumb; img.alt = ''; t.append(img); }
+        t.onclick = () => this.handlers.openSavedCard(p.key, c.number);
+        thumbs.append(t);
+      }
+      box.append(thumbs);
+      wrap.append(box);
+    }
+    const foot = el('div', 'actions bfoot');
+    const more = el('button', 'ghost', 'Scan more');
+    more.onclick = () => this.handlers.scanMore();
+    const done = el('button', 'primary', 'Done');
+    done.onclick = () => this.handlers.doneBatch();
+    foot.append(more, done);
+    wrap.append(foot);
+    wrap.append(el('p', 'note', 'Every page is already in the Collection. Done closes this batch; cards still waiting keep being checked there.'));
     return wrap;
   }
 

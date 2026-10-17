@@ -29,6 +29,34 @@ starts a test video directly. The video mock plays a local file and passes
 not a camera benchmark. Phones need HTTPS for camera access; a laptop's LAN HTTP
 address does not count as localhost on the phone.
 
+## Batch workflow (Settings → Scan workflow)
+
+"Batch (review at the end)" scans page after page (auto when steady or manual). Per capture:
+detect → the worker writes each card's canonical crop (PNG, encoder-contract pixels), display
+crop and thumbnail → IndexedDB → the capture is released (worker buffer dropped) → the page is saved
+to the Collection with its cards `queued` → back to the live preview. `src/batch/session.ts`
+then embeds + searches one stored crop at a time (FIFO across pages, yields to single-page work,
+paused while hidden) and writes each result into the saved card. The queue is rebuilt from the
+saved pages at boot, so a reload or killed tab loses nothing. Admission control: no capture while
+90 cards wait (resumes at 60). Auto mode waits for a page turn (scene moved and differs from the
+last capture; uncalibrated threshold) before the next automatic capture. "Finish & review" lists
+the cards that need the user and opens the Collection card screen for each. On desktop Chrome
+(WebGPU) the stored-crop path gave identical top-1 identities and scores to direct recognition on
+six cards of the test video; not measured on a phone.
+
+## Phone reload diagnostics (dev server)
+
+`debug.ts` keeps an "alive" marker in localStorage. Each boot logs `navigation` type and, for the
+previous page of the origin, `previous-session` (ended with pagehide / bfcache / hmr-full-reload)
+or `previous-session-unclean` (no pagehide: crash or tab killed) with its last breadcrumbs.
+`hmr-full-reload` (client) and `server-file-*` (server) lines mark dev-server reloads, which also
+reload a connected phone. Capture/page breadcrumbs carry what is alive on the UI thread
+(display crops, still image, batch backlog); WebKit exposes no heap size.
+
+"Save captures for training" (Settings, dev server only, off by default) POSTs each full capture
+(JPEG) with its detections to `/__capture`, stored under `runs/captures/<date>/`
+(`runs/captures-tests/` for automated runs). Not present in production builds.
+
 ## Checks
 
 ```bash
@@ -46,6 +74,7 @@ Unit tests read fixtures from `runs/browser_export/pilot-20261016` (override wit
 - `src/recognition/`: gallery search, catalog families, match policy, value ranges.
 - `src/capture/`: stability monitor and capture cycle (pure, timestamp-driven).
 - `src/session/page.ts`: page instances, one bounded recognizer, retries, timeouts, generation guards.
+- `src/batch/`: batch workflow (capture → stored crops → background recognition queue persisted in the Collection).
 - `src/inference/`: worker protocol, worker, client.
 - `src/ui/`: Darkroom view, crop-flight presenter, settings.
 - `src/prices/`: replaceable price service (bundled snapshot).

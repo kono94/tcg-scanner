@@ -56,7 +56,17 @@ function clientLog(): Plugin {
       res.end();
     });
   };
-  return { name: 'client-log', configureServer: (server) => { server.middlewares.use(handler); } };
+  return {
+    name: 'client-log',
+    configureServer: (server) => { server.middlewares.use(handler); },
+    // A changed source file makes connected phones reload (HMR full reload): log it next to the
+    // client breadcrumbs so such reloads are not mistaken for crashes.
+    hotUpdate({ file, type }) {
+      if (this.environment.name !== 'client' || file.includes(`${sep}.logs${sep}`)) return;
+      mkdirSync(dir, { recursive: true });
+      appendFileSync(resolve(dir, 'client.log'), `${new Date().toISOString()} server {"event":"server-file-${type}","file":${JSON.stringify(file)}}\n`);
+    },
+  };
 }
 
 /** Dev only: user decisions (crop + labels) for retraining, stored under runs/feedback/<date>/. */
@@ -88,8 +98,41 @@ function feedback(): Plugin {
   return { name: 'feedback', configureServer: (server) => { server.middlewares.use(handler); } };
 }
 
+/**
+ * Dev only: full captures (JPEG) with their detections, for detector/recognizer training, when the
+ * "Save captures for training" setting is on. Stored under runs/captures/<date>/ (test runs under
+ * runs/captures-tests/). Body: the JPEG; metadata JSON in the `meta` query parameter.
+ */
+function captures(): Plugin {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '../runs/captures');
+  const handler: Connect.NextHandleFunction = (req, res, next) => {
+    if (!req.url?.startsWith('/__capture') || req.method !== 'POST') return next();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (c: Buffer) => { size += c.length; if (size > 20_000_000) req.destroy(); else chunks.push(c); });
+    req.on('end', () => {
+      try {
+        const meta = JSON.parse(new URL(req.url!, 'http://x').searchParams.get('meta') ?? '') as Record<string, unknown> & { test_run?: boolean; page?: number };
+        const jpeg = Buffer.concat(chunks);
+        if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error('not a JPEG');
+        const day = new Date().toISOString().slice(0, 10);
+        const dir = resolve(meta.test_run ? `${root}-tests` : root, day);
+        mkdirSync(dir, { recursive: true });
+        const name = `${Date.now()}_p${Number(meta.page) || 0}`;
+        writeFileSync(resolve(dir, `${name}.jpg`), jpeg);
+        writeFileSync(resolve(dir, `${name}.json`), JSON.stringify({ ...meta, image: `${name}.jpg`, client: req.socket.remoteAddress }, null, 1));
+        res.statusCode = 204;
+      } catch {
+        res.statusCode = 400;
+      }
+      res.end();
+    });
+  };
+  return { name: 'captures', configureServer: (server) => { server.middlewares.use(handler); } };
+}
+
 export default defineConfig({
-  plugins: [referenceImages(), clientLog(), feedback()],
+  plugins: [referenceImages(), clientLog(), feedback(), captures()],
   server: { headers: isolation, host: '0.0.0.0', https },
   preview: { headers: isolation, host: '0.0.0.0', https },
   worker: { format: 'es' },

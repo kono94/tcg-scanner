@@ -22,7 +22,7 @@
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); }
+html, body { margin: 0; height: 100%; background: var(--bg); overscroll-behavior: none; }
 body { color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
 button { font: inherit; color: inherit; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -293,3 +293,25 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 input.search { width: 100%; box-sizing: border-box; min-height: 44px; margin: 6px 0 8px; padding: 0 12px; font: 15px var(--sans); color: var(--ink); background: var(--well); border: 1px solid var(--line2); border-radius: 10px; }
 .linkbtn.danger { color: var(--att); }
 @media (prefers-reduced-motion: reduce) { .swipe > * { transition: none !important; } }
+
+/* Batch mode: compact status under the preview, capture feedback over it, review list. */
+.batchbar { flex: none; margin: 10px 16px 0; min-height: 44px; display: flex; align-items: center; gap: 10px; }
+.batchbar .bt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.batchbar .bt span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.batchbar .fin { flex: none; min-height: 44px; font-size: 14px; padding: 0 14px; }
+.batchbar .fin:disabled { opacity: .4; cursor: default; }
+.toast { position: absolute; left: 50%; bottom: 14px; z-index: 6; transform: translate(-50%, 8px); opacity: 0; pointer-events: none;
+  padding: 8px 14px; border-radius: 18px; background: rgba(15, 14, 13, .84); color: #EDE9E3; font: 500 13px var(--sans); white-space: nowrap;
+  max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; transition: opacity .2s, transform .2s; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.batchrev .k.attn { color: var(--att); }
+.batchrev .k svg { vertical-align: -2px; }
+.bpage { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.bthumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bthumb { width: 34px; height: 47px; padding: 0; border: 0; border-radius: 3px; overflow: hidden; background: var(--well); cursor: pointer; position: relative; }
+.bthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bthumb.st-queued img { opacity: .45; }
+.bthumb.st-queued::after { content: ''; position: absolute; inset: 0; border: 1px dashed var(--line2); border-radius: 3px; }
+.bthumb.need { box-shadow: inset 0 0 0 2px var(--att); }
+.bthumb.need img { opacity: .7; }
+.bfoot { margin-top: 18px; }

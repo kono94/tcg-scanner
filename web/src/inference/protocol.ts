@@ -22,11 +22,16 @@ export type ToWorker =
   | { type: 'init'; baseUrl: string; manifest: BundleManifest; identities: string[]; preferWebGPU: boolean }
   | { type: 'detect'; captureId: number; bitmap: ImageBitmap }
   | { type: 'recognize'; captureId: number; instanceId: string; revision: number; quad: Quad }
-  | { type: 'release'; captureId: number }
+  /** `drop`: also free the worker's capture-sized buffer (batch mode keeps nothing between pages). */
+  | { type: 'release'; captureId: number; drop?: boolean }
   /** Display-only crop at a larger size from the same full-resolution capture. */
   | { type: 'crop'; requestId: number; captureId: number; quad: Quad; width: number; height: number }
   /** Re-check a saved canonical crop (already straightened, encoder-contract size). */
-  | { type: 'embed'; requestId: number; bitmap: ImageBitmap };
+  | { type: 'embed'; requestId: number; bitmap: ImageBitmap }
+  /** Batch mode: straightened crops of one card from the held capture, encoded for storage. */
+  | { type: 'extract'; requestId: number; captureId: number; quad: Quad; display: { width: number; height: number }; thumb: { width: number; height: number } }
+  /** Dev only: the held capture as JPEG (training uploads). */
+  | { type: 'encode-capture'; requestId: number; captureId: number; quality: number };
 
 export interface Quality {
   /** Short side of the card in capture pixels. */
@@ -46,5 +51,8 @@ export type FromWorker =
   | { type: 'provider-fallback'; provider: Provider; reason: string }
   | { type: 'cropped'; requestId: number; bitmap: ImageBitmap }
   | { type: 'searched'; requestId: number; hits: Hit[] }
+  /** canonical: PNG (exact encoder-contract pixels); display/thumb: JPEG. */
+  | { type: 'extracted'; requestId: number; canonical: Blob; display: Blob; thumb: Blob; quality: Quality }
+  | { type: 'encoded'; requestId: number; blob: Blob }
   | { type: 'debug'; stage: string; data: Record<string, unknown> }
   | { type: 'error'; captureId?: number; instanceId?: string; revision?: number; requestId?: number; message: string };

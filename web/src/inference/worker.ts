@@ -194,7 +194,7 @@ async function detect(msg: Extract<ToWorker, { type: 'detect' }>) {
   }
   capture = { id: msg.captureId, image: { width, height, data: rgbBuffer } };
   fullCtx.canvas.width = fullCtx.canvas.height = 1; // free the full-size RGBA backing store now
-  debug('detect:pixels');
+  debug('detect:pixels', { rgbMB: +(rgbBuffer.byteLength / 1e6).toFixed(1) });
   const size = manifest!.detector.size;
   const lb = letterboxFor(width, height, size);
   const box = boxCtx = context(boxCtx, size, size);
@@ -251,6 +251,45 @@ async function displayCrop(msg: Extract<ToWorker, { type: 'crop' }>) {
   post({ type: 'cropped', requestId: msg.requestId, bitmap }, [bitmap]);
 }
 
+/** RGB pixels on a reusable canvas (copied to RGBA). */
+function rgbCanvas(image: RGBImage, ctx: OffscreenCanvasRenderingContext2D | null): OffscreenCanvasRenderingContext2D {
+  const c = context(ctx, image.width, image.height);
+  const rgba = new Uint8ClampedArray(image.width * image.height * 4);
+  for (let i = 0, j = 0; j < image.data.length; i += 4, j += 3) {
+    rgba[i] = image.data[j]; rgba[i + 1] = image.data[j + 1]; rgba[i + 2] = image.data[j + 2]; rgba[i + 3] = 255;
+  }
+  c.putImageData(new ImageData(rgba, image.width, image.height), 0, 0);
+  return c;
+}
+
+let cropCtx: OffscreenCanvasRenderingContext2D | null = null;
+let thumbCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+/** Batch mode: canonical crop (PNG), display crop and thumbnail (JPEG) of one card, then nothing is kept. */
+async function extract(msg: Extract<ToWorker, { type: 'extract' }>) {
+  if (!capture || capture.id !== msg.captureId) throw new Error('Capture was released');
+  const crop = warpCard(capture.image, msg.quad);
+  const q = quality(msg.quad, crop);
+  cropCtx = rgbCanvas(crop, cropCtx);
+  const canonical = await cropCtx.canvas.convertToBlob({ type: 'image/png' });
+  thumbCtx = context(thumbCtx, msg.thumb.width, msg.thumb.height);
+  thumbCtx.imageSmoothingQuality = 'high';
+  thumbCtx.drawImage(cropCtx.canvas, 0, 0, msg.thumb.width, msg.thumb.height);
+  const thumb = await thumbCtx.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.7 });
+  cropCtx = rgbCanvas(warpCard(capture.image, msg.quad, msg.display.width, msg.display.height), cropCtx);
+  const display = await cropCtx.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+  post({ type: 'extracted', requestId: msg.requestId, canonical, display, thumb, quality: q });
+}
+
+async function encodeCapture(msg: Extract<ToWorker, { type: 'encode-capture' }>) {
+  if (!capture || capture.id !== msg.captureId) throw new Error('Capture was released');
+  const ctx = rgbCanvas(capture.image, fullCtx);
+  const blob = await ctx.canvas.convertToBlob({ type: 'image/jpeg', quality: msg.quality });
+  ctx.canvas.width = ctx.canvas.height = 1; // free the full-size backing store now
+  fullCtx = ctx;
+  post({ type: 'encoded', requestId: msg.requestId, blob });
+}
+
 async function recognize(msg: Extract<ToWorker, { type: 'recognize' }>) {
   if (!capture || capture.id !== msg.captureId) throw new Error('Capture was released');
   const tag = { captureId: msg.captureId, instanceId: msg.instanceId, revision: msg.revision };
@@ -275,11 +314,15 @@ async function recognize(msg: Extract<ToWorker, { type: 'recognize' }>) {
   post({ type: 'recognized', ...tag, hits, quality: quality(quad, crop), ms: { rectify: t1 - t0, embed: t2 - t1, search: t3 - t2 } });
 }
 
+let embedCtx: OffscreenCanvasRenderingContext2D | null = null;
+
 async function embedSaved(msg: Extract<ToWorker, { type: 'embed' }>) {
   const { bitmap } = msg;
   if (bitmap.width !== CANONICAL_WIDTH || bitmap.height !== CANONICAL_HEIGHT) throw new Error('Saved crop is not a canonical card crop');
-  const c = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  // One reused canvas: batch mode embeds hundreds of saved crops; fresh canvases pile up on WebKit.
+  const ctx = embedCtx = context(embedCtx, bitmap.width, bitmap.height);
+  const c = ctx.canvas;
+  ctx.clearRect(0, 0, c.width, c.height);
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
   const rgba = ctx.getImageData(0, 0, c.width, c.height).data;
@@ -296,7 +339,12 @@ async function embedSaved(msg: Extract<ToWorker, { type: 'embed' }>) {
 self.onmessage = (event: MessageEvent<ToWorker>) => {
   const msg = event.data;
   if (msg.type === 'release') {
-    if (capture?.id === msg.captureId) capture = null;
+    if (capture?.id === msg.captureId) {
+      capture = null;
+      // The RGB buffer is reused for the next capture of the same size; drop it after a batch-mode
+      // release so nothing capture-sized stays alive between pages.
+      if (msg.drop) rgbBuffer = null;
+    }
     return;
   }
   chain = chain.then(async () => {
@@ -306,9 +354,11 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       else if (msg.type === 'recognize') await recognize(msg);
       else if (msg.type === 'crop') await displayCrop(msg);
       else if (msg.type === 'embed') await embedSaved(msg);
+      else if (msg.type === 'extract') await extract(msg);
+      else if (msg.type === 'encode-capture') await encodeCapture(msg);
     } catch (err) {
       const tag = msg.type === 'recognize' ? { captureId: msg.captureId, instanceId: msg.instanceId, revision: msg.revision }
-        : msg.type === 'detect' ? { captureId: msg.captureId } : msg.type === 'crop' || msg.type === 'embed' ? { requestId: msg.requestId } : {};
+        : msg.type === 'detect' ? { captureId: msg.captureId } : msg.type === 'crop' || msg.type === 'embed' || msg.type === 'extract' || msg.type === 'encode-capture' ? { requestId: msg.requestId } : {};
       post({ type: 'error', ...tag, message: (err as Error).message ?? String(err) });
     }
   });
