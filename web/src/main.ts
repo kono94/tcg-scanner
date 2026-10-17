@@ -1,14 +1,17 @@
 // App controller: camera -> stability -> capture -> worker inference -> page session -> view.
 import './ui/styles.css';
 import { installCrashTrace, trace } from './debug';
-import { sendCollectionFeedback, sendFeedback } from './feedback';
+import { sendCollectionFeedback, sendFeedback, uploadCapture } from './feedback';
 import { getCrops } from './collection/crops';
-import { deletePage, deleteSavedCard, loadPages, savePage, updateSavedCard, withCurrentPrices } from './collection/store';
+import { deletePage, deleteSavedCard, loadPages, savedNeedsUser, savePage, updateSavedCard, withCurrentPrices } from './collection/store';
+import { BatchSession } from './batch/session';
+import { browserBatchStore } from './batch/storage';
 import { listMockVideos, openCamera, openVideoMock, type CameraHandle, type MockVideo } from './camera/source';
 import { CaptureCycle } from './capture/cycle';
-import { halve, lumaFromRGBA, sharpnessOf, StabilityMonitor, type StabilityState } from './capture/stability';
+import { halve, lumaFromRGBA, SceneChangeGate, sharpnessOf, StabilityMonitor, type StabilityState } from './capture/stability';
 import { WorkerRecognizer } from './inference/client';
 import type { BundleManifest } from './inference/protocol';
+import type { Quad } from './vision/image';
 import { SnapshotPriceService } from './prices/service';
 import { Catalog, type CatalogCard } from './recognition/catalog';
 import { displayCard, userChoiceMatch } from './recognition/policy';
@@ -45,12 +48,26 @@ async function boot() {
   const recognizer = new WorkerRecognizer(BUNDLE, manifest, identities, settings.preferWebGPU);
   const prices = new SnapshotPriceService(`${BUNDLE}${manifest.prices}?v=${manifest.version}`, () => settings.priceMarket);
   const session = new PageSession(recognizer, { catalog, prices, preferredLanguage: () => settings.preferredLanguage });
-  const app = new App(view, session, recognizer, settings, catalog, manifest, prices);
+  // Batch workflow: pages saved right away, their cards checked one at a time in the background.
+  // Its queue is rebuilt from the saved pages, so it resumes after a reload or a killed tab.
+  const batch = new BatchSession({
+    detect: (id, bitmap) => recognizer.detect(id, bitmap),
+    extract: (id, quad) => recognizer.extract(id, quad),
+    release: (id) => recognizer.release(id, true),
+    search: async (blob) => recognizer.search(await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })),
+    failure: () => (recognizer.status.stage === 'failed' ? recognizer.status.detail : null),
+  }, browserBatchStore, {
+    catalog, prices, preferredLanguage: () => settings.preferredLanguage, bundleVersion: manifest.version,
+    // Yield to the single-page session; start only once the models are ready.
+    canRun: () => !session.busy && recognizer.status.stage === 'ready',
+  });
+  const app = new App(view, session, recognizer, settings, catalog, manifest, prices, batch);
   let lastStage = '';
   recognizer.onStatus = () => {
     const st = recognizer.status;
     if (st.stage !== lastStage || st.fallbackReason) trace('runtime', { stage: st.stage, provider: st.provider, detail: st.detail, fallback: st.fallbackReason, loadMs: st.loadMs });
     lastStage = st.stage;
+    batch.kick();
     app.render();
   };
   recognizer.onCrash = (message) => trace('worker-crash', { message });
@@ -60,6 +77,8 @@ async function boot() {
       ready: () => recognizer.whenReady(),
       runtime: () => recognizer.status,
       page: () => session.page,
+      batch: () => batch.status(),
+      recognizer,
       detectUrl: async (url: string) => recognizer.detect(-1, await createImageBitmap(await (await fetch(url)).blob())),
     };
   }
@@ -104,7 +123,14 @@ export class App {
   private lastStatus = '';
   /** Guided check: the cards that needed the user when it started, in page order. */
   private check: string[] | null = null;
-  private overlay: 'none' | 'review' | 'settings' | 'collection' | 'start' = 'start';
+  private overlay: 'none' | 'review' | 'settings' | 'collection' | 'start' | 'batch' = 'start';
+  /** Batch mode: page-turn gate for auto capture, last stability luma sample, capture feedback. */
+  private sceneGate = new SceneChangeGate();
+  private lastLuma: Uint8Array | null = null;
+  private awaitingChange = false;
+  private toast: { text: string; until: number } | null = null;
+  private uploadedCapture: number | null = null;
+  private batchRender = 0;
   private collection: CollectionState = { pages: loadPages(), open: null, usdToEur: null, card: null, rev: 0 };
   private collectionToken = 0;
   private cardToken = 0;
@@ -122,9 +148,11 @@ export class App {
     private readonly catalog: Catalog,
     private readonly manifest: BundleManifest,
     private readonly prices: SnapshotPriceService,
+    private readonly batch: BatchSession,
   ) {
     this.monitor = new StabilityMonitor(settings.tolerance);
-    this.cycle = new CaptureCycle({ mode: settings.mode, dwellMs: settings.dwellMs, cooldownMs: settings.cooldownMs });
+    this.cycle = new CaptureCycle(this.cycleSettings());
+    batch.subscribe(() => this.onBatchChange());
     this.sampleCanvas.width = 128;
     this.sampleCanvas.height = 96;
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -189,6 +217,33 @@ export class App {
       savedChoose: (identity, languageConfirmed) => this.chooseSaved(identity, languageConfirmed),
       nextPage: () => this.nextPage(),
       save: () => this.save(),
+      finishBatch: () => {
+        this.overlay = 'batch';
+        this.closeSavedCard();
+        if (this.cycle.current === 'live') this.setCameraActive(false);
+        this.cycle.setFrozen(true);
+        this.reloadCollection();
+        this.render();
+      },
+      scanMore: () => {
+        this.closeSavedCard();
+        if (!this.camera) { void this.useSource(openCamera); return; }
+        this.overlay = 'none';
+        this.cycle.setFrozen(false);
+        if (this.cycle.current === 'live') this.setCameraActive(true);
+        this.render();
+      },
+      doneBatch: () => {
+        trace('batch-done', { ...this.batch.status(), active: undefined });
+        this.batch.finish();
+        this.closeSavedCard();
+        if (this.cycle.current === 'live') this.setCameraActive(false);
+        this.cycle.setFrozen(true);
+        this.overlay = 'collection';
+        this.collection.open = null;
+        this.reloadCollection();
+        this.render();
+      },
       useCamera: () => this.useSource(openCamera),
       useVideo: (v) => this.useSource(() => openVideoMock(v.url, v.name)),
       resume: () => this.resumeSource(),
@@ -269,6 +324,14 @@ export class App {
       this.pendingCrops.delete(key);
       if (this.session.page.captureId !== captureId) { bmp.close(); return; }
       this.bigCrops.set(key, bmp);
+      // Bounded: the open card and its neighbours; the oldest others are closed.
+      const keep = this.selected ? new Set([this.selected]) : new Set<string>();
+      for (const k of this.bigCrops.keys()) {
+        if (this.bigCrops.size <= 4) break;
+        if (k === key || keep.has(k.split('|')[0])) continue;
+        this.bigCrops.get(k)!.close();
+        this.bigCrops.delete(k);
+      }
       this.render();
     }, () => this.pendingCrops.delete(key));
   }
@@ -333,6 +396,7 @@ export class App {
       const fine = lumaFromRGBA(ctx.getImageData(0, 0, 128, 96).data, 128, 96);
       const sharpness = sharpnessOf(fine, 128, 96);
       const luma = halve(fine, 128, 96);
+      this.lastLuma = luma;
       let sum = 0, hash = 0;
       for (let i = 0; i < luma.length; i++) { sum += luma[i]; hash = (hash * 31 + luma[i]) | 0; }
       if (sum === 0 && !cpuFallback && ++blank >= 3) {
@@ -358,10 +422,13 @@ export class App {
       }
       // Captures wait for the models; the countdown is only shown when a capture is really possible.
       const ready = this.recognizer.status.stage === 'ready';
-      const tick = this.cycle.tick(t, this.stability);
-      this.countdownMs = ready && tick.view.armed ? tick.view.countdownMs : null;
-      if (ready && tick.capture && !this.session.busy) void this.capture();
-      const now = `${this.countdownMs === null ? '-' : Math.ceil(this.countdownMs / 100)}|${this.stability.reason}|${this.recognizer.status.stage}`;
+      const tick = this.cycle.tick(t, this.stability, this.sceneGate.update(luma, this.stability));
+      this.awaitingChange = !!tick.view.awaitingChange;
+      // Batch mode: admission control (backlog bound) before a capture is even taken.
+      const admit = this.settings.workflow !== 'batch' || this.batch.canCapture();
+      this.countdownMs = ready && admit && tick.view.armed ? tick.view.countdownMs : null;
+      if (ready && admit && tick.capture && !this.session.busy) void this.capture();
+      const now = `${this.countdownMs === null ? '-' : Math.ceil(this.countdownMs / 100)}|${this.stability.reason}|${this.recognizer.status.stage}|${this.awaitingChange}`;
       if (now !== shown) { shown = now; this.render(); }
     }, 100);
   }
@@ -371,7 +438,31 @@ export class App {
     this.sampler = null;
   }
 
+  /**
+   * Capture exactly what the preview shows: the centre crop that object-fit: cover displays, cut
+   * from the full-resolution frame. Then cap the size (a big frame is copied several times on the
+   * way to the worker; phones have a tight per-tab memory limit).
+   */
+  private grab(video: HTMLVideoElement): Promise<ImageBitmap> {
+    const [sx, sy, sw, sh] = visibleRegion(video, this.view.cameraBox());
+    const longSide = Math.max(sw, sh), cap = isIOS() ? 2048 : 2560;
+    const k = Math.min(1, cap / longSide);
+    return createImageBitmap(video, sx, sy, sw, sh,
+      k < 1 ? { resizeWidth: Math.round(sw * k), resizeHeight: Math.round(sh * k), resizeQuality: 'high' } : undefined);
+  }
+
+  /** What is alive on the UI thread (breadcrumbs for the memory investigation; WebKit has no heap API). */
+  private memory(): Record<string, unknown> {
+    const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
+    return {
+      bigCrops: this.bigCrops.size, stillMP: +(this.view.stillPixels / 1e6).toFixed(2),
+      cardCrops: this.session.page.instances.filter((i) => i.crop).length, collectionImage: !!this.collection.card?.image,
+      batchWaiting: this.batch.status().waiting, ...(heap ? { jsHeapMB: Math.round(heap / 1e6) } : {}),
+    };
+  }
+
   private async capture() {
+    if (this.settings.workflow === 'batch') return this.captureBatch();
     if (this.session.busy || !this.camera || this.recognizer.status.stage !== 'ready') return;
     const video = this.view.video;
     if (video.readyState < 2) return;
@@ -382,21 +473,14 @@ export class App {
     this.dropBigCrops();
     let full: ImageBitmap;
     try {
-      // Capture exactly what the preview shows: the centre crop that object-fit: cover displays,
-      // cut from the full-resolution frame. Then cap the size (a big frame is copied several times
-      // on the way to the worker; phones have a tight per-tab memory limit).
-      const [sx, sy, sw, sh] = visibleRegion(video, this.view.cameraBox());
-      const longSide = Math.max(sw, sh), cap = isIOS() ? 2048 : 2560;
-      const k = Math.min(1, cap / longSide);
-      full = await createImageBitmap(video, sx, sy, sw, sh,
-        k < 1 ? { resizeWidth: Math.round(sw * k), resizeHeight: Math.round(sh * k), resizeQuality: 'high' } : undefined);
+      full = await this.grab(video);
     } catch (err) {
       this.cycle.settle(performance.now());
       this.cycle.rearm();
       this.error = (err as Error).message;
       return;
     }
-    trace('capture', { video: `${video.videoWidth}x${video.videoHeight}`, capture: `${full.width}x${full.height}` });
+    trace('capture', { video: `${video.videoWidth}x${video.videoHeight}`, capture: `${full.width}x${full.height}`, ...this.memory() });
     // The still frame is taken: no camera frames or steadiness checks until the user scans again.
     this.setCameraActive(false);
     // Display copy first, then hand the full-resolution capture to the worker.
@@ -407,8 +491,85 @@ export class App {
     await done.catch((err) => { this.error = (err as Error).message; });
   }
 
+  /**
+   * Batch mode: detect, store each card's crops, release the capture, back to the live preview.
+   * The camera keeps running; recognition continues in the background (BatchSession).
+   */
+  private async captureBatch() {
+    if (!this.batch.canCapture() || this.session.busy || !this.camera || this.recognizer.status.stage !== 'ready') return;
+    const video = this.view.video;
+    if (video.readyState < 2) return;
+    this.cycle.beginBatch();
+    const reference = this.lastLuma;
+    let full: ImageBitmap;
+    try {
+      full = await this.grab(video);
+    } catch (err) {
+      this.cycle.settle(performance.now());
+      this.cycle.rearm();
+      this.error = (err as Error).message;
+      return;
+    }
+    const size = { width: full.width, height: full.height };
+    trace('capture', { workflow: 'batch', video: `${video.videoWidth}x${video.videoHeight}`, capture: `${size.width}x${size.height}`, ...this.memory() });
+    this.sweepAt = performance.now();
+    this.render();
+    const started = performance.now();
+    let text: string;
+    let cards = 0;
+    try {
+      const nextPage = this.batch.status().active?.nextPage ?? 1;
+      const r = await this.batch.capture(full, (captureId, det, quads) =>
+        this.uploadCapture(captureId, size, quads, det.boxes.map((b) => b.score), nextPage));
+      cards = r.cards;
+      text = r.cards ? `Page ${r.pageNumber} saved · ${r.cards} card${r.cards === 1 ? '' : 's'}${r.failed ? ` · ${r.failed} not stored` : ''}`
+        : 'No cards found · scan again';
+      trace('batch-page', { page: r.pageNumber, cards: r.cards, overLimit: r.overLimit, failed: r.failed, ms: Math.round(performance.now() - started), ...this.memory() });
+    } catch (err) {
+      text = 'Page not saved';
+      this.error = (err as Error).message;
+      trace('batch-page', { error: this.error });
+    }
+    this.toast = { text, until: performance.now() + 2600 };
+    setTimeout(() => this.render(), 2700);
+    this.cycle.settle(performance.now());
+    this.cycle.rearm();
+    // Auto mode: the same page would be captured again; wait for the page to be turned.
+    if (cards && this.settings.mode !== 'manual') {
+      this.sceneGate.arm(reference);
+      this.cycle.requireSceneChange();
+    }
+    this.render();
+  }
+
+  /** Dev only ("Save captures for training"): the held capture as JPEG plus its detections. */
+  private async uploadCapture(captureId: number, size: { width: number; height: number }, quads: Quad[], scores: number[], page: number | null) {
+    if (!import.meta.env.DEV || !this.settings.saveCaptures || this.uploadedCapture === captureId) return;
+    this.uploadedCapture = captureId;
+    try {
+      const jpeg = await this.recognizer.encodeCapture(captureId, 0.9);
+      void uploadCapture(jpeg, { captureSize: size, quads: quads.map((q) => q.map((p) => [+p[0].toFixed(1), +p[1].toFixed(1)])), scores: scores.map((x) => +x.toFixed(3)),
+        bundleVersion: this.manifest.version, cameraMock: !!this.camera?.mock, workflow: this.settings.workflow, page });
+    } catch (err) {
+      trace('capture-upload', { error: (err as Error).message });
+    }
+  }
+
+  private onBatchChange() {
+    // The Collection is the batch's store: refresh what is shown (throttled; results arrive per card).
+    if (this.overlay === 'batch' || this.overlay === 'collection') {
+      cancelAnimationFrame(this.batchRender);
+      this.batchRender = requestAnimationFrame(() => this.reloadCollection());
+    }
+    this.render();
+  }
+
   onSessionChange() {
     const page = this.session.page;
+    this.batch.kick();
+    if (page.status !== 'detecting' && page.status !== 'empty' && page.captureId !== null && page.captureSize && this.settings.saveCaptures) {
+      void this.uploadCapture(page.captureId, page.captureSize, page.instances.map((i) => i.quad), page.instances.map((i) => i.box.score), page.pageNumber);
+    }
     const status = `${page.generation}|${page.revision}|${page.status}`;
     const justSettled = status !== this.lastStatus && page.status === 'settled' && this.lastStatus.endsWith('processing');
     if (status !== this.lastStatus) trace('page', { status: page.status, cards: page.instances.length, detectMs: page.detectMs && Math.round(page.detectMs), error: page.error });
@@ -438,6 +599,10 @@ export class App {
   private primary() {
     const status = this.session.page.status;
     if (!this.camera) { this.overlay = 'start'; this.render(); return; }
+    if (this.settings.workflow === 'batch') {
+      if (this.cycle.current === 'live') void this.captureBatch();
+      return;
+    }
     if (this.cycle.current === 'live') {
       if (this.cycle.canCaptureManually()) void this.capture();
       return;
@@ -485,14 +650,24 @@ export class App {
     const page = this.session.page;
     const captureId = page.captureId;
     // Larger crop per card for viewing and re-checking later; from the still-held capture when not loaded yet.
+    // Crops made only for saving are closed right after encoding (they used to stay alive: 2.2 MB each).
+    const made: ImageBitmap[] = [];
     const display = async (id: string) => {
       const card = this.session.instance(id);
       if (!card) return null;
       const loaded = this.bigCrops.get(`${id}|${card.revision}`);
       if (loaded) return loaded;
-      return captureId === null ? null : this.recognizer.displayCrop(captureId, card.quad);
+      if (captureId === null) return null;
+      const bmp = await this.recognizer.displayCrop(captureId, card.quad);
+      made.push(bmp);
+      return bmp;
     };
-    const ok = await savePage(page, this.catalog, display);
+    let ok: boolean;
+    try {
+      ok = await savePage(page, this.catalog, display);
+    } finally {
+      for (const b of made) b.close();
+    }
     if (!ok) this.error = 'Could not save: browser storage is full or disabled.';
     this.session.markSaved();
     this.reloadCollection();
@@ -522,6 +697,14 @@ export class App {
     if (!crops) { c.status = 'no-crop'; return this.touchCollection(); }
     try {
       c.image = await createImageBitmap(crops.display ?? crops.canonical);
+      if (token !== this.cardToken) { c.image.close(); c.image = null; return; }
+      // Batch results keep their closest matches: no second embedding when the bundle is the same.
+      const saved = loadPages().find((p) => p.key === pageKey)?.cards.find((x) => x.number === number);
+      if (saved?.hits?.length && saved.bundle === this.manifest.version) {
+        c.hits = saved.hits.map((h, row) => ({ identity: h.identity, score: h.score, row }));
+        c.status = 'ready';
+        return this.touchCollection();
+      }
       c.status = 'checking';
       this.touchCollection();
       const canonical = await createImageBitmap(crops.canonical, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
@@ -566,12 +749,20 @@ export class App {
     }
     trace('collection-decision', { page: page.pageNumber, card: saved.number, identity });
     this.reloadCollection();
+    // Batch review: straight on to the next card that needs the user.
+    if (this.overlay === 'batch') {
+      const next = this.batch.pages().flatMap((p) => p.cards.filter(savedNeedsUser).map((x) => [p.key, x.number] as const))
+        .find(([k, n]) => !(k === c.pageKey && n === c.number));
+      if (next) { void this.openSavedCard(next[0], next[1]); return; }
+      this.closeSavedCard();
+    }
     this.touchCollection();
   }
 
   /** Saved pages, then their values from the current snapshot and market (scan-time values stay as history). */
   private reloadCollection(): void {
     const token = ++this.collectionToken;
+    this.batch.invalidate();
     const pages = loadPages();
     this.collection.pages = pages;
     this.collection.rev++;
@@ -593,14 +784,30 @@ export class App {
     saveSettings(this.settings);
     if (patch.theme) { applyTheme(patch.theme); this.view.themeChanged(); }
     if (patch.tolerance) this.monitor.tolerance = patch.tolerance;
-    this.cycle.settings = { mode: this.settings.mode, dwellMs: this.settings.dwellMs, cooldownMs: this.settings.cooldownMs };
+    this.cycle.settings = this.cycleSettings();
+    if (patch.workflow) this.switchWorkflow();
     if (patch.mode || patch.dwellMs || patch.tolerance) this.monitor.reset();
     if (patch.preferredLanguage) this.session.refreshPreference();
     if (patch.priceMarket) { this.session.reprice(); this.reloadCollection(); }
     this.render();
   }
 
+  /** Batch mode has no "repeat" (every capture is a new page): it scans like auto-when-steady. */
+  private cycleSettings() {
+    const mode = this.settings.workflow === 'batch' && this.settings.mode === 'repeat' ? 'auto' : this.settings.mode;
+    return { mode, dwellMs: this.settings.dwellMs, cooldownMs: this.settings.cooldownMs };
+  }
+
+  /** Switching workflows: a single page under review is saved first (as "Next scan" would); then live. */
+  private switchWorkflow() {
+    this.sceneGate.arm(null);
+    if (this.session.busy) this.session.cancel();
+    if (this.session.page.status === 'settled' && this.session.page.instances.length) void this.nextScan();
+    else if (this.session.page.status !== 'empty') this.nextPage();
+  }
+
   private onVisibility() {
+    this.batch.setPaused(document.hidden);
     if (document.hidden) {
       // Hidden: invalidate pending work and release the camera.
       if (this.session.busy) this.session.cancel();
@@ -632,6 +839,9 @@ export class App {
       bigCrop: this.selected ? this.bigCrops.get(`${this.selected}|${this.session.instance(this.selected)?.revision}`) ?? null : null,
       expanded: this.expanded,
       overlay: this.overlay,
+      batch: this.settings.workflow === 'batch' || this.overlay === 'batch' ? this.batch.status() : null,
+      toast: this.toast && this.toast.until > performance.now() ? this.toast.text : null,
+      awaitingChange: this.awaitingChange,
       sweepAt: this.sweepAt,
       videos: this.videos,
       error: this.error,

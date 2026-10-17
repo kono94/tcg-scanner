@@ -96,6 +96,14 @@ export interface SessionOptions {
 const GLARE_LIMIT = 0.08; // uncalibrated heuristic
 const MIN_SHORT_SIDE = 80; // capture pixels, uncalibrated
 
+/** Why an unmatched card needs the user (null when matched). Shared with batch recognition. */
+export function attentionReason(decision: MatchDecision, quality: Quality | null): AttentionReason | null {
+  if (decision.kind === 'matched') return null;
+  return quality && quality.glare > GLARE_LIMIT ? 'glare'
+    : quality && quality.shortSide < MIN_SHORT_SIDE ? 'move-closer'
+      : decision.kind === 'match-unclear' ? 'match-unclear' : 'not-found';
+}
+
 class Stale extends Error {}
 
 export class PageSession {
@@ -230,10 +238,7 @@ export class PageSession {
       current();
       const decision = decideMatch(out.hits, this.options.catalog, { preferredLanguage: this.options.preferredLanguage(), languageFromSetting: true, thresholds: this.options.thresholds });
       const matched = decision.kind === 'matched';
-      const reason: AttentionReason | null = matched ? null
-        : out.quality.glare > GLARE_LIMIT ? 'glare'
-          : out.quality.shortSide < MIN_SHORT_SIDE ? 'move-closer'
-            : decision.kind === 'match-unclear' ? 'match-unclear' : 'not-found';
+      const reason = attentionReason(decision, out.quality);
       this.update(card.id, { state: matched ? 'confirmed' : 'needs-attention', step: null, decision, quality: out.quality, reason,
         settledAt: this.now(), ms: out.ms, valueState: matched ? 'loading' : 'idle', hits: out.hits });
       this.emit();

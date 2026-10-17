@@ -143,3 +143,33 @@ export function lumaFromRGBA(rgba: Uint8ClampedArray, width: number, height: num
   for (let i = 0; i < out.length; i++) out[i] = (rgba[i * 4] * 77 + rgba[i * 4 + 1] * 150 + rgba[i * 4 + 2] * 29) >> 8;
   return out;
 }
+
+/**
+ * Batch mode page-turn gate: after a capture, the scene must first move and then settle on a
+ * view that differs from the captured one (mean absolute luma difference on the 64x48 sample).
+ * Keeps auto-when-steady from capturing the same page again. Threshold uncalibrated.
+ */
+export class SceneChangeGate {
+  private reference: Uint8Array | null = null;
+  private moved = false;
+
+  constructor(public threshold = 12) {}
+
+  /** Start waiting for a change from this luma sample (the capture's view). */
+  arm(reference: Uint8Array | null): void {
+    this.reference = reference;
+    this.moved = false;
+  }
+
+  /** True when no capture is pending a change, or when the scene moved and now differs from the reference. */
+  update(luma: Uint8Array, state: StabilityState): boolean {
+    if (!this.reference) return true;
+    if (state.reason === 'motion') this.moved = true;
+    if (!this.moved || !state.steady || luma.length !== this.reference.length) return false;
+    let diff = 0;
+    for (let i = 0; i < luma.length; i++) diff += Math.abs(luma[i] - this.reference[i]);
+    if (diff / luma.length < this.threshold) return false;
+    this.reference = null;
+    return true;
+  }
+}

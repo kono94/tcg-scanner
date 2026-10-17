@@ -11,7 +11,7 @@ export interface FeedbackContext {
 }
 
 /** Automated test runs mark themselves so their (arbitrary) choices never become training labels. */
-function isTestRun(): boolean {
+export function isTestRun(): boolean {
   try { return localStorage.getItem('tcg-test-run') === '1'; } catch { return false; }
 }
 
@@ -78,4 +78,24 @@ export async function sendCollectionFeedback(saved: { identity: string | null; n
     bitmap.close();
     await fetch('/__feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   } catch { /* feedback must never break the collection */ }
+}
+
+/**
+ * Dev only ("Save captures for training"): a full capture as JPEG plus its detections, POSTed to the
+ * dev server (/__capture), which stores them under runs/captures/<date>/. Never in production builds.
+ */
+export async function uploadCapture(jpeg: Blob, meta: {
+  captureSize: { width: number; height: number }; quads: number[][][]; scores: number[]; bundleVersion: string;
+  cameraMock: boolean; workflow: string; page: number | null;
+}): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  const body = {
+    schema_version: 1, kind: 'scanner_capture', label_origin: 'detector_proposals_unverified',
+    capture_size: meta.captureSize, detections: meta.quads.map((q, i) => ({ quad_capture_px: q, score: meta.scores[i] ?? null })),
+    bundle_version: meta.bundleVersion, camera: meta.cameraMock ? 'test_video' : 'camera', workflow: meta.workflow,
+    page: meta.page, test_run: isTestRun(), created_at: new Date().toISOString(),
+  };
+  try {
+    await fetch('/__capture?meta=' + encodeURIComponent(JSON.stringify(body)), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg });
+  } catch { /* uploads must never break scanning */ }
 }

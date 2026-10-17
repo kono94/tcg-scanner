@@ -4,7 +4,14 @@ import type { RecognitionJob, RecognitionOutput, Recognizer } from '../session/p
 import type { Hit } from '../recognition/gallery';
 import type { Quad } from '../vision/image';
 import type { OrientedBox } from '../vision/obb';
-import type { BundleManifest, FromWorker, Provider, RecognitionStep } from './protocol';
+import type { BundleManifest, FromWorker, Provider, Quality, RecognitionStep } from './protocol';
+
+export interface ExtractedCrops {
+  canonical: Blob;
+  display: Blob;
+  thumb: Blob;
+  quality: Quality;
+}
 
 interface Pending<T> {
   resolve: (v: T) => void;
@@ -28,6 +35,8 @@ export class WorkerRecognizer implements Recognizer {
   private jobs = new Map<string, Pending<RecognitionOutput> & { onStep: (s: RecognitionStep, crop?: ImageBitmap) => void }>();
   private crops = new Map<number, Pending<ImageBitmap>>();
   private searches = new Map<number, Pending<Hit[]>>();
+  private extracts = new Map<number, Pending<ExtractedCrops>>();
+  private encodes = new Map<number, Pending<Blob>>();
   private nextCrop = 1;
   status: RuntimeStatus = { stage: 'loading', detail: 'Starting', provider: null };
   private downloads = new Map<string, { loaded: number; total: number }>();
@@ -77,6 +86,12 @@ export class WorkerRecognizer implements Recognizer {
       } else if (m.type === 'searched') {
         this.searches.get(m.requestId)?.resolve(m.hits);
         this.searches.delete(m.requestId);
+      } else if (m.type === 'extracted') {
+        this.extracts.get(m.requestId)?.resolve(m);
+        this.extracts.delete(m.requestId);
+      } else if (m.type === 'encoded') {
+        this.encodes.get(m.requestId)?.resolve(m.blob);
+        this.encodes.delete(m.requestId);
       } else if (m.type === 'error') {
         const err = new Error(m.message);
         if (m.requestId !== undefined) {
@@ -84,6 +99,10 @@ export class WorkerRecognizer implements Recognizer {
           this.crops.delete(m.requestId);
           this.searches.get(m.requestId)?.reject(err);
           this.searches.delete(m.requestId);
+          this.extracts.get(m.requestId)?.reject(err);
+          this.extracts.delete(m.requestId);
+          this.encodes.get(m.requestId)?.reject(err);
+          this.encodes.delete(m.requestId);
         } else if (m.instanceId !== undefined && m.captureId !== undefined && m.revision !== undefined) {
           const k = key({ captureId: m.captureId, instanceId: m.instanceId, revision: m.revision });
           this.jobs.get(k)?.reject(err);
@@ -100,8 +119,10 @@ export class WorkerRecognizer implements Recognizer {
     this.worker.onerror = (e) => {
       e.preventDefault();
       const message = e.message || 'Inference worker stopped (possibly out of memory)';
-      for (const p of [...this.detects.values(), ...this.jobs.values(), ...this.crops.values()]) p.reject(new Error(message));
-      this.detects.clear(); this.jobs.clear(); this.crops.clear();
+      // Every pending request fails (collection re-checks and batch jobs included), so nothing waits forever.
+      for (const p of [...this.detects.values(), ...this.jobs.values(), ...this.crops.values(), ...this.searches.values(),
+        ...this.extracts.values(), ...this.encodes.values()]) p.reject(new Error(message));
+      this.detects.clear(); this.jobs.clear(); this.crops.clear(); this.searches.clear(); this.extracts.clear(); this.encodes.clear();
       this.setStatus({ stage: 'failed', detail: message, provider: null });
       fail(new Error(message));
       this.onCrash(message);
@@ -152,11 +173,31 @@ export class WorkerRecognizer implements Recognizer {
     });
   }
 
-  release(captureId: number): void {
+  /** Batch mode: storable crops of one card from the held capture. */
+  extract(captureId: number, quad: Quad): Promise<ExtractedCrops> {
+    if (this.status.stage === 'failed') return Promise.reject(new Error(this.status.detail));
+    const requestId = this.nextCrop++;
+    return new Promise((resolve, reject) => {
+      this.extracts.set(requestId, { resolve, reject });
+      this.worker.postMessage({ type: 'extract', requestId, captureId, quad, display: { width: 630, height: 880 }, thumb: { width: 63, height: 88 } });
+    });
+  }
+
+  /** Dev only: the held capture as JPEG. */
+  encodeCapture(captureId: number, quality = 0.9): Promise<Blob> {
+    const requestId = this.nextCrop++;
+    return new Promise((resolve, reject) => {
+      this.encodes.set(requestId, { resolve, reject });
+      this.worker.postMessage({ type: 'encode-capture', requestId, captureId, quality });
+    });
+  }
+
+  /** `drop`: also free the worker's capture buffer (nothing capture-sized kept until the next capture). */
+  release(captureId: number, drop = false): void {
     for (const [k, job] of this.jobs) {
       if (k.startsWith(`${captureId}|`)) { job.reject(new Error('released')); this.jobs.delete(k); }
     }
-    this.worker.postMessage({ type: 'release', captureId });
+    this.worker.postMessage({ type: 'release', captureId, drop });
   }
 }
 
