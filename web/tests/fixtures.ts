@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { RGBImage } from '../src/vision/image';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const EXPORT_DIR = process.env.TCG_EXPORT_DIR ?? join(here, '../../runs/browser_export/pilot-20261016');
+export const EXPORT_DIR = process.env.TCG_EXPORT_DIR ?? join(here, '../../runs/browser_export/gpu-20261017');
 export const BUNDLE_DIR = join(here, '../public/bundle');
 export const FIXTURES = join(EXPORT_DIR, 'fixtures');
 export const hasFixtures = existsSync(join(FIXTURES, 'encoder.json'));
@@ -38,6 +38,7 @@ export interface EncoderFixture {
 }
 
 export interface DetectorFixture {
+  kind: 'pose' | 'obb';
   name: string;
   input_size?: number;
   input: string;
@@ -45,6 +46,7 @@ export interface DetectorFixture {
   output_shape: number[];
   letterbox: { scale: number; pad_x: number; pad_y: number; source_size: [number, number] };
   true_corners: [number, number][][];
-  ultralytics_obb_xywhr: number[][];
+  ultralytics_obb_xywhr?: number[][];
+  ultralytics_corners?: [number, number][][];
   ultralytics_conf: number[];
 }

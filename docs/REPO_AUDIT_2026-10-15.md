@@ -122,4 +122,4 @@ Browser delivery is a good product hypothesis because a URL avoids native instal
 - [OpenCV geometric transforms](https://docs.opencv.org/4.x/da/d6e/tutorial_py_geometric_transformations.html): four correspondences define a perspective transform.
 - [DELG paper](https://arxiv.org/abs/2001.05027): global retrieval with local-feature verification is an established image-search design; its landmark results do not establish TCG accuracy.
 
-The recommendations above are engineering proposals derived from this inspection. See [the roadmap](../ROADMAP.md) for sequencing and acceptance criteria.
+The recommendations above are engineering proposals derived from this inspection. See [the roadmap](DEVELOPMENT.md) for sequencing and acceptance criteria.

@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 
 PRICE_API_URL = "https://api.dotgg.gg/cgfw/getcards?game=onepiece&mode=indexed"
-DEFAULT_CARD_INDEX_PATH = Path("tcg-scanner-app/tcg-scanner-app/Resources/card_index.json")
+DEFAULT_CARD_INDEX_PATH = Path("resources/prices/card_index.json")
 
 
 def fetch_onepiece_price_rows() -> tuple[list[str], list[list[object]]]:

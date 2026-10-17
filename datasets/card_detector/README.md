@@ -1,1 +1,0 @@
-YOLO-based dataset to train the card detector.

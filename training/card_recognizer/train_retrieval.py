@@ -114,8 +114,9 @@ def train(config: dict, output: Path, resume: bool = False):
     if not resume:
         write_json(output / 'training_plan.json', plan)
         write_json(output / 'resolved_config.json', config)
-    runtime = (ROOT / config['transformers_runtime']).resolve(strict=True)
-    sys.path.insert(0, str(runtime))
+    runtime = ROOT / config['transformers_runtime']
+    if runtime.is_dir():
+        sys.path.insert(0, str(runtime.resolve()))
     import transformers
     model_dir = (ROOT / config['pretrained_model_path']).resolve(strict=True)
     weights_hash = sha256_file(model_dir / 'model.safetensors')

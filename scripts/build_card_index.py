@@ -33,11 +33,11 @@ def build_index(cards_dir: Path) -> list[dict[str, str | None]]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build compact iOS card metadata index.")
+    parser = argparse.ArgumentParser(description="Build compact price metadata index.")
     parser.add_argument("--cards-dir", default="datasets/card_recognizer/cards", type=Path)
     parser.add_argument(
         "--output",
-        default="tcg-scanner-app/tcg-scanner-app/Resources/card_index.json",
+        default="resources/prices/card_index.json",
         type=Path,
     )
     args = parser.parse_args()

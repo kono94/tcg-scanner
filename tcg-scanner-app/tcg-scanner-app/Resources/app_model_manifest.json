@@ -1,9 +1,0 @@
-{
-  "detectorVersion": "experiment:legacy-detector",
-  "recognizerVersion": "experiment:1778862585",
-  "cardDBVersion": "card_index-2026-05-10",
-  "priceSnapshotDate": "2026-05-10",
-  "recognizerMinConfidence": 0.4,
-  "recognizerMinMargin": 0.01,
-  "recognizerThresholdSource": "export-override"
-}

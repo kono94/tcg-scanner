@@ -1,102 +1,76 @@
 # TCG Scanner
 
-A trading-card scanner that runs in a phone browser: open a URL, hold a single card or a
-binder page steady, and the page detects every card in one captured image, straightens
-each one, identifies the exact card by similarity search against a reference gallery and
-shows a value estimate. All inference runs on the device; the server only delivers files.
+A phone-browser trading-card scanner: capture a steady single card or binder page,
+detect the physical corners, straighten each card, retrieve its identity with a
+fine-tuned DINOv2 encoder, and review results with price estimates.
 
-## Current status (2026-10-17)
+The product is [web/](web/README.md). The native iOS app, MobileNet classifier,
+frozen-encoder experiment tools and superseded model runs have been retired.
+The original scraper notebook and previous roadmap are in [archive/](archive/README.md).
 
-- **Browser scanner (pilot)** in [`web/`](web/README.md): stable-frame capture →
-  YOLOv8s-pose four-corner detector → perspective warp → DINOv2-small/ArcFace embedding →
-  exact cosine search over 24,038 English/German One Piece and Pokémon gallery rows plus
-  card-back rows → match/value policy → per-card review. Single-page and batch (review at
-  the end) workflows, local collection, bundled price snapshot. Inference runs in a worker
-  with onnxruntime-web (WebGPU, falling back to WASM with an int8 encoder).
-- **Verified:** desktop Chrome with a test-video camera mock (unit, parity and Playwright
-  tests). **Not verified:** physical phones, real-camera accuracy, calibrated thresholds.
-  The detector has synthetic pretraining and AI-reviewed real-corner fine tuning.
-- **Encoder:** `dinov2-arcface-gpu-20261017`, trained on the LAN GPU machine
-  ([GPU training](docs/GPU_TRAINING.md), [retrieval training](docs/RETRIEVAL_TRAINING.md)).
-  On the full 24,197-reference catalog it ranks the correct exact ID first for 20/24
-  validation and 85/86 test crops. These are AI-reviewed crops from few videos with
-  repeated views; they are not scanner accuracy.
-- **Hosting:** static site behind a shared Caddy HTTPS proxy on a VPS
-  ([deploy/README.md](deploy/README.md)). The deploy flow is tested against Docker on the
-  LAN; the real VPS is not yet.
+## Current evidence
 
-Design documents: [scanner UX](docs/SCANNER_UX.md), [capture cycle](docs/CAPTURE_CYCLE.md),
-[match and value policy](docs/MATCH_AND_VALUE_POLICY.md),
-[recognition design](docs/RECOGNITION_DESIGN.md), [data layout](docs/DATASET_LAYOUT.md).
-Read the [roadmap](ROADMAP.md) and the [agent guide](AGENTS.md) before new work.
+Bundle `270473320b53d5b4` uses YOLOv8s-pose `corners-s640-v4-ft` at 640 px and
+DINOv2-small/ArcFace `dinov2-arcface-gpu-20261017`. It contains 24,038 card-reference
+rows plus six card-back rows. Inference runs in a worker: WebGPU with the fp32
+encoder, falling back to WASM with an int8 encoder.
 
-## Quick start
+Desktop Chrome single-page and batch workflows are verified with a test-video
+camera mock. Physical phones, end-to-end real-camera accuracy and operating
+thresholds remain unverified/uncalibrated. Detector training combines synthetic
+scenes with AI-reviewed real corners. Encoder retrieval diagnostics are 20/24
+validation and 85/86 test crops; these few video-derived, AI-reviewed queries are
+not scanner accuracy. See [bundle evidence](docs/BROWSER_BUNDLE_2026-10-17.md).
+
+## Run and check
+
+Use Python 3.12 and the existing `.env` environment, or install `requirements.txt`.
 
 ```bash
-pip install "dvc[ssh]"                       # into .env
-dvc pull web/public/bundle web/public/media runs/browser_export/pilot-20261016
-cd web && npm install && npm run dev         # http://localhost:5173
+.env/bin/dvc pull web/public/bundle web/public/media runs/browser_export/gpu-20261017 runs/browser_export/pose-fixture
+cd web
+npm ci
+npm run dev
+# In another terminal under web/:
+npm run typecheck
+npm test
+npm run e2e
 ```
 
-Choose **Use camera** or a **Test video**. Phones need HTTPS for camera access; see
-[web/README.md](web/README.md) for the app, its checks and how the bundle is built.
+Phones require HTTPS. [Deployment](deploy/README.md) describes static hosting.
+Python checks: `.env/bin/python -m unittest discover -s tests -v`.
 
-## Data and models (DVC)
+## Data and models
 
-Large data is versioned with [DVC](https://dvc.org): git holds small `*.dvc` pointer files;
-the content lives in a DVC store on the LAN GPU PC (`/mnt/d/tcg-scanner-dvc`, reached over
-SSH; see `.dvc/config`). Git LFS still holds the older files: the original One Piece card
-images under `datasets/card_recognizer/`, the detector annotation archive and a demo video.
+DVC stores accepted/candidate data and current artifacts on the LAN GPU PC
+(`.dvc/config`). Git stores the small `.dvc` pointers. Original One Piece catalog
+images remain in Git LFS; they are still used by acquisition/provenance tools.
 
-| DVC-tracked path | Size | Contents |
-| --- | --- | --- |
-| `datasets/curated` | 3.0 GB | accepted gallery references, labeled query crops, card backs, detection data |
-| `datasets/staging` | 50 MB | acquisition candidates not yet accepted |
-| `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017` | 377 MB | current card-embedding run (checkpoint, gallery, evaluations) |
-| `runs/card_detector/pretrained` | 180 MB | earlier detector weights, including `corners-n-gpu.pt` |
-| `runs/browser_export/{gpu-20261017,pilot-20261016,pose-fixture}` | 350 MB | ONNX exports and the parity fixtures the web unit tests read |
-| `runs/prices/prices.json` | 5 MB | latest price snapshot (with exchange rate) |
-| `web/public/bundle`, `web/public/media` | 240 MB | the built browser bundle; local test videos |
+| DVC output | Purpose |
+| --- | --- |
+| `datasets/curated`, `datasets/staging` | accepted references/queries and acquisition candidates |
+| `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017` | current encoder checkpoint, gallery and evaluation |
+| `runs/card_recognizer/dinov2_baseline/hf_cache` | pinned pretrained initialization files still required by training/export |
+| `runs/card_detector/obb/corners-s640-v4-ft` | current corner detector and export evidence |
+| `runs/browser_export/gpu-20261017`, `runs/browser_export/pose-fixture` | current model exports and golden parity fixtures |
+| `runs/prices/prices.json` | current multi-market price snapshot |
+| `web/public/bundle`, `web/public/media` | browser bundle and local test videos |
 
-```bash
-dvc pull                               # everything (~4 GB), or name paths:
-dvc pull web/public/bundle runs/browser_export/pilot-20261016
-# after changing tracked data:
-dvc add web/public/bundle && dvc push && git add web/public/bundle.dvc
-```
+After changing a tracked artifact: `dvc add <path>`, `dvc push`, then commit its pointer.
+The `obb` parent directory name is historical; the current checkpoint is a pose model.
 
-Everything else under `runs/` is local experiment output and stays out of git and DVC.
-On the GPU PC itself, point the remote at the local folder once:
-`dvc remote modify --local gpu-pc url /mnt/d/tcg-scanner-dvc`. The store is a single copy on
-one disk: back it up (or add a second remote) if the data cannot be rebuilt.
+Detector datasets use **Ultralytics YOLO pose**: one `.txt` per scene, one row per
+card with class, normalized box and four `(x, y, visibility)` keypoints, plus a
+`dataset.yaml` with `kpt_shape: [4, 3]`. Exact source-pixel corners remain in JSON.
+Recognition uses a separate JSON manifest of individual reference/query crops and
+isolated splits; it is not a Hugging Face dataset. Hugging Face supplies the pinned
+pretrained DINOv2 weights. See [data layout](docs/DATASET_LAYOUT.md) and
+[GPU training](docs/GPU_TRAINING.md).
 
-To clone without downloading the LFS card images:
+Browser build fallback price inputs are in `resources/prices/`; the current
+USD/EUR price snapshot is generated by `scripts/update_prices.py`.
 
-```bash
-GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/kono94/tcg-scanner.git
-```
-
-## Python tooling
-
-Use the repository's `.env/bin/python` (PyTorch, OpenCV, Ultralytics, onnxruntime);
-`pip install -r requirements.txt` for a new environment. Training runs on the LAN GPU
-machine; the Mac prepares data, evaluates, exports and builds the bundle.
-
-| Stage | Entry points | Docs |
-| --- | --- | --- |
-| Reference acquisition | `scripts/sync_onepiece_gallery.py`, `scripts/sync_pokemon_gallery.py`, `scripts/fill_pokemon_gallery_gaps.py`, `scripts/acquire_card_backs.py` | [image sources](docs/IMAGE_SOURCES.md), [cleanup](docs/DATASET_CLEANUP.md) |
-| Real query crops | `scripts/mine_video_frames.py`, `scripts/review_real_detections.py` | [video data audit](docs/VIDEO_DATA_AUDIT.md), [video mining](docs/VIDEO_MINING.md) |
-| Synthetic scenes and detector | `scripts/generate_detection_scenes.py`, `scripts/build_corner_dataset.py`, `training/card_detector/train_obb.py` | [detector tooling](training/card_detector/README.md) |
-| Card embedding | `training/card_recognizer/train_retrieval.py` | [retrieval training](docs/RETRIEVAL_TRAINING.md) |
-| Evaluation | `scripts/evaluate_detector_geometry.py`, `scripts/compare_detectors_real.py`, `scripts/evaluate_card_backs.py` | |
-| Browser export | `scripts/export_browser_models.py`, `scripts/build_browser_bundle.py`, `scripts/update_prices.py` | [web/README.md](web/README.md) |
-
-```bash
-.env/bin/python -m unittest discover -s tests -v
-```
-
-Synthetic and AI-reviewed results are reported separately from real-camera accuracy, which
-has not been measured yet. The older MobileNet classifier, the OCR identity baseline and the
-frozen-encoder comparisons are kept as historical baselines
-([training/card_recognizer/README.md](training/card_recognizer/README.md),
-[OCR identity](docs/OCR_IDENTITY.md), [foundation models](docs/FOUNDATION_MODELS.md)).
+Read [AGENTS.md](AGENTS.md), [development priorities](docs/DEVELOPMENT.md),
+[scanner UX](docs/SCANNER_UX.md), [capture cycle](docs/CAPTURE_CYCLE.md),
+[recognition design](docs/RECOGNITION_DESIGN.md) and
+[match/value policy](docs/MATCH_AND_VALUE_POLICY.md) before changing behavior.

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { boxCorners, decodeObb, letterboxFor, portraitQuad, readingOrder } from '../src/vision/obb';
+import { decodePose } from '../src/vision/pose';
 import { f32, hasFixtures, json, type DetectorFixture } from './fixtures';
 
 const fixtures = hasFixtures ? json<{ fixtures: DetectorFixture[] }>('detector.json').fixtures : [];
 
-describe.skipIf(!hasFixtures)('OBB decoding parity with Ultralytics', () => {
+describe.skipIf(!hasFixtures)('detector decoding parity with Ultralytics', () => {
   it('matches the letterbox transform', () => {
     for (const f of fixtures) {
       const lb = letterboxFor(...f.letterbox.source_size, f.input_size ?? 320);
@@ -16,10 +17,20 @@ describe.skipIf(!hasFixtures)('OBB decoding parity with Ultralytics', () => {
   it('decodes the same boxes, scores and order', () => {
     for (const f of fixtures) {
       const anchors = f.output_shape[2];
-      const boxes = decodeObb(f32(f.output), anchors, letterboxFor(...f.letterbox.source_size, f.input_size ?? 320));
+      const lb = letterboxFor(...f.letterbox.source_size, f.input_size ?? 640);
+      if (f.kind === 'pose') {
+        const dets = decodePose(f32(f.output), anchors, lb, 0.25, 0.7, 300, false);
+        expect(dets.length).toBe(f.ultralytics_conf.length);
+        dets.forEach((d, i) => {
+          expect(d.score).toBeCloseTo(f.ultralytics_conf[i], 4);
+          d.corners.forEach((p, k) => p.forEach((v, axis) => expect(Math.abs(v - f.ultralytics_corners![i][k][axis])).toBeLessThan(0.05)));
+        });
+        continue;
+      }
+      const boxes = decodeObb(f32(f.output), anchors, lb);
       expect(boxes.length).toBe(f.ultralytics_conf.length);
       boxes.forEach((b, i) => {
-        const [cx, cy, w, h, r] = f.ultralytics_obb_xywhr[i];
+        const [cx, cy, w, h, r] = f.ultralytics_obb_xywhr![i];
         expect(b.score).toBeCloseTo(f.ultralytics_conf[i], 4);
         expect(Math.abs(b.cx - cx)).toBeLessThan(0.01);
         expect(Math.abs(b.cy - cy)).toBeLessThan(0.01);
@@ -31,7 +42,10 @@ describe.skipIf(!hasFixtures)('OBB decoding parity with Ultralytics', () => {
   });
 
   it('keeps a variable-length instance list (zero, nine, fourteen)', () => {
-    const counts = fixtures.map((f) => decodeObb(f32(f.output), f.output_shape[2], letterboxFor(...f.letterbox.source_size, f.input_size ?? 320)).length);
+    const counts = fixtures.map((f) => {
+      const lb = letterboxFor(...f.letterbox.source_size, f.input_size ?? 640);
+      return f.kind === 'pose' ? decodePose(f32(f.output), f.output_shape[2], lb, 0.25, 0.7, 300, false).length : decodeObb(f32(f.output), f.output_shape[2], lb).length;
+    });
     expect(counts).toContain(0);
     expect(Math.max(...counts)).toBeGreaterThan(9);
   });

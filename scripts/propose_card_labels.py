@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OCR-first proposals on localized crops, with optional frozen-cosine fallback."""
+"""Offline OCR/catalog proposals on localized crops; unresolved identities stay unlabeled."""
 from __future__ import annotations
 
 import argparse
@@ -14,8 +14,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from training.card_recognizer.ocr_identity import load_catalog, resolve_ocr_catalog, tesseract_regions
-from training.card_recognizer.retrieval import FrozenCardEncoder, CosineGallery, file_sha256
-from training.card_recognizer.identity_evidence import assess_identity_evidence
+from training.card_recognizer.foundation_retrieval import sha256_file as file_sha256
 
 
 def propose(args: argparse.Namespace) -> dict:
@@ -24,20 +23,11 @@ def propose(args: argparse.Namespace) -> dict:
         raise ValueError('Output must be new or empty')
     if args.limit < 1:
         raise ValueError('limit must be positive')
-    if bool(args.index) != bool(args.weights):
-        raise ValueError('Visual fallback needs both --index and --weights')
     catalog = load_catalog(args.catalog)
     if not catalog:
         raise ValueError('No catalog records loaded')
     manifest = json.loads(args.queries.read_text())
     root = args.queries.resolve().parent
-    encoder = gallery = None
-    if args.index:
-        import torch
-        torch.set_num_threads(4)
-        encoder, gallery = FrozenCardEncoder(args.weights), CosineGallery.load(args.index)
-        if encoder.contract_hash != gallery.encoder_contract_hash:
-            raise ValueError('Fallback index and encoder/preprocessing contracts disagree')
     records = []
     for item in manifest['queries'][:args.limit]:
         path = (root / item['image']).resolve()
@@ -70,13 +60,6 @@ def propose(args: argparse.Namespace) -> dict:
         else:
             identity = None
             status = 'conflicting_code_evidence' if conflict else 'unresolved'
-            # A readable unknown code is retained as unknown, never forcibly replaced by a neighbor.
-            if encoder is not None and not conflict:
-                proposals = gallery.search(encoder.encode(orientations), encoder.contract_hash, k=5)
-                best_orientation = max(range(2), key=lambda i: proposals[i][0]['similarity'])
-                visual = proposals[best_orientation]
-                text = [r['text'] for r in observations[best_orientation]['regions'] if r['confidence'] >= args.min_ocr_confidence]
-                corroboration = assess_identity_evidence(visual, text, catalog)
         records.append({'query': item, 'crop_sha256': file_sha256(path), 'status': status,
                         'ocr_catalog_identity': identity, 'ocr': observations, 'ocr_decisions': decisions,
                         'visual_fallback_shortlist': visual, 'visual_corroboration': corroboration,
@@ -85,7 +68,7 @@ def propose(args: argparse.Namespace) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     report = {'artifact_type': 'ocr_first_card_label_proposals', 'queries_manifest': str(args.queries.resolve()),
               'queries_manifest_sha256': file_sha256(args.queries), 'catalog_identities': len(catalog),
-              'ocr_backend': 'tesseract_whole_card_psm11', 'visual_fallback': args.index is not None,
+              'ocr_backend': 'tesseract_whole_card_psm11', 'visual_fallback': False,
               'records': records, 'ground_truth_verified': False, 'training_promotion': 'not_promoted'}
     (output / 'proposals.json').write_text(json.dumps(report, indent=2) + '\n')
     return report
@@ -96,8 +79,6 @@ def main() -> None:
     parser.add_argument('--queries', type=Path, required=True)
     parser.add_argument('--catalog', action='append', required=True, help='game:language=/path/to/source/sidecars')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--index', type=Path, help='Optional visual fallback index')
-    parser.add_argument('--weights', type=Path)
     parser.add_argument('--limit', type=int, default=32)
     parser.add_argument('--ocr-language', default='eng')
     parser.add_argument('--min-ocr-confidence', type=float, default=80)

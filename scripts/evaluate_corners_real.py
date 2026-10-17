@@ -40,7 +40,7 @@ def plausible_card(q: np.ndarray, box: np.ndarray) -> bool:
     w = (ln(q[0], q[1]) + ln(q[3], q[2])) / 2
     h = (ln(q[0], q[3]) + ln(q[1], q[2])) / 2
     ratio = max(w, h) / max(min(w, h), 1e-9)
-    if ratio < 1.1 or ratio > 2.0:
+    if ratio > 2.0:
         return False
     area = abs(cv2.contourArea(np.float32(q)))
     box_area = (box[2] - box[0]) * (box[3] - box[1])

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Detector-to-retrieval evaluation on synthetic validation scenes (true corners known).
 
-Compares recognition from detected OBB crops with recognition from true-corner crops, so
+Compares recognition from detected corner/OBB crops with recognition from true-corner crops, so
 detector-induced loss is measured separately from the encoder. Synthetic scenes composite
 gallery reference images; this is not a camera benchmark and overstates real accuracy.
 """
@@ -44,8 +44,9 @@ def polygon_iou(a: np.ndarray, b: np.ndarray) -> float:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--run', type=Path, default=ROOT / 'runs/card_recognizer/retrieval/dinov2-arcface-pilot-20261016')
-    parser.add_argument('--detector', type=Path, default=ROOT / 'runs/card_detector/obb/synthetic-bootstrap/weights/best.pt')
+    parser.add_argument('--run', type=Path, default=ROOT / 'runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017')
+    parser.add_argument('--detector', type=Path, default=ROOT / 'runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt')
+    parser.add_argument('--imgsz', type=int, default=640)
     parser.add_argument('--synthetic', type=Path, default=ROOT / 'runs/card_detector/synthetic')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -72,8 +73,8 @@ def main():
         scene = json.loads(path.read_text())
         bgr = cv2.imread(str(args.synthetic / scene['image']))
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        result = detector.predict(bgr, imgsz=320, conf=0.25, iou=0.7, verbose=False)[0]
-        boxes = result.obb.xyxyxyxy.numpy() if len(result.obb) else np.zeros((0, 4, 2))
+        result = detector.predict(bgr, imgsz=args.imgsz, conf=0.25, iou=0.7, verbose=False)[0]
+        boxes = (result.keypoints.xy.numpy() if len(result.boxes) else np.zeros((0, 4, 2))) if detector.task == 'pose' else (result.obb.xyxyxyxy.numpy() if len(result.obb) else np.zeros((0, 4, 2)))
         detections_total += len(boxes)
         used = set()
         for inst in scene['instances']:

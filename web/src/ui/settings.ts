@@ -44,22 +44,3 @@ export function loadSettings(): Settings {
 export function saveSettings(s: Settings): void {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
 }
-
-export interface SavedPage {
-  pageNumber: number;
-  revision: number;
-  savedAt: string;
-  partial: boolean;
-  cards: { number: number; identity: string | null; name: string | null; state: string; languageAssumed: boolean }[];
-}
-
-const SAVED = 'tcg-scanner-saved-pages-v1';
-
-/** Idempotent per page key: saving the same page again replaces it rather than adding copies. */
-export function savePage(key: string, page: SavedPage): void {
-  try {
-    const all = JSON.parse(localStorage.getItem(SAVED) ?? '{}') as Record<string, SavedPage>;
-    all[key] = page;
-    localStorage.setItem(SAVED, JSON.stringify(all));
-  } catch { /* storage unavailable: the session state still shows the save */ }
-}

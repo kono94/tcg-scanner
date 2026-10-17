@@ -1,0 +1,6 @@
+outs:
+- md5: a37905f8b99ff6ddb582cb7cb447b94f.dir
+  size: 176501014
+  nfiles: 6
+  hash: md5
+  path: hf_cache

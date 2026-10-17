@@ -29,17 +29,20 @@ After copying a YOLO dataset, rewrite the absolute `path:` in its `dataset.yaml`
 
 ## Runs
 
-Corner detector (box + four card corners, YOLOv8s-pose):
+Current corner detector: YOLOv8s-pose, `corners-s640-v4-ft`. The final checkpoint
+and export evidence are in DVC. Its saved training arguments record a five-epoch
+final fine tune from `corners-s640-v4/weights/last.pt`, using `corners-v4mix`, 640 px,
+batch 24, seven workers, learning rate 0.002, no warm-up and mosaic disabled. The
+superseded parent/intermediate checkpoints were retired during cleanup. Further
+fine tuning can start from the retained current checkpoint; exact replay of all
+historical stages requires the old artifacts.
 
-```bash
-python training/card_detector/train_obb.py --data runs/card_detector/corners-mix/dataset.yaml \
-  --model yolov8s-pose.pt --epochs 80 --time 0.83 --imgsz 640 --batch 32 --workers 8 --device 0 \
-  --degrees 10 --close-mosaic 5 --patience 25 --cos-lr --name corners-s-gpu
-```
-
-`corners-mix` = upright renderer-v3 scenes plus renderer-v2 scenes without sideways cards
-(`scripts/build_corner_dataset.py --max-tilt 50`). Sideways cards make corner names ambiguous;
-upside-down cards are fine (corner order is geometric).
+Datasets use YOLO pose labels (one class, normalized box plus four corner
+keypoints; `kpt_shape: [4, 3]`), not Hugging Face datasets. The merged
+`scripts/generate_detection_scenes.py`, `build_corner_dataset.py` and
+`real_corner_labels.py` provide scene generation, pose conversion and auditable
+AI-reviewed real-corner labeling. Keep source groups and exact physical-edge
+annotations separate from model proposals.
 
 Card embedding (DINOv2-small + ArcFace), `training/card_recognizer/configs/dinov2_arcface_gpu.yaml`:
 

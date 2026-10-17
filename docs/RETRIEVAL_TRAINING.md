@@ -5,14 +5,14 @@ evaluation; the GPU run is the encoder in the browser bundle.
 
 | Run | Config | Hardware | Classes / trainable blocks / steps | Full-catalog exact top-1: val | test |
 | --- | --- | --- | --- | --- | --- |
-| `dinov2-arcface-pilot-20261016` | `dinov2_arcface_pilot.yaml` | Apple M1, MPS | 2,048 / 2 / 1,000 | 19/24 | 84/86 |
+| `dinov2-arcface-pilot-20261016` | retired pilot config | Apple M1, MPS | 2,048 / 2 / 1,000 | 19/24 | 84/86 |
 | `dinov2-arcface-gpu-20261017` | `dinov2_arcface_gpu.yaml` | RTX 4070 Super, CUDA | 6,000 / 4 / 2,100 (epoch 12 selected) | 20/24 | 85/86 |
 
 Gallery: all 24,197 enrolled references. Validation queries are Pokémon, test
 queries One Piece, from few videos with repeated views and AI-reviewed labels: these
 are retrieval diagnostics, not scanner accuracy. Unknown rejection is uncalibrated.
 Each run folder holds `status.json`, `full_catalog_{val,test}.json`, the gallery
-index and checkpoints (the GPU run is in DVC). GPU-machine setup: [GPU training](GPU_TRAINING.md).
+index and checkpoints (only the current GPU run is retained in DVC; pilot/smoke artifacts were retired). GPU-machine setup: [GPU training](GPU_TRAINING.md).
 
 ## Pilot recipe and scope
 
@@ -22,7 +22,7 @@ batch).
 
 `training/card_recognizer/train_retrieval.py` is separate from the legacy
 classifier trainer. Its configuration is
-`training/card_recognizer/configs/dinov2_arcface_pilot.yaml`.
+the historical Apple-MPS pilot config (retired).
 
 - Pinned, cached `facebook/dinov2-small`, revision
   `ed25f3a31f01632728cabb09d1542f84ab7b0056`; pretrained weight hash checked.
@@ -83,7 +83,7 @@ The trainer computes the frozen pretrained grid once on CPU for the fixed
 Training forward/backward runs on MPS with CPU operator fallback disabled.
 Pixel decoding/augmentation remains CPU work. An actual MPS backward step,
 backbone-weight update, checkpoint save and resume passed the smoke check.
-See `runs/card_recognizer/retrieval/positional_grid_parity.json`.
+This was an executed historical pilot check; its local smoke artifacts were retired.
 
 `last.pt` is saved every sampling epoch; `best.pt` is selected only on validation.
 The run records the resolved configuration, data selection, model/preprocessing
@@ -94,7 +94,7 @@ Launch in a new output directory with GPU access:
 
 ```bash
 .env/bin/python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_pilot.yaml \
+  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
   --output runs/card_recognizer/retrieval/<new-run>
 ```
 
@@ -103,7 +103,6 @@ identical configuration and dataset:
 
 ```bash
 .env/bin/python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_pilot.yaml \
+  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
   --output runs/card_recognizer/retrieval/<existing-run> --resume
 ```
-

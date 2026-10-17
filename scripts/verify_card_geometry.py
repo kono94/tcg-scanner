@@ -1,20 +1,15 @@
 """Bounded feature-geometry teacher prototype; results are proposals, never ground truth."""
 from __future__ import annotations
 
-import argparse
-import hashlib
-import json
 import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from training.card_recognizer.canonical import canonicalize_card  # noqa: E402
-from training.card_recognizer.retrieval import CosineGallery, FrozenCardEncoder, file_sha256  # noqa: E402
 
 
 def _gray(rgb: np.ndarray) -> np.ndarray:
@@ -87,11 +82,6 @@ def verify_homography(reference_rgb: np.ndarray, query_rgb: np.ndarray) -> dict:
     return base
 
 
-def _pil_rgb(path: Path) -> np.ndarray:
-    with Image.open(path) as image:
-        return np.asarray(image.convert('RGB'))
-
-
 def source_resolution_crop(rgb: np.ndarray, quad: np.ndarray, max_edge: int = 1024,
                            aspect_ratio: float | None = None) -> np.ndarray:
     """Rectify in-bounds source geometry without collapsing printed text to encoder size."""
@@ -113,94 +103,3 @@ def source_resolution_crop(rgb: np.ndarray, quad: np.ndarray, max_edge: int = 10
         width = height * aspect_ratio
     scale = min(1.0, max_edge / max(width, height))
     return canonicalize_card(rgb, quad, width=max(2, int(width * scale)), height=max(2, int(height * scale)))
-
-
-def run(teacher_path: Path, gallery_path: Path, weights: Path, ref_root: Path, output: Path, limit: int = 11) -> dict:
-    if output.exists() and any(output.iterdir()):
-        raise ValueError(f'Output directory must be new or empty: {output}')
-    output.mkdir(parents=True, exist_ok=True)
-    annotations = json.loads(teacher_path.read_text())
-    gallery = CosineGallery.load(gallery_path)
-    encoder = FrozenCardEncoder(weights)
-    records = []
-    instances = [(frame, i) for frame in annotations['instances'] for i in frame['instances']
-                 if i.get('physical_card') is True and i.get('overlay_graphic') is not True]
-    for frame_record, instance in instances[:limit]:
-        frame_path = (ROOT / frame_record['image']).resolve()
-        if not frame_path.is_relative_to(ROOT):
-            raise ValueError('Source frame must be inside the repository')
-        source_hash = file_sha256(frame_path)
-        if source_hash != frame_record.get('image_sha256'):
-            raise ValueError('Teacher source-frame checksum mismatch')
-        rgb = _pil_rgb(frame_path)
-        x1, y1, x2, y2 = map(int, instance['bbox_xyxy'])
-        h, w = rgb.shape[:2]
-        record = {'proposal_id': instance['id'], 'source_frame': str(frame_path.relative_to(ROOT)),
-                  'source_frame_sha256': source_hash, 'teacher_bbox_xyxy': [x1, y1, x2, y2],
-                  'teacher_annotation_sha256': file_sha256(teacher_path), 'teacher_geometry_status': 'approximate_bbox_not_ground_truth',
-                  'training_promotion': 'not_promoted', 'candidate_results': []}
-        if not (0 <= x1 < x2 <= w and 0 <= y1 < y2 <= h):
-            record['rejection_reasons'] = ['teacher_bbox_out_of_source_bounds']; records.append(record); continue
-        crop = rgb[y1:y2, x1:x2]
-        ranked = gallery.search(encoder.encode([crop]), encoder.contract_hash, k=20)[0]
-        for rank, candidate in enumerate(ranked, 1):
-            ident = candidate['identity']
-            game, lang, card_id = ident.split(':', 2)
-            if game != 'onepiece': continue
-            rel = candidate.get('source_path')
-            ref_path = (ref_root / rel).resolve() if rel else None
-            if not ref_path or not ref_path.is_file() or ref_root.resolve() not in ref_path.parents:
-                continue
-            ref = _pil_rgb(ref_path)
-            result = verify_homography(ref, crop)
-            item = {'rank': rank, 'identity': ident, 'similarity': candidate['similarity'],
-                    'reference_path': str(ref_path.relative_to(ROOT)), 'reference_sha256': file_sha256(ref_path), **result}
-            if result['accepted']:
-                quad = np.asarray(result['quad_xy'], np.float32) + np.float32([x1, y1])
-                item['quad_source_xy'] = quad.tolist()
-                try:
-                    ocr_crop = source_resolution_crop(rgb, quad)
-                except ValueError:
-                    item['accepted'] = False
-                    item['rejection_reasons'].append('mapped_quad_out_of_source_bounds_or_invalid')
-                    record['candidate_results'].append(item)
-                    continue
-                key = hashlib.sha256(json.dumps([source_hash, instance['id'], ident], separators=(',', ':')).encode()).hexdigest()[:24]
-                item['canonical_crop'] = f'canonical/{key}.png'
-                item['ocr_crop'] = f'ocr/{key}.png'
-                canonical = canonicalize_card(rgb, corners=quad)
-                (output / 'canonical').mkdir(exist_ok=True)
-                (output / 'ocr').mkdir(exist_ok=True)
-                Image.fromarray(canonical).save(output / item['canonical_crop'])
-                Image.fromarray(ocr_crop).save(output / item['ocr_crop'])
-                item['canonical_sha256'] = file_sha256(output / item['canonical_crop'])
-                item['ocr_sha256'] = file_sha256(output / item['ocr_crop'])
-                item['ocr_dimensions'] = [ocr_crop.shape[1], ocr_crop.shape[0]]
-            record['candidate_results'].append(item)
-        record['proposal_status'] = 'geometry_proposal_unverified' if any(x['accepted'] for x in record['candidate_results']) else 'unresolved_quarantined'
-        records.append(record)
-    result = {'schema_version': 1, 'artifact_type': 'feature_geometry_teacher_proposals', 'ground_truth_verified': False,
-              'training_promotion': 'not_promoted', 'candidate_limit_per_crop': 20,
-              'ocr_crop_policy': 'in-bounds source quad; minimum opposing edge lengths; no intentional upscale; longest edge capped at 1024',
-              'teacher_annotation': str(teacher_path), 'teacher_annotation_sha256': file_sha256(teacher_path),
-              'gallery': str(gallery_path), 'encoder_contract_sha256': encoder.contract_hash,
-              'weights_sha256': encoder.contract['weights_sha256'], 'records': records}
-    (output / 'manifest.json').write_text(json.dumps(result, indent=2) + '\n')
-    return result
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--teacher-annotations', type=Path, required=True)
-    parser.add_argument('--gallery', type=Path, required=True)
-    parser.add_argument('--weights', type=Path, required=True)
-    parser.add_argument('--reference-root', type=Path, required=True)
-    parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--limit', type=int, default=11)
-    args = parser.parse_args()
-    if not 1 <= args.limit <= 11: parser.error('--limit must be between 1 and 11')
-    result = run(args.teacher_annotations, args.gallery, args.weights, args.reference_root, args.output, args.limit)
-    print(json.dumps({'records': len(result['records']), 'accepted': sum(x.get('proposal_status') == 'geometry_proposal_unverified' for x in result['records']), 'output': str(args.output)}))
-
-
-if __name__ == '__main__': main()

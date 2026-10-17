@@ -16,9 +16,8 @@ English/German card rows plus 6 card-back rows.
 ## Setup
 
 The fastest start is pulling the built artifacts with DVC (see the root README):
-`dvc pull web/public/bundle web/public/media runs/browser_export/pilot-20261016`, then step 4.
-To build them yourself (the script defaults still point at the 2026-10-16 pilot run and the
-synthetic OBB detector, so pass the current run and corner weights explicitly):
+`dvc pull web/public/bundle web/public/media runs/browser_export/gpu-20261017`, then step 4.
+To build them yourself (defaults select the current GPU run and fine-tuned corner detector):
 
 ```bash
 # 1. Export encoder + gallery + parity fixtures (writes runs/browser_export/<name>/)
@@ -107,8 +106,8 @@ npm test          # parity with Python/OpenCV/Ultralytics fixtures, policy, cycl
 npm run e2e       # Chrome via Playwright: test-video scan end to end
 ```
 
-Unit tests read fixtures from `runs/browser_export/pilot-20261016` and the sibling
-`pose-fixture` (override with `TCG_EXPORT_DIR`). Without them, the parity suites are skipped rather than passed.
+Unit tests read fixtures from `runs/browser_export/gpu-20261017` and the sibling
+`pose-fixture` (override with `TCG_EXPORT_DIR`). These fixtures exercise the current GPU encoder and pose detector. Without them, the parity suites are skipped rather than passed.
 
 ## Layout
 

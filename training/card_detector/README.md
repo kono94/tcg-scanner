@@ -1,49 +1,49 @@
-# Card detector
+# Card-corner detector
 
-## Corner detector (deployed)
+The browser uses YOLOv8s-pose at 640 px from
+`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt` (DVC). The `obb` parent
+name is historical; the deployed model predicts a box and four geometric corners.
+The browser perspective-warps each card from those corners.
 
-The browser bundle uses a YOLOv8s-pose model that predicts a box plus four ordered card
-corners (`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt`, DVC). The app warps each card
-from those corners. It is trained with the same `train_obb.py` (`--model yolov8n-pose.pt`
-or `yolov8s-pose.pt`) on the LAN GPU machine, because Apple MPS cannot train pose models;
-the exact command is in [GPU training](../../docs/GPU_TRAINING.md).
+## Dataset format
 
-- Data: `scripts/build_corner_dataset.py --max-tilt 50` builds `corners-mix` from
-  renderer-v3 and renderer-v2 scenes without
-  sideways cards. Sideways cards make corner names ambiguous; upside-down cards are fine
-  because corner order is geometric.
-- Selection: a new model replaces the bundled one only when it wins
-  `scripts/evaluate_detector_geometry.py` (synthetic geometry) and
-  `scripts/compare_detectors_real.py` (crop acceptance on held-out real video frames).
-  The n model was chosen over the 4× larger s model for similar real-frame acceptance.
-- Current update: synthetic pretraining plus AI-reviewed real-corner fine tuning,
-  exported at 640 px. The earlier n/s selection above used synthetic-only models.
-  See [bundle evidence](../../docs/BROWSER_BUNDLE_2026-10-17.md) for hashes and parity.
-- Limits: the real comparison uses few video sources and AI-reviewed labels initially
-  proposed by an older s model. Physical-phone performance remains unverified.
+Training uses Ultralytics **YOLO pose**, not a Hugging Face dataset:
 
-## YOLO OBB baseline (earlier)
-
-`train_obb.py` runs Ultralytics YOLOv8 OBB training with the dataset YAML and OBB labels emitted by the synthetic scene generator. The OBB labels contain a class id and four normalized point pairs. The separate scene manifest retains the original quadrilateral coordinates for geometry evaluation.
-
-From the repository root, generate scenes, prepare canonical reference crops for the retrieval gallery, then train the detector:
-
-```bash
-.env/bin/python scripts/generate_synthetic_cards.py --output runs/card_detector/synthetic --scenes 200 --seed 42 --width 832 --height 624 --max-cards 14 --video-seconds 16
-.env/bin/python scripts/prepare_card_gallery.py --cards-dir datasets/card_recognizer/cards --output runs/card_recognizer/gallery_prepared
-.env/bin/python training/card_detector/train_obb.py --data runs/card_detector/synthetic/dataset.yaml --from-scratch --epochs 20 --imgsz 320 --batch 8 --device cpu --name synthetic-bootstrap
+```text
+images/train/*.jpg
+images/val/*.jpg
+labels/train/*.txt
+labels/val/*.txt
+dataset.yaml
 ```
 
-For a CPU smoke run, use a small epoch count and batch:
+Each label row is `class cx cy w h x1 y1 v1 ... x4 y4 v4`, with normalized image
+coordinates and four visibility values. Class `0` is `card`. The dataset YAML has
+`kpt_shape: [4, 3]`, `flip_idx: [1, 0, 3, 2]` and `names: {0: card}`. Scene card
+counts are variable; an empty scene has an empty label file. Keypoints follow
+geometric TL, TR, BR, BL portrait order; artwork orientation is separate.
 
-```bash
-.env/bin/python training/card_detector/train_obb.py --data runs/card_detector/synthetic/dataset.yaml --from-scratch --epochs 1 --imgsz 320 --batch 2 --workers 0 --device cpu --name smoke
-```
+`scripts/generate_detection_scenes.py` and `scene_renderer.py` generate synthetic
+scenes while retaining exact source-pixel corners in JSON.
+`scripts/build_corner_dataset.py --max-tilt 50` converts them and reviewed real
+corners to YOLO pose labels. Sideways scenes are excluded to avoid ambiguous
+corner names; upside-down artwork is valid. `real_corner_labels.py` produces
+reviewable proposals/labels; `evaluate_corners_real.py` compares complete reviewed
+frames with the browser-equivalent filter, square letterbox and NMS.
 
-The default model, `yolov8n-obb.pt`, uses pretrained weights and may download them on first use. `--from-scratch` selects the matching `yolov8n-obb.yaml` architecture and does not fetch pretrained weights. Training output uses Ultralytics' `exist_ok=False`; choose a new `--name` for each run. Configuration and Matplotlib state are stored under `runs/card_detector/` in this repository.
+The current checkpoint combines synthetic pretraining with AI-reviewed real-corner
+fine tuning. Its saved training arguments record five final epochs at 640 px,
+batch 24, initial learning rate 0.002 and mosaic disabled. Earlier parent weights
+and intermediate runs are retired; the final checkpoint remains usable for export
+and further fine tuning. See [GPU setup](../../docs/GPU_TRAINING.md) and
+[bundle evidence](../../docs/BROWSER_BUNDLE_2026-10-17.md).
 
-The tested environment is Python 3.12 with the versions in `requirements.txt`. New environments can install those dependencies; this checkout already has them in `.env`. Scene/gallery output directories must be empty or new. Use a new output path and training name when repeating these commands.
+`train_obb.py` is the shared Ultralytics trainer for pose and the retained OBB
+comparison decoder. Select a pose checkpoint using `--model <weights.pt>`.
+Apple MPS cannot train this pose implementation; use the LAN CUDA machine.
 
-Synthetic scenes bootstrap training and supply exact geometry without manual labels. The generator varies card count from zero through `--max-cards`, including nine-card pages, duplicates, binder/desk/plain backgrounds, rotation, perspective, illumination, glare, blur, noise and JPEG effects. Its split groups both source identity and exact source-image hashes; visually similar but byte-different references can remain across splits. Canonical query crops use renderer corners; they are not predicted-detector crops. Replay inputs are clean images with separate per-frame annotations; motion is simulated translation followed by a hold, with cuts between scenes.
-
-A smoke run establishes that the pipeline runs. Synthetic validation metrics measure the generated domain; independent real captures are needed to claim phone-camera accuracy. Automated ingestion/teacher proposals can help build that evaluation without requiring the user to label a dataset before implementation starts. Keep proposals distinct from verified labels.
+Evaluate changes with `evaluate_detector_geometry.py` (synthetic geometry),
+`evaluate_corners_real.py` (AI-reviewed real labels), and
+`compare_detectors_real.py` (retrieval-acceptance proxy, not labeled accuracy).
+Real labels originate from few videos and older s-model proposals; phone results
+and real-world operating thresholds remain unverified.

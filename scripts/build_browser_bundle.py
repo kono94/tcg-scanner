@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from training.card_recognizer.foundation_retrieval import sha256_file
 
-PRICE_INDEX = ROOT / 'tcg-scanner-app/tcg-scanner-app/Resources/card_index.json'
-APP_MANIFEST = ROOT / 'tcg-scanner-app/tcg-scanner-app/Resources/app_model_manifest.json'
+PRICE_INDEX = ROOT / 'resources/prices/card_index.json'
+PRICE_MANIFEST = ROOT / 'resources/prices/snapshot.json'
 
 
 def family_key(identity: str, aliases: dict[str, str], pokemon_by_id: bool = False) -> str:
@@ -149,17 +149,17 @@ def export_detector(weights: Path, size: int, out: Path) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--export', type=Path, default=ROOT / 'runs/browser_export/pilot-20261016')
+    parser.add_argument('--export', type=Path, default=ROOT / 'runs/browser_export/gpu-20261017')
     parser.add_argument('--dataset', type=Path, default=ROOT / 'datasets/curated')
     parser.add_argument('--output', type=Path, default=ROOT / 'web/public/bundle')
     parser.add_argument('--languages', default='en,de', help='catalog languages in the app (gallery rows of other languages are dropped)')
     parser.add_argument('--german-pokemon', type=Path, help='TCGdex /v2/de/cards list: adds German Pokemon versions of enrolled artworks')
     parser.add_argument('--prices', type=Path, help='prices.json from scripts/update_prices.py (schema 2, USD + EUR markets)')
     parser.add_argument('--encoder-int8', type=Path, help='dynamically quantized encoder for the WASM/CPU path (phones)')
-    parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics OBB weights')
+    parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics pose/OBB weights')
     parser.add_argument('--detector-size', type=int, default=640)
-    parser.add_argument('--detector-conf', type=float, default=0.25, help='app-side box confidence cut-off')
-    parser.add_argument('--detector-origin', default='renderer-v2 synthetic scenes; not validated on real camera scenes')
+    parser.add_argument('--detector-conf', type=float, default=0.6, help='app-side box confidence cut-off')
+    parser.add_argument('--detector-origin', default='corners-s640-v4-ft; synthetic pretraining plus AI-reviewed real-corner fine tuning; not device-verified')
     parser.add_argument('--backs', type=Path, help='card-back reference manifest (default: <dataset>/recognition/backs/manifest.json when present)')
     parser.add_argument('--no-backs', action='store_true', help='build without card-back gallery rows')
     args = parser.parse_args()
@@ -182,7 +182,7 @@ def main():
             aliases[key] = 'alias:' + row['sha256'][:16]
 
     prices = {r['id']: r for r in json.loads(PRICE_INDEX.read_text())}
-    snapshot_date = json.loads(APP_MANIFEST.read_text())['priceSnapshotDate']
+    snapshot_date = json.loads(PRICE_MANIFEST.read_text())['snapshot_date']
     languages = set(args.languages.split(','))
     german = {c['id']: c['name'] for c in json.loads(args.german_pokemon.read_text())} if args.german_pokemon and 'de' in languages else {}
     keep = [i for i, ident in enumerate(gallery['identities']) if ident.split(':')[1] in languages]

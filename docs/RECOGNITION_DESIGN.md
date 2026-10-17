@@ -1,28 +1,30 @@
 # Enrollment-based card recognition design
 
-Status: updated 2026-10-16. A pretrained DINOv2-small/ArcFace retrieval trainer and
-its first Apple-GPU pilot now exist; see [the training guide](RETRIEVAL_TRAINING.md)
-and live run status for completion/results. The curated pool has 298 reviewed real
-queries. Calibrated production recognition, deployment parity and the browser
-runtime remain unimplemented. Frozen baseline results below are historical.
+Status: updated 2026-10-17. The browser scanner uses a fine-tuned DINOv2-small/
+ArcFace encoder with normalized similarity retrieval and a YOLOv8s-pose corner
+detector. See [training evidence](RETRIEVAL_TRAINING.md) and
+[bundle evidence](BROWSER_BUNDLE_2026-10-17.md). Physical-phone performance and
+operating thresholds remain unverified/uncalibrated.
 
-Implemented bootstrap: `training/card_recognizer/canonical.py` is shared by synthetic query-crop generation and gallery preparation. `scripts/generate_synthetic_cards.py` retains exact renderer quads/IDs alongside OBB labels. `scripts/build_embedding_gallery.py` separately creates compatible frozen descriptors and a cosine index; image preparation alone does not. Begin detection with the simple YOLO OBB baseline, using real-video crop diagnostics to decide measured follow-ups.
-
-Measured frozen-MobileNet baseline: 1,431 enrolled references, 1,321 renderer-true-corner synthetic queries, Recall@1/5/20 = **24.9% / 38.2% / 53.8%**. Queries derive from gallery source images and exclude predicted localization failures. This does not establish real-camera accuracy and is insufficient for deployment. The report is `runs/card_recognizer/synthetic_retrieval_report.json`.
-
-Frozen DINOv2-small improved the exact same full-set Recall@1/5/20 to **37.4% / 48.3% / 61.1%**, with no card-specific training. A separate max-score 0°/180° query sweep performed worse (35.8% @1). The report is `runs/card_recognizer/dinov2_baseline/report.json`; 16 real detector-crop shortlists are also saved as unverified proposals, not accuracy labels. Do not turn a better synthetic baseline into a camera-readiness claim.
-
-Pretrained models can be tested with no card-specific training. Keep their roles separate: GroundingDINO uses image/text prompts to propose localization boxes; DINOv2/DINOv3 image features are candidates for normalized gallery descriptors. Neither provides guaranteed exact-print recognition merely because an item is enrolled. Evaluate a frozen descriptor before deciding whether metric fine tuning is necessary, and measure physical-card versus broadcast-graphic errors for any localization teacher. A strong offline teacher need not be the eventual phone model.
+`training/card_recognizer/canonical.py` defines the query/gallery input contract.
+The curated recognition pool has 298 AI-reviewed real single-card queries with
+source-isolated splits. Deployment uses the GPU run; frozen-MobileNet/frozen-DINO
+experiments are historical and their tools/artifacts have been retired. Their
+synthetic recall diagnostics do not establish real-camera accuracy.
 
 ## Objective and scope
 
 Build a reusable visual instance-retrieval engine: enroll card references and metadata, then identify independent camera crops without adding a classifier output for each new identity. One Piece, Pokémon, and other games can share encoder/search infrastructure. Recognition accuracy on a new game is an empirical question, not guaranteed by enrollment.
 
-The existing MobileNetV3 feature output is a useful baseline. It is trained through ordinary classifier cross entropy, exported as logits, and has not been validated for retrieval. Replacing softmax with cosine at inference alone does not establish a stronger encoder.
+The original MobileNetV3 classifier was retired. The current model is trained for angular embeddings; deployment discards its ArcFace proxies and searches enrolled references.
 
 Separate three decisions: the encoder architecture/pretraining, the training objective, and the gallery/search/verification policy. ArcFace is an angular-margin training objective; cosine is a comparison rule for normalized embeddings. They can be used together. A larger encoder or a different loss alone cannot repair poor crops, missing detail, mislabeled references, or contaminated evaluation.
 
-Latest decision: further frozen-DINO comparisons are not the next task. Fine-tune a pretrained encoder for card retrieval. The executed baseline used DINOv2 **ViT-S/14**, frozen 384-D CLS descriptors; no production backbone has been selected. A practical first adaptation can reuse those existing pretrained weights with a learned 256–512-D projection and an ArcFace training head. The ArcFace class weights are training machinery; deployment retains the normalized encoder/projection and a reference gallery, so enrollment does not add a deployed classifier output. Compare another accessible pretrained backbone only as a controlled fine-tuning/deployment alternative, rather than starting a broad frozen-model sweep. Training from scratch is not the default with the current data.
+Current decision: fine-tune pretrained encoders for card retrieval; do not repeat
+broad frozen-encoder sweeps. The deployed DINOv2-small ViT-S/14 yields normalized
+384-D descriptors. A new backbone, loss or projection needs controlled fine-tuning,
+held-out evaluation, rebuilt gallery embeddings and deployment parity evidence.
+Training from scratch is not the default with the current data.
 
 Keep architecture, initialization and objective explicit: `pretrained backbone → pooling/projection → L2 descriptor → cosine gallery`; during training, the descriptor also feeds the chosen angular-margin or contrastive objective. DINOv3 supplies ViT and ConvNeXt backbones; SigLIP2 is another pretrained encoder family. Their generic benchmark results do not establish TCG accuracy, and access/runtime requirements must be checked before choosing a checkpoint. See the primary references in `FOUNDATION_MODELS.md`.
 
@@ -149,7 +151,7 @@ That does not mean retraining is never needed: additional domains or failures ma
 
 ## Gallery is curated evidence, not ground-truth queries
 
-The reference gallery represents known appearances. Ground-truth query labels belong to the independent benchmark. Using the enrollment reference itself as its test query measures self-match, not camera recognition. The current ten duplicated `manual_eval` images must never be used to choose this design's operating point.
+The reference gallery represents known appearances. Ground-truth query labels belong to the independent benchmark. Using the enrollment reference itself as its test query measures self-match, not camera recognition. The retired classifier evaluation fixtures duplicated training images and must not be treated as calibration evidence.
 
 Use explicit logical records rather than assigning all semantics to a filename:
 

@@ -43,6 +43,11 @@ Acquisition prefers 2160p/4K with a hard minimum 1440p available source format. 
 
 ## Current implementation boundary
 
-`ocr_identity.py` / `scripts/propose_card_labels.py` implement whole-card Tesseract regions, bounded PSM 7 retries on observed ID-like regions, catalog lookup and optional frozen-cosine fallback over 0/180-degree orientation candidates. `identity_evidence.py` separately checks visual/OCR agreement, shared-token ambiguity and conflicts. A frozen MobileNet pooled-feature/cosine baseline exists in `retrieval.py` and `scripts/build_embedding_gallery.py`; PaddleOCR remains unimplemented.
+`ocr_identity.py` / `scripts/propose_card_labels.py` implement offline whole-card
+Tesseract regions, bounded PSM 7 retries on observed ID-like regions, catalog lookup
+and 0/180-degree orientation candidates. The retired frozen-MobileNet fallback was
+removed. `identity_evidence.py` separately checks proposed visual/OCR agreement,
+shared-token ambiguity and conflicts. PaddleOCR remains unimplemented. The browser
+uses DINOv2/ArcFace similarity retrieval; this offline OCR tool is not its scheduler.
 
-Evidence: region retries on 24 original One Piece reference fixtures produced seven exact high-confidence code reads, with four unique catalog candidates, two alternate-art ambiguities and one conflict. On 16 actual source-resolution GroundingDINO crop proposals, OCR resolved zero catalog identities. The observed Japanese Pokémon fraction `048/063` could not resolve against the English catalog. Preserve these failures rather than inferring that larger crops guarantee readable IDs. The existing app still uses its original classifier; no calibrated real-video exact-label accuracy or universal encoder performance has been established.
+Evidence: region retries on 24 original One Piece reference fixtures produced seven exact high-confidence code reads, with four unique catalog candidates, two alternate-art ambiguities and one conflict. On 16 actual source-resolution GroundingDINO crop proposals, OCR resolved zero catalog identities. The observed Japanese Pokémon fraction `048/063` could not resolve against the English catalog. Preserve these failures rather than inferring that larger crops guarantee readable IDs. The browser now uses the fine-tuned retrieval encoder; no calibrated real-video exact-label accuracy or universal encoder performance has been established.

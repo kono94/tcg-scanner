@@ -1,8 +1,10 @@
 # Hosting on the VPS
 
 The scanner is a static site. Recognition runs in the visitor's browser; the server only
-delivers files: the app, the ONNX runtime and model bundle (~220 MB on disk; a phone
-downloads roughly 80 MB of it once, a desktop about 150 MB) and catalog thumbnails (~530 MB, loaded as needed).
+delivers the app, ONNX runtime, versioned model bundle and catalog thumbnails (loaded
+as needed). Bundle `27047332` contains a 46.0 MB raw / 38.6 MB gzip detector; this is
+only the detector, and encoders, gallery, catalog and runtime add download size. Actual
+transfer size depends on compression, execution provider and browser cache.
 
 One shared Caddy proxy serves every subdomain on the VPS with automatic HTTPS
 (Let's Encrypt). Each app runs in its own Docker Compose stack, joins the `web` network
@@ -101,8 +103,9 @@ checks `bundle/manifest.json` on every start.
   examples, and phone errors are not logged on the server. Both are dev-server features.
 - Saved collections live in each visitor's browser (localStorage + IndexedDB): no accounts,
   no sync between devices, and clearing site data deletes them.
-- Thresholds are uncalibrated and the detector is trained on synthetic scenes (see
-  `web/README.md`); label the site as a pilot.
+- Thresholds are uncalibrated; the detector combines synthetic pretraining with
+  AI-reviewed real-corner fine tuning. Physical-phone performance remains unverified
+  (see [browser evidence](../docs/BROWSER_BUNDLE_2026-10-17.md)); label the site as a pilot.
 
 ## Tested
 

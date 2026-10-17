@@ -11,7 +11,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from training.card_recognizer.retrieval import file_sha256
+from training.card_recognizer.foundation_retrieval import sha256_file as file_sha256
 
 
 def collect(manifests: list[Path], output: Path) -> dict:
