@@ -1,0 +1,26 @@
+# Shared HTTPS entry point for every site on the VPS (scanner, tft, ...).
+# Caddy gets and renews Let's Encrypt certificates for each domain in the Caddyfile.
+# Apps join the external `web` network and are reached by service name; they publish no ports.
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates: keep this volume
+      - caddy_config:/config
+    networks: [web]
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
+    external: true # created once: docker network create web

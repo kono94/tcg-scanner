@@ -1,0 +1,14 @@
+# The scanner is a static site: app, ONNX runtime, model bundle and reference thumbnails.
+# deploy.sh uploads releases to ./www; `current` points at the live one (switched atomically).
+services:
+  scanner:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv:ro
+    networks: [web]
+
+networks:
+  web:
+    external: true

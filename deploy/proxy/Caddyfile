@@ -1,0 +1,16 @@
+{
+	# Let's Encrypt account e-mail (expiry notices).
+	email {$ACME_EMAIL}
+}
+
+scanner.lwenstrom.net {
+	encode zstd gzip
+	reverse_proxy scanner:80
+}
+
+# TFT app: its compose service must join the `web` network.
+# Replace `tft:3000` with that service's name and internal port, then reload the proxy.
+# tft.lwenstrom.net {
+# 	encode zstd gzip
+# 	reverse_proxy tft:3000
+# }
