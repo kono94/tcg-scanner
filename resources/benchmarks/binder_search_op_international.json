@@ -1,0 +1,82 @@
+{
+  "checked_date": "2026-10-15",
+  "search_scope": "Public YouTube metadata and storyboards for international One Piece card collection/binder footage; Japanese card faces prioritized, with actual language kept distinct from metadata language.",
+  "metadata_method": "Isolated yt-dlp 2026.08.19 probes with node JS runtime, public watch-page formats, no cookies/accounts/proxies. Positive listed 3840x2160 dimensions establish an available 2160p encode.",
+  "minimum_resolution_rule": "At least 1440p source height; native 2160p preferred. This acquisition selected only listed 3840x2160 formats.",
+  "candidate_count": 3,
+  "acquired_count": 1,
+  "reuse_rights": "Unknown for all sources.",
+  "candidates": [
+    {
+      "video_id": "FkBysYcYVyI",
+      "source_url": "https://www.youtube.com/watch?v=FkBysYcYVyI",
+      "title": "【ワンピカード】転売疑惑⁉︎視聴者から疑われたお宝コレクションを全て公開します‥‥",
+      "channel": "JIN studio",
+      "duration_seconds": 1008,
+      "upload_date": "2023-09-30",
+      "metadata_language": "ja",
+      "physical_card_language": "Japanese observed in acquired frames",
+      "available_format": {"format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "AV1", "container": "mp4"},
+      "format_probe": "runs/video_mining/binder-search-op-international/FkBysYcYVyI.info.json",
+      "storyboard": "runs/video_mining/binder-search-op-international/FkBysYcYVyI-sb0.jpg",
+      "visual_screen": "Long physical binder-page walkthrough in storyboard. Selected span contains two different 9-pocket pages in one open spread; Japanese card text visible. Persistent small Japanese channel/title strip at top; hands and sleeve glare intermittently obscure corners. Faces appear roughly 500-700px tall in 4K source, approximate visual estimate.",
+      "disposition": "acquired_and_inspected"
+    },
+    {
+      "video_id": "DHaqt8LjvMc",
+      "source_url": "https://www.youtube.com/watch?v=DHaqt8LjvMc",
+      "title": "$30,000 One Piece TCG Collection Reveal | 3 Years of Collecting",
+      "channel": "MK27Hobbies",
+      "duration_seconds": 2073,
+      "upload_date": "2026-02-11",
+      "metadata_language": "en-US",
+      "physical_card_language": "Unverified",
+      "available_format": {"format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "AV1", "container": "mp4"},
+      "format_probe": "runs/video_mining/binder-search-op-international/DHaqt8LjvMc.info.json",
+      "storyboard": "runs/video_mining/binder-search-op-international/DHaqt8LjvMc-sb0.jpg",
+      "visual_screen": "Binder pages appear across the storyboard, but this is a multi-presenter/card-shop style presentation with recurring host/layout graphics, picture panels and reflections. Not selected for acquisition because the JIN studio source has cleaner page framing and less overlay burden.",
+      "disposition": "verified_2160p_candidate_not_acquired"
+    },
+    {
+      "video_id": "O93Q66AExDI",
+      "source_url": "https://www.youtube.com/watch?v=O93Q66AExDI",
+      "title": "Von Englisch zu Japanisch! Meine ersten japanischen One Piece TCG Karten! Deutsch",
+      "channel": "Denski",
+      "duration_seconds": 1180,
+      "upload_date": "2025-10-25",
+      "metadata_language": "de",
+      "physical_card_language": "Japanese stated by title/description; exact sampled frames not inspected",
+      "available_format": {"format_id": "313", "width": 3840, "height": 2160, "fps": 24, "codec": "VP9", "container": "webm"},
+      "format_probe": "runs/video_mining/binder-search-op-international/O93Q66AExDI.info.json",
+      "visual_screen": "The title/description describes a German-language collection update featuring newly acquired Japanese cards. Thumbnail has oversized SAMPLE overlays across example cards and does not establish useful physical-card scene quality; left unacquired pending scene-level review.",
+      "disposition": "verified_2160p_candidate_not_acquired"
+    }
+  ],
+  "acquired_excerpts": [
+    {
+      "video_id": "FkBysYcYVyI",
+      "source_url": "https://www.youtube.com/watch?v=FkBysYcYVyI",
+      "source_group": "JINstudio_Japanese_collection_reveal",
+      "language_metadata": "ja",
+      "observed_card_language": "Japanese; no English printing identities assigned",
+      "available_format": {"format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "AV1", "container": "mp4"},
+      "requested_source_interval_seconds": [110, 125],
+      "local_excerpt": "runs/video_mining/binder-search-op-international/FkBysYcYVyI-110-125.mp4",
+      "sha256": "4f9e0cd56aa1cd995c711725ef99c57d0f215a7cc301cd9c15be768841c3f42b",
+      "bytes": 30561454,
+      "frame_manifest": "runs/video_mining/binder-search-op-international/FkBysYcYVyI-110-125-frames/manifest.json",
+      "saved_frames": 9,
+      "contact_sheet": "runs/video_mining/binder-search-op-international/contact.jpg",
+      "approximate_distinct_page_views": 2,
+      "approximate_repeated_or_neighboring_selected_frames": 7,
+      "approximate_distinct_artwork_views": "roughly 12 across two page layouts; repeats in pockets are physical duplicates, not separate identities; no exact labels established",
+      "visual_evidence": "Inspected source-resolution decoded frames. The excerpt contains two different 3x3 binder-page layouts side-by-side; many cards are repeated copies within each page. Page faces remain large in the 4K frame, roughly 500-700 source pixels tall by visual estimate. No exact card names/printing labels are asserted.",
+      "quality_limits": ["Hands cover lower pockets while turning/pointing.", "Strong sleeve/foil glare obscures some right-page faces, especially several pockets in the first spread.", "Small persistent Japanese title strip runs across the top edge.", "Cards are mostly upright, but binder pages are curved/tilted and their pocket edges can overlap.", "The nine retained frames are concentrated on two page layouts and are highly temporally related; they are not independent test examples."],
+      "timestamp_caveat": "110-125 are requested yt-dlp section bounds. Segment keyframe seeking can shift actual decoded start; frame manifest timestamps are excerpt-relative frame index / reported-fps values, not guaranteed frame-accurate source timestamps.",
+      "identity_status": "unlabeled",
+      "reuse_rights": "unknown",
+      "training_promotion": "not_promoted"
+    }
+  ],
+  "overall_result": "Three distinct international candidates were positively format-verified at native 3840x2160. One Japanese-language binder walkthrough yielded a useful short excerpt and nine selected unlabeled 4K frames. Two candidates were not downloaded after thumbnail/storyboard review. Exact identities, rights and independent validation status remain unestablished."
+}

@@ -1,0 +1,7 @@
+# Optional offline teacher runtime, isolated from the existing training environment.
+transformers==4.46.3
+huggingface-hub==0.26.2
+tokenizers==0.20.3
+safetensors==0.4.5
+regex==2024.11.6
+# Repository .env supplies torch==2.4.0, torchvision==0.19.0, NumPy and Pillow.

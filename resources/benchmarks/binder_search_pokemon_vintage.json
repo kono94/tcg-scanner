@@ -1,0 +1,195 @@
+{
+  "checked_date": "2026-10-15",
+  "status": "Three distinct YouTube candidates have positively listed 3840x2160 formats. Two bounded 12-second excerpts were acquired and visually inspected; none is labeled or evaluation data.",
+  "prior_sources_avoided": [
+    "ZQ11RKIA7BE",
+    "BF_gXDPnhCg",
+    "QIY0LGl_JAA"
+  ],
+  "metadata_probe": {
+    "command": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
+    "verification_date": "2026-10-15",
+    "caveat": "yt-dlp warned that format listings may be incomplete without a JavaScript runtime. Positive 2160p entries are verified; missing entries are inconclusive. Platform format dimensions do not establish original camera resolution."
+  },
+  "candidates": [
+    {
+      "url": "https://www.youtube.com/watch?v=fG9cnN5AH6Q",
+      "video_id": "fG9cnN5AH6Q",
+      "title": "I BOUGHT A VINTAGE BINDER OF POKEMON CARDS - AND FOUND GOLD STAR CARDS!!!",
+      "channel": "Kreesky",
+      "upload_date": "2022-11-25",
+      "duration_seconds": 1651,
+      "english_supported": true,
+      "english_evidence": "English-language title/channel and sampled English card faces/text; exact identities not assigned.",
+      "listed_formats": [
+        {
+          "format_id": "628",
+          "width": 3840,
+          "height": 2160,
+          "fps": 60,
+          "codec": "vp09.00.51.08"
+        },
+        {
+          "format_id": "315",
+          "width": 3840,
+          "height": 2160,
+          "fps": 60,
+          "codec": "vp9"
+        },
+        {
+          "format_id": "401",
+          "width": 3840,
+          "height": 2160,
+          "fps": 60,
+          "codec": "av01.0.13M.08"
+        }
+      ],
+      "selected_format_id": "401",
+      "verified_clip": {
+        "source_window_seconds": [
+          600,
+          612
+        ],
+        "clip_path": "runs/video_mining/binder-search-pokemon-vintage/kreesky-600-612.mp4",
+        "dimensions": [
+          3840,
+          2160
+        ],
+        "fps": 60,
+        "codec": "av1",
+        "sha256": "17d8ea4d1779071b4d5af3e1f3a69d8e20cec1955b7917ec108f198f143e42f9",
+        "frame_paths": [
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-01.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-02.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-03.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-04.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-05.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-06.jpg"
+        ],
+        "approx_unique_card_views": 6,
+        "quality_observations": "Overhead open binder and two facing pages; page turn reveals additional old card faces. Large stable faces support crop proposals. Hands/forearm obscure some areas; clear sleeves reflect light; center binder hardware divides the page.",
+        "reuse_basis": "unknown",
+        "repeated_views_note": "Adjacent sampled frames include repeat views of some of the same cards; unique-view counts are visual estimates and are not catalog identity counts."
+      },
+      "discarded_window": {
+        "source_window_seconds": [
+          120,
+          132
+        ],
+        "reason": "Outdoor pickup/unboxing context; no useful card faces in inspected frames."
+      },
+      "why_selected": "Strongest page-scene candidate: multiple distinct vintage English card faces in a stable, close overhead binder view.",
+      "source_group": "fG9cnN5AH6Q",
+      "frame_manifest": "runs/video_mining/binder-search-pokemon-vintage/fG9cnN5AH6Q-frames/manifest.json"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=W43vmn9zkRE",
+      "video_id": "W43vmn9zkRE",
+      "title": "Complete Set in 1-Hour or Lose Them All (RISKY Pok\u00e9mon Card Challenge)",
+      "channel": "Deep Pocket Monster",
+      "upload_date": "2022-11-27",
+      "duration_seconds": 851,
+      "english_supported": true,
+      "english_evidence": "English-language title and sampled English card faces/text; exact identities not assigned.",
+      "listed_formats": [
+        {
+          "format_id": "625",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "vp09.00.50.08"
+        },
+        {
+          "format_id": "313",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "vp9"
+        },
+        {
+          "format_id": "401",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "av01.0.12M.08"
+        }
+      ],
+      "selected_format_id": "401",
+      "verified_clip": {
+        "source_window_seconds": [
+          300,
+          312
+        ],
+        "clip_path": "runs/video_mining/binder-search-pokemon-vintage/deep-pocket-300-312.mp4",
+        "dimensions": [
+          3840,
+          2160
+        ],
+        "fps": 29.97,
+        "codec": "av1",
+        "sha256": "3d603b3ff0cad4f2b36e7be6387119f10eb755ba2a0f951033c65bf7f1dda465",
+        "frame_paths": [
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-01.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-02.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-03.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-04.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-05.jpg",
+          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-06.jpg"
+        ],
+        "approx_unique_card_views": 4,
+        "quality_observations": "Varied older English cards; several are individually held near a small binder. Fingers cover portions of faces, reflections cross sleeves, and movement or close framing makes some views soft; store stock is distracting.",
+        "reuse_basis": "unknown",
+        "repeated_views_note": "Adjacent sampled frames include repeat views of some of the same cards; unique-view counts are visual estimates and are not catalog identity counts."
+      },
+      "why_selected": "Independent channel and distinct physical card views add variation to the stable binder-page footage, although it is a weaker binder-page example.",
+      "source_group": "W43vmn9zkRE",
+      "frame_manifest": "runs/video_mining/binder-search-pokemon-vintage/W43vmn9zkRE-frames/manifest.json"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=xFEyeGtsIS0",
+      "video_id": "xFEyeGtsIS0",
+      "title": "Pokemon Binders but they get increasingly more ridiculous",
+      "channel": "HLD Cards & Collectibles",
+      "upload_date": "2026-06-25",
+      "duration_seconds": 1790,
+      "english_supported": "likely",
+      "english_evidence": "English-language video title and thumbnail text; card language and sampled content not independently checked.",
+      "listed_formats": [
+        {
+          "format_id": "625",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "vp09.00.50.08"
+        },
+        {
+          "format_id": "313",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "vp9"
+        },
+        {
+          "format_id": "401",
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "codec": "av01.0.12M.08"
+        }
+      ],
+      "frame_quality_verified": false,
+      "quality_observations": "Thumbnail shows a binder with repeated similar/custom-looking card art and prominent title overlay; clip not inspected.",
+      "reuse_basis": "unknown",
+      "rank": "metadata-only lead; below the two inspected clips"
+    }
+  ],
+  "acquisition": {
+    "bounded_clip_bytes_total": 40503504,
+    "selected_jpeg_count": 12,
+    "total_acquisition_bytes_approx": 46918388,
+    "max_clip_budget_bytes": 300000000,
+    "exact_good_windows_known": true,
+    "notes": "Only the specified 12-second sections were acquired. Six frames per clip were selected at roughly two-second intervals. Frame times are approximate relative to requested sections because stream seeking may align to nearby keyframes. First Kreesky trial window was discarded. No identity or printing labels were inferred. Similarity retrieval remains the normal recognition path; OCR is only a bounded optional fast pass for exceptionally clear crops.",
+    "full_source_videos_downloaded": false
+  }
+}

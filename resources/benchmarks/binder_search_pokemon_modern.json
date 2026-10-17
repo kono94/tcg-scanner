@@ -1,0 +1,134 @@
+{
+  "checked_date": "2026-10-15",
+  "status": "Four distinct primary English-language Pokémon video candidates positively listed 3840x2160 formats. Two short excerpts were visually inspected; one additional verified-4K source remains a lead. Selected frames are unlabeled proposals, not evaluation data.",
+  "prior_sources_avoided": [
+    "ZQ11RKIA7BE",
+    "BF_gXDPnhCg",
+    "QIY0LGl_JAA"
+  ],
+  "metadata_probe": {
+    "command": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
+    "verification_date": "2026-10-15",
+    "format_evidence_file": "runs/video_mining/binder-search-pokemon-modern/public-metadata.json",
+    "caveat": "yt-dlp warned that available formats may be incomplete without a JavaScript runtime. Positive 2160p entries were observed; missing entries are inconclusive. A listed 3840x2160 stream does not prove original camera resolution. The selected 2160p VP9 stream was clipped and ffprobe confirmed 3840x2160 output."
+  },
+  "acquisition": {
+    "clip_command_shape": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --format 'bestvideo[height=2160][vcodec^=vp09]' --download-sections '*START-END' --force-keyframes-at-cuts --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 --output 'runs/video_mining/binder-search-pokemon-modern/%(id)s-%(section_start)s.%(ext)s' URL",
+    "raw_clip_total_bytes": 59750875,
+    "selected_frame_count": 3,
+    "selected_frame_total_bytes": 5289017,
+    "disk_budget_note": "Only 40-second and 15-second excerpts from two videos were retained; no full raw videos were downloaded. This is well below the 300 MB acquisition cap and the 3 GiB free-space reserve."
+  },
+  "candidates": [
+    {
+      "rank": 1,
+      "url": "https://www.youtube.com/watch?v=Wv8WJmU3xQc",
+      "video_id": "Wv8WJmU3xQc",
+      "title": "Reacting To My Viewers' Pokémon Binders (Binder Ideas)",
+      "channel": "Evan's Collection",
+      "upload_date": "2026-08-07",
+      "duration_seconds": 678,
+      "video_language": "English",
+      "card_language_evidence": "English and Japanese printed text are both visibly present in the inspected pages; the source is mixed-language for card faces.",
+      "listed_formats": [
+        { "format_id": "625", "width": 3840, "height": 2160, "fps": 30, "codec": "vp09.00.50.08" },
+        { "format_id": "313", "width": 3840, "height": 2160, "fps": 30, "codec": "vp9" },
+        { "format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "av01.0.12M.08" }
+      ],
+      "selected_format_id": "625",
+      "verified_clip": {
+        "source_window_seconds": [35, 50],
+        "clip_path": "runs/video_mining/binder-search-pokemon-modern/Wv8WJmU3xQc-35.mp4",
+        "clip_dimensions": [3840, 2160],
+        "fps": 30,
+        "codec": "h264 (clip re-encode)",
+        "sha256": "6c907863f7b71b6a20d3c151dec6b2291881fa244803f4990e4c02c513a95a9d",
+        "frame_manifest": "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/manifest.json",
+        "quality_observations": "Two different open binder-page views are visible in the retained frames. Roughly 18 card faces are visible on the first page spread and about 10 on the second; these are visual counts, not verified unique identities. Cards occupy large source areas (roughly 450–650 px wide by 600–850 px high per pocket by visual estimate). Page views are stable and nearly top-down. Sleeve glare crosses some cards; the second page is tilted. Some cards are Japanese, and the source edits between host shots and viewer-submitted page footage. No persistent graphic covers the retained card pages.",
+        "retained_frame_paths": [
+          "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000150.jpg",
+          "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000330.jpg"
+        ],
+        "approx_unique_page_views": 2,
+        "reuse_basis": "unknown",
+        "identity_labels": "none; exact catalog and printing identities remain unresolved"
+      },
+      "recommendation": "Best candidate for similarity-recognition crop proposals: two distinct, card-dense binder views with large readable faces. Keep the two source frames in one source group and treat OCR only as an optional fast pass on exceptionally clear crops."
+    },
+    {
+      "rank": 2,
+      "url": "https://www.youtube.com/watch?v=xFEyeGtsIS0",
+      "video_id": "xFEyeGtsIS0",
+      "title": "Pokemon Binders but they get increasingly more ridiculous",
+      "channel": "HLD Cards & Collectibles",
+      "upload_date": "2026-06-25",
+      "duration_seconds": 1790,
+      "video_language": "English",
+      "card_language_evidence": "Card text in the retained page is too small/soft to establish card language reliably.",
+      "listed_formats": [
+        { "format_id": "625", "width": 3840, "height": 2160, "fps": 30, "codec": "vp09.00.50.08" },
+        { "format_id": "313", "width": 3840, "height": 2160, "fps": 30, "codec": "vp9" },
+        { "format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "av01.0.12M.08" }
+      ],
+      "selected_format_id": "625",
+      "verified_clip": {
+        "source_window_seconds": [155, 175],
+        "clip_path": "runs/video_mining/binder-search-pokemon-modern/xFEyeGtsIS0-155.mp4",
+        "clip_dimensions": [3840, 2160],
+        "fps": 30,
+        "codec": "h264 (clip re-encode)",
+        "sha256": "58e7687bd36aeeaac097db30d5ede41025efe637f2e6f728321e079be6804f7d",
+        "frame_manifest": "runs/video_mining/binder-search-pokemon-modern/xFE-mined/manifest.json",
+        "quality_observations": "A real open 6-by-5 pocket page is visible on a table at a trade show, with about 30 card faces in one view. This is a broad scene/localization example; individual cards are only about 250–320 px wide by visual estimate and look softer than the Wv8 page views. Sleeve reflections, perspective, a hand near the page edge, surrounding display cases, channel watermark and in-video captions reduce crop quality. The sampled sequence mostly repeats this same physical page; count one useful unique page view.",
+        "retained_frame_paths": [
+          "runs/video_mining/binder-search-pokemon-modern/xFE-mined/frames/frame_000000480.jpg"
+        ],
+        "approx_unique_page_views": 1,
+        "reuse_basis": "unknown",
+        "identity_labels": "none; exact catalog and printing identities remain unresolved"
+      },
+      "recommendation": "Useful as a crowded binder-page localization example and a secondary source of individual crops. Prefer Wv8 for higher-detail similarity crops."
+    },
+    {
+      "rank": 3,
+      "url": "https://www.youtube.com/watch?v=gv-r3pfVmvI",
+      "video_id": "gv-r3pfVmvI",
+      "title": "Collect All 1,025 Pokémon in ONE Binder (The Ultimate Challenge Saga)",
+      "channel": "Deep Pocket Monster",
+      "upload_date": "2024-12-31",
+      "duration_seconds": 16671,
+      "video_language": "English",
+      "listed_formats": [
+        { "format_id": "625", "width": 3840, "height": 2160, "fps": 30, "codec": "vp09.00.50.08" },
+        { "format_id": "313", "width": 3840, "height": 2160, "fps": 30, "codec": "vp9" },
+        { "format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "av01.0.12M.08" }
+      ],
+      "metadata_verified": true,
+      "quality_status": "additional lead; tested 30–50 s window was unrelated fishing footage, so no frame-quality claim is made for the binder chapters",
+      "reuse_basis": "unknown"
+    },
+    {
+      "rank": 4,
+      "url": "https://www.youtube.com/watch?v=bWfct0Vx0YM",
+      "video_id": "bWfct0Vx0YM",
+      "title": "Pokemon 30th Anniversary Binder Collection - EARLY OPENING (4K)",
+      "channel": "Nidovin Collects",
+      "upload_date": "2026-09-15",
+      "duration_seconds": 533,
+      "video_language": "English",
+      "listed_formats": [
+        { "format_id": "625", "width": 3840, "height": 2160, "fps": 25, "codec": "vp09.00.50.08" },
+        { "format_id": "313", "width": 3840, "height": 2160, "fps": 25, "codec": "vp9" },
+        { "format_id": "401", "width": 3840, "height": 2160, "fps": 25, "codec": "av01.0.12M.08" }
+      ],
+      "metadata_verified": true,
+      "quality_status": "inspected 70–85 s binder-overview chapter: binder cover and empty pockets, then booster packs; no card fronts in this excerpt",
+      "reuse_basis": "unknown"
+    }
+  ],
+  "probe_rejections": {
+    "description": "Other search leads were checked but did not positively list 2160p in this probe or were older/non-binder material; they are not counted toward the verified candidate minimum."
+  },
+  "recognition_policy": "Similarity retrieval remains the normal recognition path after localization. OCR is an optional bounded fast pass for exceptionally clear crops. No identity proposal or evaluation label was created here.",
+  "next_step": "Run cached localization on the three retained frame paths in the two frame manifests, inspect native-resolution full-card crops, then generate similarity shortlists with all identities marked unknown until independent catalog/printing evidence is available. If additional page diversity is required, acquire a second bounded 10–20 second section from Wv8WJmU3xQc around a different viewer-submitted page transition and visually screen it before keeping frames."
+}

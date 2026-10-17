@@ -1,0 +1,28 @@
+# Bounded first fine-tune. Sampling epochs are fixed step budgets, not full passes.
+seed: 42
+device: mps
+cpu_threads: 4
+dataset_root: datasets/curated
+transformers_runtime: runs/foundation_teacher/runtime
+pretrained_model_path: runs/card_recognizer/dinov2_baseline/hf_cache/hub/models--facebook--dinov2-small/snapshots/ed25f3a31f01632728cabb09d1542f84ab7b0056
+pretrained_weights_sha256: ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1
+embedding_dimension: 384
+max_training_classes: 2048
+# Root review found this same-art printing pair unresolved in real captures.
+excluded_training_identities:
+  - onepiece:en:OP09-014
+  - onepiece:en:OP09-014_p1
+trainable_last_blocks: 2
+head_warmup_epochs: 1
+epochs: 10
+steps_per_epoch: 100
+identities_per_batch: 8
+evaluation_batch_size: 32
+margin_radians: 0.2
+logit_scale: 16.0
+backbone_lr: 0.00003
+projection_lr: 0.0001
+proxy_lr: 0.001
+weight_decay: 0.0001
+log_every_steps: 10
+final_full_catalog_evaluation: true

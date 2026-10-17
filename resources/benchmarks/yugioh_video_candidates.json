@@ -1,0 +1,81 @@
+{
+  "created": "2026-10-15",
+  "status": "candidate_sources_only_not_reviewed_or_annotated",
+  "purpose": "Identify publicly available Yu-Gi-Oh! binder/collection and pack-opening footage as inputs for automatic teacher/OCR/catalog label proposals. No video or frame has been downloaded or labeled.",
+  "minimum_source_resolution": "1440p",
+  "preferred_source_resolution": "2160p",
+  "resolution_policy": "Source resolution must be verified from actual video metadata before eligibility. Title, thumbnail, or creator claims alone do not verify resolution. Every current entry is resolution-unknown and ineligible until verified; no card-crop quality is claimed.",
+  "labeling_policy": "OCR over card text regions is the first stage (PaddleOCR is a candidate). Extract only ID-like strings visibly present in pixels, syntax-check, and query the catalog. Never invent, autocomplete, or infer missing code characters. Visual retrieval is fallback when no valid OCR ID exists, disambiguation for multiple catalog hits, or opt-in. Conflicting or weak cases become unresolved/quarantined automatically; no user screening or labeling is required. Proposals are not verified ground truth.",
+  "candidates": [
+    {
+      "video_id": "cEBOqLJKGOk",
+      "url": "https://www.youtube.com/watch?v=cEBOqLJKGOk",
+      "title": "The ULTIMATE Yu-Gi-Oh! Cards Collection!",
+      "creator": "CasualYugiStuff",
+      "published": "2024-01-12",
+      "type": "binder_collection_tour",
+      "source_resolution": "unknown",
+      "resolution_evidence": null,
+      "eligible_for_card_crop_benchmark": false,
+      "source_evidence": "Creator description says it showcases a complete binder collection of Ultimate Rares from Soul of the Duelist to The Shining Darkness.",
+      "candidate_use": "Binder pages and repeated card fronts may support instance localization and visible-card retrieval review.",
+      "known_limit": "Exact set/edition may not be readable from the video; a collection-level description does not label each visible card."
+    },
+    {
+      "video_id": "3DBl9GpUFVQ",
+      "url": "https://www.youtube.com/watch?v=3DBl9GpUFVQ",
+      "title": "My CRAZY $200,000 Yu-Gi-Oh! Card Collection Binder!",
+      "creator": "TeamSamuraiX1",
+      "published": "2024-11-30",
+      "type": "binder_collection_tour",
+      "source_resolution": "unknown",
+      "resolution_evidence": null,
+      "eligible_for_card_crop_benchmark": false,
+      "source_evidence": "Creator title and video description present it as a Yu-Gi-Oh! card collection binder tour.",
+      "candidate_use": "Potential dense binder/page scenes and varied camera angles.",
+      "known_limit": "No per-card identities or timecodes established; price/title claims are not ground truth."
+    },
+    {
+      "video_id": "X3RsjtQ3Eh0",
+      "url": "https://www.youtube.com/watch?v=X3RsjtQ3Eh0",
+      "title": "Opening 128 YU-GI-OH! PACKS (Was it worth it?)",
+      "creator": "Fiaspo",
+      "published": "2025-03-07",
+      "type": "pack_opening",
+      "source_resolution": "unknown",
+      "resolution_evidence": null,
+      "eligible_for_card_crop_benchmark": false,
+      "source_evidence": "Creator description says the video opens 128 Yu-Gi-Oh! packs across sets.",
+      "candidate_use": "Sequential card reveals can provide varied card-front scale, hand occlusion, and motion examples.",
+      "known_limit": "Brief presentation and narration/context are not proof of exact visible printing; set/product context must be independently established."
+    },
+    {
+      "video_id": "ch_4OAgDAzY",
+      "url": "https://www.youtube.com/watch?v=ch_4OAgDAzY",
+      "title": "We open the oldest Yu-Gi-Oh! booster packs.",
+      "creator": "DREAD TCG",
+      "published": "2025-01-04",
+      "type": "pack_opening",
+      "source_resolution": "unknown",
+      "resolution_evidence": null,
+      "eligible_for_card_crop_benchmark": false,
+      "source_evidence": "Creator description says the video opens older Yu-Gi-Oh! booster packs while searching for the first Blue-Eyes White Dragon.",
+      "candidate_use": "Potential older layouts/printing styles, pack reveals, and handling conditions.",
+      "known_limit": "The description does not identify every pack or card; era/context cannot assign a specific printing."
+    },
+    {
+      "video_id": "bcTwu4_zLV0",
+      "url": "https://www.youtube.com/watch?v=bcTwu4_zLV0",
+      "title": "25th Anniversary RARITY COLLECTION 2 Is HERE! Opening NEW Yu-Gi-Oh! Booster Box",
+      "creator": "JRBjobber",
+      "published": "2024-05-13",
+      "type": "pack_opening",
+      "source_resolution": "unknown",
+      "resolution_evidence": null,
+      "eligible_for_card_crop_benchmark": false,
+      "source_evidence": "Creator description identifies an early 25th Anniversary Rarity Collection 2 booster-box opening.",
+      "candidate_use": "Potential foil/rarity variation and repeated artwork across print treatments.",
+      "known_limit": "Pack identity does not establish which rarity/edition treatment appears in each frame."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "checked_date": "2026-10-15",
+  "status": "discovered_from_public_titles_and_descriptions_only",
+  "downloaded": false,
+  "frame_quality_verified": false,
+  "candidates": [
+    {
+      "url": "https://www.youtube.com/watch?v=Te-rE0Zifec",
+      "title": "TCG Day 1 | 2025 Pokémon World Championships",
+      "channel": "Play Pokémon",
+      "published": "2025-08-15",
+      "game": "pokemon",
+      "kind": "tournament_broadcast",
+      "provisional_source_group": "pokemon-worlds-2025-day1",
+      "reuse_basis": "not_established"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=NjNnJcK-JXg",
+      "title": "TCG Day 1 | 2025 Pokémon World Championships",
+      "channel": "The Official Pokémon YouTube channel",
+      "published": "2025-08-15",
+      "game": "pokemon",
+      "kind": "possible_duplicate_tournament_broadcast",
+      "provisional_source_group": "pokemon-worlds-2025-day1",
+      "reuse_basis": "not_established"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=qgwRa20C3lE",
+      "title": "LIVE! Championship 26-27 Finals | TopCut | ONE PIECE CARD GAME | LIVE FROM UTRECHT",
+      "channel": "Play Bandai Card Games",
+      "published": "2026-09-06",
+      "game": "onepiece",
+      "kind": "tournament_broadcast",
+      "provisional_source_group": "onepiece-utrecht-2026-finals",
+      "reuse_basis": "not_established"
+    }
+  ]
+}

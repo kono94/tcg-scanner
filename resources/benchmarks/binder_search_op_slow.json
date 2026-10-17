@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "artifact_type": "unlabeled_video_candidate_search",
+  "search_date": "2026-10-15",
+  "scope": "slow top-down One Piece binder presentations and collection tours; native 2160p format verification; no identity or geometry labels",
+  "leads": [
+    {
+      "video_id": "4QxpRG4E6d0",
+      "url": "https://www.youtube.com/watch?v=4QxpRG4E6d0",
+      "title": "How is our One Piece binder doing?",
+      "channel": "Bros Open Packs",
+      "duration_seconds": 1281,
+      "available_native_format": {
+        "format_id": "315",
+        "width": 3840,
+        "height": 2160,
+        "fps": 60,
+        "codec": "VP9",
+        "verified": true
+      },
+      "decision": "acquired two adjacent short excerpts; strongest binder-page match",
+      "observed": "Top-down binder on a desk, no host inset or digital card graphics. Several frames show a spread with approximately 15\u201320 pocketed cards across both pages. The operator's hand repeatedly occludes edges and flips a page; most saved frames repeat one spread. Card faces appear roughly 450\u2013550 source pixels across their short edge, adequate for detector and similarity-input inspection. Mild sleeve reflections; upper edge includes monitor/keyboard background.",
+      "source_group": "4QxpRG4E6d0",
+      "reuse_basis": "inspection_only",
+      "license_reuse": "unknown",
+      "excerpts": [
+        {
+          "requested_source_interval_seconds": [
+            300,
+            312
+          ],
+          "path": "runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-300-312.webm",
+          "sha256": "38c9e094c5a6686e378e2cd7c0686cc8f9005f5cf309cfe22e662e8fddf57290",
+          "bytes": 36114094,
+          "container": "WebM",
+          "decoded_format": "3840x2160, 60 fps VP9",
+          "timestamp_caveat": "requested yt-dlp section; keyframe/container preroll can shift the exact source-time alignment"
+        },
+        {
+          "requested_source_interval_seconds": [
+            312,
+            324
+          ],
+          "path": "runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-312-324.webm",
+          "sha256": "578555c5558981d02ed08ae976fc9f4a5119cad032c9191057374142462d9aa3",
+          "bytes": 49092511,
+          "container": "WebM",
+          "decoded_format": "3840x2160, 60 fps VP9",
+          "timestamp_caveat": "requested yt-dlp section; keyframe/container preroll can shift the exact source-time alignment"
+        }
+      ],
+      "frame_manifests": [
+        "runs/video_mining/binder-search-op-slow/4QxpRG4E6d0-300-312/manifest.json",
+        "runs/video_mining/binder-search-op-slow/4QxpRG4E6d0-312-324/manifest.json"
+      ],
+      "saved_frames": 12,
+      "frame_hashes_in_manifests": true,
+      "identity_labels": 0,
+      "geometry_labels": 0,
+      "real_camera_validation": false,
+      "training_promotion": "not_promoted"
+    },
+    {
+      "video_id": "ho7IFpPXI-A",
+      "url": "https://www.youtube.com/watch?v=ho7IFpPXI-A",
+      "title": "My $3000+ One Piece Tcg Collection Binder!! Graded Cards & SPs",
+      "channel": "Stoneyyoptcg",
+      "duration_seconds": 291,
+      "available_native_format": {
+        "format_id": "313",
+        "width": 3840,
+        "height": 2160,
+        "fps": 30,
+        "codec": "VP9",
+        "verified": true
+      },
+      "decision": "acquired one supplemental close tabletop card presentation",
+      "observed": "Cards are laid out in a small group and shifted between close shots rather than shown as a broad binder spread. At least several different large card faces are visible; Rosinante and Sanji recur across frames, with Luffy and other partial faces appearing. Cards are large and text/art are readable, but lighting is dark with foil reflections. No host inset or digital card overlay. Expect repeated views of the same small physical group, not many independent cards.",
+      "source_group": "ho7IFpPXI-A",
+      "reuse_basis": "inspection_only",
+      "license_reuse": "unknown",
+      "excerpt": {
+        "requested_source_interval_seconds": [
+          90,
+          102
+        ],
+        "path": "runs/video_mining/binder-search-op-slow/raw/ho7IFpPXI-A-90-102.webm",
+        "sha256": "f06c134d7f1c8ccd0ec13a51c9fdda43a7eff323e2667123303effcb0f2857ac",
+        "bytes": 34125976,
+        "container": "WebM",
+        "decoded_format": "3840x2160, 30 fps VP9",
+        "timestamp_caveat": "requested yt-dlp section; keyframe/container preroll can shift the exact source-time alignment"
+      },
+      "frame_manifest": "runs/video_mining/binder-search-op-slow/ho7IFpPXI-A-90-102/manifest.json",
+      "saved_frames": 5,
+      "discarded_corrupt_frame": "The last of six sampled frames showed severe vertical color corruption and was removed after visual inspection.",
+      "identity_labels": 0,
+      "geometry_labels": 0,
+      "real_camera_validation": false,
+      "training_promotion": "not_promoted"
+    },
+    {
+      "video_id": "_caIcnf-CrU",
+      "url": "https://www.youtube.com/watch?v=_caIcnf-CrU",
+      "title": "One Piece Card Game - Collection Tour!!!!!!",
+      "channel": "squaaaaw",
+      "duration_seconds": 1319,
+      "available_native_format": {
+        "format_id": "313",
+        "width": 3840,
+        "height": 2160,
+        "fps": 30,
+        "codec": "VP9",
+        "verified": true
+      },
+      "decision": "qualified lead; no retained excerpt",
+      "observed": "At requested 80\u201392 seconds, sampled frames show presenter/room and storage boxes, not cards. This is a rejected intro probe only; the rest of the collection tour was not screened.",
+      "duplicate_source_group": "squaaaaw_collection_tour",
+      "reuse_basis": "metadata_and_intro_probe_only",
+      "license_reuse": "unknown"
+    }
+  ],
+  "budget": {
+    "downloaded_excerpt_count": 3,
+    "downloaded_excerpt_bytes": 119332581,
+    "selected_frame_count": 17,
+    "frame_limit": 24,
+    "raw_download_limit_bytes": 300000000,
+    "disk_free_gib_at_start": 28,
+    "reserve_gib": 3,
+    "no_full_video_downloads": true,
+    "frames_are_candidate_inputs_not_labels": true
+  }
+}
