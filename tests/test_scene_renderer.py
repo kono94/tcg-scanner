@@ -39,6 +39,18 @@ class SceneRendererTest(unittest.TestCase):
                 self.assertEqual(meta['instances'], [])
         self.assertGreaterEqual(len(kinds), 3)
 
+    def test_v4_closeups_and_backs_keep_label_contract(self):
+        kinds = set()
+        for seed in range(40):
+            pixels, meta = render(seed, self.textures, 512, 384, version=4)
+            kinds.add(meta['kind'])
+            self.assertEqual(meta['label_origin'], 'synthetic_renderer_v4')
+            for inst in meta['instances']:
+                quad = np.asarray(inst['true_corners'])
+                self.assertTrue(np.all(quad >= 0) and np.all(quad[:, 0] <= 511) and np.all(quad[:, 1] <= 383))
+                self.assertGreaterEqual(inst['visible_fraction'], .6)
+        self.assertIn('closeup', kinds)
+
     def test_deterministic_per_seed(self):
         a, ma = render(5, self.textures, 320, 240)
         b, mb = render(5, self.textures, 320, 240)

@@ -162,12 +162,88 @@ def quad_from(center, w, h, angle_deg, jitter=0.0, rng=None) -> np.ndarray:
     return local @ rot.T + np.asarray(center, np.float64)
 
 
-def place_card(state: SceneState, rng, textures, quad, context, shadow=.25) -> None:
-    path = textures[int(rng.integers(len(textures)))]
-    tex = load_texture(path, rng)
+def card_back_texture(rng: np.random.Generator) -> np.ndarray:
+    """Procedural card backs (renderer v4). Backs are physical cards and are labeled like faces.
+
+    'pokemon': blue swirl field, dark-blue border, red/white ball, yellow logo arcs (top and,
+    rotated, bottom). 'dark': a dark back with a gold emblem and frame (One Piece-like).
+    Approximations only; they teach the card outline on a uniform, logo-dominated face.
+    """
+    h, w = TEX_H, TEX_W
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    if rng.random() < .6:
+        base = np.array([40, 90, 190], np.float32) * rng.uniform(.75, 1.15)
+        swirl = np.sin((xx - w / 2) * .05 + np.sin(yy * .03) * 2.5) * np.cos((yy - h / 2) * .04)
+        t = base + swirl[..., None] * np.array([18, 30, 45], np.float32) + smooth_noise(rng, h, w, 20)[..., None] * 6
+        b = int(w * rng.uniform(.035, .06))
+        border = np.array([25, 45, 110], np.float32) * rng.uniform(.8, 1.2)
+        t[:b], t[-b:], t[:, :b], t[:, -b:] = border, border, border, border
+        cx, cy, r = w / 2, h / 2, w * .3
+        d = np.hypot(xx - cx, yy - cy)
+        ball = d < r
+        t[ball & (yy < cy)] = [215, 40, 30]
+        t[ball & (yy >= cy)] = [235, 235, 235]
+        t[ball & (np.abs(yy - cy) < r * .1)] = [20, 20, 20]
+        t[d < r * .3] = [20, 20, 20]
+        t[d < r * .2] = [240, 240, 240]
+        for sign, y0 in ((1, h * .16), (-1, h * .84)):
+            band = np.abs(yy - y0 - sign * ((xx - cx) / w) ** 2 * h * .08) < h * .045
+            t[band & (np.abs(xx - cx) < w * .38)] = [250, 205, 40]
+    else:
+        t = np.full((h, w, 3), rng.uniform(10, 35, 3), np.float32) + smooth_noise(rng, h, w, 30)[..., None] * 5
+        gold = np.array([200, 160, 70], np.float32) * rng.uniform(.8, 1.1)
+        b = int(w * rng.uniform(.04, .07))
+        cv2.rectangle(t, (b, b), (w - b, h - b), gold.tolist(), 2)
+        cv2.circle(t, (w // 2, h // 2), int(w * .28), gold.tolist(), 3, cv2.LINE_AA)
+        for k in range(8):
+            a = k * math.pi / 4
+            cv2.line(t, (w // 2, h // 2), (int(w / 2 + math.cos(a) * w * .26), int(h / 2 + math.sin(a) * w * .26)), gold.tolist(), 2, cv2.LINE_AA)
+        cv2.rectangle(t, (int(w * .2), int(h * .12)), (int(w * .8), int(h * .2)), gold.tolist(), -1)
+    return np.clip(t * rng.uniform(.85, 1.1), 0, 255)
+
+
+def sleeve(state: SceneState, rng, quad: np.ndarray, kind: str) -> None:
+    """Penny sleeve or toploader over a card (renderer v4): translucent film plus visible rim edges.
+
+    The rim sits outside the card outline, so the model must not snap corners to it.
+    """
+    c = quad.mean(0)
+    if kind == 'toploader':
+        sx, sy = rng.uniform(1.08, 1.18), rng.uniform(1.05, 1.12)
+    else:
+        sx, sy = rng.uniform(1.015, 1.05), rng.uniform(1.01, 1.04)
+    # Scale along the card's own axes so the rim follows rotation.
+    u = quad[1] - quad[0]; v = quad[3] - quad[0]
+    local = np.array([[-.5, -.5], [.5, -.5], [.5, .5], [-.5, .5]]) * [sx, sy]
+    sq = c + local[:, :1] * u + local[:, 1:] * v
+    if kind != 'toploader':
+        sq = sq + v * rng.uniform(-.01, .02)  # the open end overhangs a little
+    th, tw = 64, 46
+    film = np.full((th, tw, 3), rng.uniform(215, 250), np.float32)
+    a = np.full((th, tw), rng.uniform(.04, .16 if kind == 'toploader' else .1), np.float32)
+    rim = rng.uniform(.25, .7)
+    e = 2 if kind == 'toploader' else 1
+    a[:e], a[-e:], a[:, :e], a[:, -e:] = rim, rim, rim, rim
+    if kind == 'toploader':
+        a[e:2 * e + 2] = a[-2 * e - 2:-e] = rim * .5
+        a[:, e:2 * e + 1] = a[:, -2 * e - 1:-e] = rim * .5
+    warp_onto(state, film, a, sq.astype(np.float64), 0, 0)  # caller restores the id map: clear film hides nothing
+
+
+def place_card(state: SceneState, rng, textures, quad, context, shadow=.25, v4: bool = False) -> None:
+    if v4 and rng.random() < .06:
+        tex = card_back_texture(rng)
+        path = 'procedural:card_back'
+    else:
+        path = textures[int(rng.integers(len(textures)))]
+        tex = load_texture(path, rng)
     idx = len(state.cards) + 1
     warp_onto(state, tex, card_alpha(rng), quad, idx, shadow)
     state.cards.append(Placed(quad=quad, source=path, kind='card', context=context, mask_id=idx))
+    if v4 and context != 'pocket' and rng.random() < .35:
+        keep = state.ids.copy()
+        sleeve(state, rng, quad, 'toploader' if rng.random() < .35 else 'penny')
+        state.ids[:] = keep
 
 
 def plastic(state: SceneState, rng, quad: np.ndarray, strength: float) -> None:
@@ -232,12 +308,32 @@ def distractor(state: SceneState, rng, textures, center, size) -> None:
 
 # ----------------------------------------------------------------------------- layouts (world plane)
 
-def binder_world(rng, textures, card_w: float, empty: bool = False, upright: bool = True):
+def pocket_seams(state: SceneState, rng, pockets: list[np.ndarray], page_color, card_w: float) -> None:
+    """Welded pocket seams and the bright lip of each pocket opening (renderer v4).
+
+    Real pages show straight edges just outside every card (seams) and a reflective lip crossing
+    the card near its top; both are lines the corner model must not mistake for card edges.
+    """
+    tone = np.clip(np.asarray(page_color, np.float32) + rng.uniform(15, 70), 0, 255)
+    thick = max(1, int(card_w * rng.uniform(.008, .03)))
+    alpha = rng.uniform(.3, .8)
+    overlay = state.image.copy()
+    for q in pockets:
+        x0, y0 = q[0]
+        x1, y1 = q[2]
+        cv2.rectangle(overlay, (int(x0), int(y0)), (int(x1), int(y1)), tone.tolist(), thick, cv2.LINE_AA)
+        if rng.random() < .6:  # opening lip, often over the card's top band
+            ly = int(y0 + (y1 - y0) * rng.uniform(0, .1))
+            cv2.line(overlay, (int(x0), ly), (int(x1), ly), [235, 235, 235], max(1, thick // 2), cv2.LINE_AA)
+    state.image[:] = state.image * (1 - alpha) + overlay * alpha
+
+
+def binder_world(rng, textures, card_w: float, empty: bool = False, upright: bool = True, v4: bool = False):
     """World image with one page or a spread; returns state and page outline for camera framing."""
     rows, cols = [(3, 3), (3, 3), (3, 3), (3, 4), (4, 4), (4, 5), (2, 2), (2, 3), (2, 4)][int(rng.integers(9))]
     spread = rng.random() < .45
     gap = card_w * rng.uniform(.04, .12)
-    pocket_w = card_w * rng.uniform(1.03, 1.1)
+    pocket_w = card_w * (rng.uniform(1.03, 1.14) if v4 else rng.uniform(1.03, 1.1))
     pocket_h = pocket_w / CARD_ASPECT * rng.uniform(.98, 1.03)
     margin = card_w * rng.uniform(.15, .35)
     page_w = cols * pocket_w + (cols - 1) * gap + 2 * margin
@@ -274,19 +370,25 @@ def binder_world(rng, textures, card_w: float, empty: bool = False, upright: boo
             for k in range(3):
                 cy = int(oy + page_h * (.2 + .3 * k))
                 cv2.ellipse(state.image, (int(sx + spine / 2), cy), (int(spine * .45), int(spine * .2)), 0, 0, 360, (190, 190, 195), max(2, int(spine * .08)), cv2.LINE_AA)
+    settle = rng.uniform(.2, 1.0) if v4 else 0.0  # v4: cards slide toward the pocket bottom
     for q in pockets:
         if rng.random() < fill:
-            center = q.mean(0) + rng.uniform(-.03, .03, 2) * card_w
             ch = card_w / CARD_ASPECT
+            center = q.mean(0) + rng.uniform(-.03, .03, 2) * card_w
+            if v4:
+                slack = max(0.0, (q[2][1] - q[0][1] - ch) / 2)
+                center[1] = q.mean(0)[1] + slack * settle * rng.uniform(.6, 1.0)
             cq = quad_from(center, card_w, ch, rng.uniform(-2.5, 2.5) + (180 if not upright and rng.random() < .04 else 0), .004, rng)
-            place_card(state, rng, textures, cq, 'pocket', shadow=.1)
+            place_card(state, rng, textures, cq, 'pocket', shadow=.1, v4=v4)
         # Pocket film over cards and empty pockets alike (empty pockets are hard negatives).
         plastic(state, rng, q, rng.uniform(.5, 1.3))
+    if v4:
+        pocket_seams(state, rng, pockets, page_color, card_w)
     outline = np.array([[ox - rim, oy - rim], [ox + content_w + rim, oy - rim], [ox + content_w + rim, oy + page_h + rim], [ox - rim, oy + page_h + rim]])
     return state, outline, {'layout': 'binder', 'rows': rows, 'cols': cols, 'spread': spread, 'dark_page': dark, 'background': bg_kind}
 
 
-def loose_world(rng, textures, card_w: float, count: int | None = None, upright: bool = True):
+def loose_world(rng, textures, card_w: float, count: int | None = None, upright: bool = True, v4: bool = False, spread: float = .38):
     n = count if count is not None else int(rng.choice([1, 2, 3, 4, 6, 8, 12]))
     side = card_w * (2.2 + math.sqrt(n) * 1.9)
     W = H = int(side * rng.uniform(1.4, 2.2))
@@ -301,7 +403,7 @@ def loose_world(rng, textures, card_w: float, count: int | None = None, upright:
             center = c0 + np.array([i * card_w * rng.uniform(.25, .5), i * card_w * .05])
             angle = -20 + i * rng.uniform(4, 10)
         else:
-            center = c0 + rng.uniform(-.38, .38, 2) * side
+            center = c0 + rng.uniform(-spread, spread, 2) * side
             # Upright scope: within +/-60 degrees, spread evenly (sideways/upside-down are out of scope).
             angle = rng.uniform(-60, 60) if upright else rng.uniform(-180, 180) if rng.random() < .4 else rng.uniform(-25, 25)
         q = quad_from(center, card_w, card_w / CARD_ASPECT, angle, .003, rng)
@@ -311,7 +413,7 @@ def loose_world(rng, textures, card_w: float, count: int | None = None, upright:
             tex = np.full((64, 46, 3), 225, np.float32)
             a = np.full((64, 46), .25, np.float32)
             warp_onto(state, tex, a, sq, 0, .3)
-        place_card(state, rng, textures, q, 'loose', shadow=.3)
+        place_card(state, rng, textures, q, 'loose', shadow=.3, v4=v4)
         if sleeve < .45:
             plastic(state, rng, quad_from(center, card_w * 1.05, card_w / CARD_ASPECT * 1.04, angle), rng.uniform(.4, 1))
     outline = np.array([[c0[0] - side / 2, c0[1] - side / 2], [c0[0] + side / 2, c0[1] - side / 2],
@@ -359,7 +461,7 @@ def camera_homography(rng, outline: np.ndarray, out_w: int, out_h: int, fill: fl
     return cv2.getPerspectiveTransform(outline.astype(np.float32), dst.astype(np.float32))
 
 
-def hands(state: SceneState, rng, count: int) -> None:
+def hands(state: SceneState, rng, count: int, targets: list | None = None) -> None:
     """Procedural hands/fingers in image space; they occlude whatever is below."""
     h, w = state.ids.shape
     for _ in range(count):
@@ -369,6 +471,9 @@ def hands(state: SceneState, rng, count: int) -> None:
         base = np.array([[rng.uniform(0, w), h + 20], [rng.uniform(0, w), -20], [-20, rng.uniform(0, h)], [w + 20, rng.uniform(0, h)]][edge])
         palm_r = int(min(w, h) * rng.uniform(.08, .2))
         tip = base + (np.array([w / 2, h / 2]) - base) * rng.uniform(.25, .65) + rng.uniform(-.2, .2, 2) * [w, h]
+        if targets:  # v4 close-ups: fingers reach over a card edge, as when holding a card
+            tip = np.asarray(targets[int(rng.integers(len(targets)))], np.float64)
+            base = tip + (base - tip) / (np.linalg.norm(base - tip) + 1e-6) * np.linalg.norm(base - tip) * rng.uniform(.8, 1.2)
         cv2.ellipse(mask, tuple(base.astype(int)), (int(palm_r * 1.6), palm_r), rng.uniform(0, 180), 0, 360, 255, -1, cv2.LINE_AA)
         direction = (tip - base) / (np.linalg.norm(tip - base) + 1e-6)
         normal = np.array([-direction[1], direction[0]])
@@ -465,21 +570,47 @@ def extend_world(state: SceneState, H: np.ndarray, out_w: int, out_h: int, rng, 
     return out, H @ shift
 
 
-def render(seed: int, textures: list[str], out_w: int, out_h: int, min_visible: float = .6, upright: bool = True) -> tuple[np.ndarray, dict]:
-    """upright=True (renderer v3): cards within +/-60 degrees; upright=False reproduces renderer v2."""
+def render(seed: int, textures: list[str], out_w: int, out_h: int, min_visible: float = .6, upright: bool = True,
+           version: int = 3) -> tuple[np.ndarray, dict]:
+    """upright=True (renderer v3): cards within +/-60 degrees; upright=False reproduces renderer v2.
+
+    version=4 adds hand-held close-ups (one or two cards filling 45-95% of the frame height, fingers
+    over the edges), card backs, penny sleeves and toploaders with visible rims, cards settled at
+    the bottom of larger binder pockets, and pocket seams/opening lips. v3 output is unchanged.
+    """
     rng = np.random.default_rng(seed)
-    kind = str(rng.choice(['binder', 'loose', 'held', 'negative'], p=[.5, .22, .16, .12]))
+    v4 = version >= 4
+    if v4:
+        kind = str(rng.choice(['binder', 'loose', 'held', 'closeup', 'negative'], p=[.42, .14, .1, .22, .12]))
+    else:
+        kind = str(rng.choice(['binder', 'loose', 'held', 'negative'], p=[.5, .22, .16, .12]))
     card_w = float(rng.uniform(60, 120))  # world pixels per card width; near final image scale
+    if v4:
+        card_w *= max(out_w, out_h) / 1024
+    targets_world = None
     if kind == 'binder':
-        state, outline, meta = binder_world(rng, textures, card_w, upright=upright)
-        fill = rng.choice([rng.uniform(.55, .95), rng.uniform(.9, 1.6)], p=[.65, .35])
+        state, outline, meta = binder_world(rng, textures, card_w, upright=upright, v4=v4)
+        if v4:  # phone scans frame one page closely more often than a distant spread
+            fill = rng.choice([rng.uniform(.6, 1.05), rng.uniform(1.0, 1.9)], p=[.5, .5])
+        else:
+            fill = rng.choice([rng.uniform(.55, .95), rng.uniform(.9, 1.6)], p=[.65, .35])
     elif kind == 'loose':
-        state, outline, meta = loose_world(rng, textures, card_w, upright=upright)
+        state, outline, meta = loose_world(rng, textures, card_w, upright=upright, v4=v4)
         fill = rng.uniform(.5, 1.1)
     elif kind == 'held':
-        state, outline, meta = loose_world(rng, textures, card_w, count=int(rng.choice([1, 1, 2, 3])), upright=upright)
+        state, outline, meta = loose_world(rng, textures, card_w, count=int(rng.choice([1, 1, 2, 3])), upright=upright, v4=v4)
         meta['layout'] = 'held'
         fill = rng.uniform(.9, 1.6)
+    elif kind == 'closeup':
+        # Texture-resolution cards; the camera frames them so one card is 45-95% of the frame height.
+        card_w = float(rng.uniform(.6, 1.0)) * TEX_W * 1.4
+        n = int(rng.choice([1, 1, 1, 2]))
+        state, outline, meta = loose_world(rng, textures, card_w, count=n, upright=upright, v4=True, spread=.12)
+        meta['layout'] = 'closeup'
+        side = card_w * (2.2 + math.sqrt(n) * 1.9)
+        # The camera maps the outline square (side) onto `fill` of the shorter frame side.
+        fill = float(rng.uniform(.45, .95)) * side / (card_w / CARD_ASPECT)
+        targets_world = [c.quad for c in state.cards]
     else:
         state, outline, meta = negative_world(rng, textures, card_w)
         fill = rng.uniform(.5, 1.3)
@@ -487,11 +618,21 @@ def render(seed: int, textures: list[str], out_w: int, out_h: int, min_visible: 
     state, H = extend_world(state, H, out_w, out_h, rng, textures)
     img = cv2.warpPerspective(state.image, H, (out_w, out_h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
     ids = cv2.warpPerspective(state.ids.astype(np.float32), H, (out_w, out_h), flags=cv2.INTER_NEAREST, borderValue=0).astype(np.int32)
-    if kind == 'held':
+    if kind in ('held', 'closeup'):
         img = cv2.GaussianBlur(img, (0, 0), rng.uniform(0, 1.5)) if rng.random() < .3 else img
     image_state = SceneState(image=img.astype(np.float32), ids=ids)
-    n_hands = int(rng.choice([0, 1, 2], p=[.45, .4, .15])) if kind != 'held' else int(rng.choice([1, 2]))
-    hands(image_state, rng, n_hands)
+    if kind == 'closeup':
+        # Fingertips land on card edges (not corners), like a card held between thumb and finger.
+        targets = []
+        for c in state.cards:
+            q = cv2.perspectiveTransform(c.quad[None].astype(np.float64), H)[0]
+            for i in range(4):
+                targets.append(q[i] + (q[(i + 1) % 4] - q[i]) * rng.uniform(.25, .75))
+        n_hands = int(rng.choice([0, 1, 2], p=[.25, .5, .25]))
+        hands(image_state, rng, n_hands, targets)
+    else:
+        n_hands = int(rng.choice([0, 1, 2], p=[.45, .4, .15])) if kind != 'held' else int(rng.choice([1, 2]))
+        hands(image_state, rng, n_hands)
     pixels, fx = camera_effects(image_state.image, rng)
     instances, unlabeled = [], []
     for card in state.cards:
@@ -507,6 +648,7 @@ def render(seed: int, textures: list[str], out_w: int, out_h: int, min_visible: 
         else:
             record['reason'] = 'outside_frame' if not inside else 'occluded' if visible < min_visible else 'too_small'
             unlabeled.append(record)
+    origin = 'synthetic_renderer_v4' if v4 else 'synthetic_renderer_v3_upright' if upright else 'synthetic_renderer_v2'
     meta.update({'seed': seed, 'kind': kind, 'width': out_w, 'height': out_h, 'effects': fx, 'hands': n_hands,
-                 'distractors': state.distractors, 'label_origin': 'synthetic_renderer_v3_upright' if upright else 'synthetic_renderer_v2', 'real_camera_validation': False})
+                 'distractors': state.distractors, 'label_origin': origin, 'real_camera_validation': False})
     return pixels, {**meta, 'instances': instances, 'unlabeled_cards': unlabeled}

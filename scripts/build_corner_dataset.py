@@ -125,6 +125,7 @@ def main():
             for r in range(reps):
                 name = f"real_{fr['id']}_{r}.jpg"
                 (out / 'images' / split).mkdir(parents=True, exist_ok=True)
+                (out / 'labels' / split).mkdir(parents=True, exist_ok=True)
                 cv2.imwrite(str(out / 'images' / split / name), img, [cv2.IMWRITE_JPEG_QUALITY, 92])
                 lines = [label_line(np.asarray(q), w, h) for q in fr['corners']]
                 (out / 'labels' / split / name.replace('.jpg', '.txt')).write_text('\n'.join(lines) + ('\n' if lines else ''))

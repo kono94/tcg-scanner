@@ -44,8 +44,8 @@ def obb(quad: np.ndarray) -> np.ndarray:
 
 
 def work(task):
-    index, split, seed, out, w, h, upright = task
-    pixels, meta = render(seed, _TEXTURES[split], w, h, upright=upright)
+    index, split, seed, out, w, h, upright, version = task
+    pixels, meta = render(seed, _TEXTURES[split], w, h, upright=upright, version=version)
     name = f'scene_{index:06d}'
     Image.fromarray(pixels).save(Path(out) / 'images' / split / f'{name}.jpg', quality=92)
     lines = []
@@ -101,6 +101,8 @@ def main():
     parser.add_argument('--seed', type=int, default=7)
     parser.add_argument('--val-fraction', type=float, default=.08)
     parser.add_argument('--workers', type=int, default=7)
+    parser.add_argument('--renderer-version', type=int, default=3, choices=[3, 4],
+                        help='4 adds close-ups, card backs, sleeves/toploaders, settled cards and pocket seams')
     parser.add_argument('--legacy-rotations', action='store_true', help='renderer v2: random rotations incl. sideways/upside-down')
     args = parser.parse_args()
     out = args.output.resolve()
@@ -117,7 +119,7 @@ def main():
         w, h = args.size
         if rng.random() < .35:  # phone held upright
             w, h = h, w
-        tasks.append((i, split, args.seed * 100003 + i, str(out), w, h, not args.legacy_rotations))
+        tasks.append((i, split, args.seed * 100003 + i, str(out), w, h, not args.legacy_rotations, args.renderer_version))
     stats: dict = {}
     with Pool(args.workers, initializer=init, initargs=(pools,), maxtasksperchild=200) as pool:
         for n, (split, kind, labeled, unlabeled) in enumerate(pool.imap_unordered(work, tasks, chunksize=8)):
@@ -127,7 +129,8 @@ def main():
             if n % 500 == 0:
                 print(f'{n}/{len(tasks)}', flush=True)
     (out / 'dataset.yaml').write_text(f'path: {json.dumps(str(out))}\ntrain: images/train\nval: images/val\nnames:\n  0: card\n')
-    summary = {'renderer': 'scene_renderer v2', 'label_origin': 'synthetic_renderer_v2', 'real_camera_validation': False,
+    renderer = 'v2' if args.legacy_rotations else f'v{args.renderer_version}'
+    summary = {'renderer': f'scene_renderer {renderer}', 'label_origin': f'synthetic_renderer_{renderer}', 'real_camera_validation': False,
                'card_sources': {k: len(v) for k, v in pools.items()}, 'identity_split': 'by game + base card number family',
                'seed': args.seed, 'stats': stats}
     (out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
