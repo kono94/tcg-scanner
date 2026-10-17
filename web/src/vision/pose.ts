@@ -43,7 +43,7 @@ export function decodePose(output: Float32Array, anchors: number, lb: Letterbox,
       corners: corners as unknown as Quad, visibility: vis as [number, number, number, number] });
   }
   cand.sort((a, b) => b.score - a.score);
-  // Drop corner sets that are not card-shaped (a convex quad with card proportions inside its box).
+  // Drop invalid or excessively stretched quads that do not fill their detection box.
   if (shapeFilter) for (let i = cand.length - 1; i >= 0; i--) if (!plausibleCard(cand[i])) cand.splice(i, 1);
   // Greedy NMS (torchvision.ops.nms); IoU is scale-invariant, so source pixels are fine.
   const kept: CornerDetection[] = [];
@@ -64,7 +64,7 @@ export function boxOfQuad(q: Quad, score: number): OrientedBox {
   return { cx, cy, w: long, h: short, angle: ((angle % Math.PI) + Math.PI) % Math.PI, score };
 }
 
-/** A detection's corners form a convex quad with card-like proportions that fills most of its box. */
+/** A convex, bounded-aspect quad that fills most of its box; perspective can make cards square. */
 export function plausibleCard(d: CornerDetection): boolean {
   const q = d.corners;
   let sign = 0;
@@ -77,7 +77,7 @@ export function plausibleCard(d: CornerDetection): boolean {
   const len = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   const w = (len(q[0], q[1]) + len(q[3], q[2])) / 2, h = (len(q[0], q[3]) + len(q[1], q[2])) / 2;
   const ratio = Math.max(w, h) / Math.min(w, h);
-  if (ratio < 1.1 || ratio > 2.0) return false;
+  if (ratio > 2.0) return false;
   let area = 0;
   for (let i = 0; i < 4; i++) area += q[i][0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * q[i][1];
   const boxArea = (d.x1 - d.x0) * (d.y1 - d.y0);

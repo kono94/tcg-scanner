@@ -1,0 +1,6 @@
+outs:
+- md5: 5852bf06029631623d5ea95a2c3b0e1e.dir
+  size: 23093710
+  nfiles: 3
+  hash: md5
+  path: corners-s640-v4-ft
