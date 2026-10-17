@@ -29,8 +29,14 @@ export interface MatchResult {
   observedLanguage: string | null;
   languageEvidence: LanguageEvidence;
   preferredLanguage: string;
-  /** Preferred compatible interpretation; null when the preferred language has no compatible entry. */
+  /**
+   * Preferred compatible interpretation. When the wanted language has no version of this artwork
+   * (e.g. no German One Piece), the matched version stands in (`languageFallback`), so a matched
+   * card always has a version to price. Null only for an empty family.
+   */
   preferred: CatalogCard | null;
+  /** The wanted language has no version of this artwork; `preferred` is the matched one instead. */
+  languageFallback: boolean;
   languageAssumed: boolean;
   unresolved: string[];
   thresholds: MatchThresholds;
@@ -69,9 +75,11 @@ export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: Mat
 
   const observed = options.observedLanguage ?? null;
   const wanted = observed ?? options.preferredLanguage;
-  const preferred = family.find((c) => c.language === wanted) ?? null;
+  const inWanted = family.find((c) => c.language === wanted) ?? null;
   const languages = new Set(family.map((c) => c.language));
-  const scoped = !observed && !!options.languageFromSetting && preferred !== null;
+  const preferred = inWanted ?? catalog.get(top.identity) ?? family[0] ?? null;
+  const languageFallback = inWanted === null;
+  const scoped = !observed && !!options.languageFromSetting && inWanted !== null;
   const unresolved: string[] = [];
   if (!observed && !scoped && languages.size > 1) unresolved.push('language');
   if (family.some((c) => c.finish === 'unknown')) unresolved.push('finish');
@@ -82,8 +90,10 @@ export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: Mat
     languageEvidence: observed ? 'observed' : scoped ? 'setting' : 'not-read',
     preferredLanguage: options.preferredLanguage,
     preferred,
+    languageFallback,
     // Without observed language, a preferred-language interpretation is an assumption, not a detection.
-    languageAssumed: !observed && !scoped && preferred !== null,
+    // A fallback is no assumption when the artwork exists in a single language only.
+    languageAssumed: !observed && !scoped && preferred !== null && (!languageFallback || languages.size > 1),
     unresolved,
     thresholds,
   };
@@ -113,7 +123,7 @@ export function userChoiceMatch(catalog: Catalog, identity: string, hits: readon
     kind: 'matched', top, competitor, margin: competitor && Number.isFinite(top.score) ? top.score - competitor.score : NaN,
     plausible: languageOpen ? versions : [card],
     observedLanguage: languageOpen ? null : card.language, languageEvidence: languageOpen ? 'not-read' : 'user', preferredLanguage,
-    preferred: card, languageAssumed: languageOpen,
+    preferred: card, languageFallback: false, languageAssumed: languageOpen,
     unresolved: [...(languageOpen ? ['language'] : []), ...(card.finish === 'unknown' ? ['finish'] : [])], thresholds,
   };
 }

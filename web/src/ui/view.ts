@@ -1228,8 +1228,8 @@ export class View {
       body.append(chips);
       if (!comparing && m?.languageAssumed) body.append(el('div', 'k', `${languageName(m.preferredLanguage)} assumed · tap to confirm`));
     }
-    if (!comparing && m && !m.preferred && shown && shown.language !== m.preferredLanguage) {
-      body.append(el('div', 'k', `No ${languageName(m.preferredLanguage)} version in the catalog · ${languageName(shown.language)} card shown`));
+    if (!comparing && m && m.languageFallback && shown && shown.language !== m.preferredLanguage) {
+      body.append(el('div', 'k', `No ${languageName(m.preferredLanguage)} version in the catalog · ${languageName(shown.language)} card and price shown`));
     }
     if (!comparing && m && card.state === 'confirmed') body.append(...this.valueBlock(card, m, catalog));
     if (!comparing && (card.state === 'needs-attention' || card.state === 'skipped')) {

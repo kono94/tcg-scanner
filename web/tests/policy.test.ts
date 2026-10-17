@@ -48,10 +48,10 @@ describe('match policy', () => {
     expect(decideMatch([], catalog, { preferredLanguage: 'en' }).kind).toBe('not-found');
   });
 
-  it('shows no preferred interpretation when the preferred language has no entry', () => {
+  it('falls back to the matched version when the preferred language has no entry', () => {
     const m = matched(decideMatch(hits(['pokemon:en:sv03-224', 0.8], ['onepiece:en:OP01-078', 0.3]), catalog, { preferredLanguage: 'ja' }));
-    expect(m.preferred).toBeNull();
-    expect(m.languageAssumed).toBe(false);
+    expect(m.preferred?.id).toBe('pokemon:en:sv03-224');
+    expect(m.languageFallback).toBe(true);
   });
 });
 
@@ -146,9 +146,12 @@ describe('language scoped by the setting (EN/DE)', () => {
     expect(m.plausible.map((c) => c.id)).toEqual(['pokemon:de:sv03-224']);
     expect(m.languageAssumed).toBe(false);
     expect(m.languageEvidence).toBe('setting');
-    // One Piece has no German version: show the English card, nothing assumed.
+    // One Piece has no German version: the English card is the card, priced, nothing assumed.
     const op = matched(decideMatch(hits(['onepiece:en:OP01-078', 0.8], ['pokemon:en:sv03-224', 0.3]), cat, { preferredLanguage: 'de', languageFromSetting: true }));
-    expect(op.preferred).toBeNull();
+    expect(op.preferred?.id).toBe('onepiece:en:OP01-078');
+    expect(op.languageFallback).toBe(true);
     expect(op.languageAssumed).toBe(false);
+    const v = summarizeValue(op, new Map([['onepiece:en:OP01-078', { ...quote(4), currency: 'EUR' }]]));
+    expect(v.preferred?.amount).toBe(4);
   });
 });
