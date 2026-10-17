@@ -1,16 +1,22 @@
 # Card Recognizer Training Pipeline
 
-This folder contains the script-based One Piece exact-card recognizer pipeline.
+This folder contains both the legacy classifier pipeline and the enrollment-based
+retrieval trainer. The current development path is pretrained encoder fine-tuning
+with ArcFace; deployment uses normalized embeddings and cosine gallery search.
 
-The active approach is classifier-first:
+See [the retrieval training guide](../../docs/RETRIEVAL_TRAINING.md) for the Apple
+GPU pilot, held-out identity policy, checkpoints, and full-catalog evaluation.
+Start a new run with:
 
-1. keep the complete known card corpus under `datasets/card_recognizer/cards/`,
-2. retrain the full classifier whenever a new card set is added,
-3. evaluate the new experiment against a manually curated folder of phone images,
-4. compare the new experiment against the previous baseline,
-5. export one CoreML classifier package and one labels file for the iOS app.
+```bash
+.env/bin/python training/card_recognizer/train_retrieval.py \
+  --config training/card_recognizer/configs/dinov2_arcface_pilot.yaml \
+  --output runs/card_recognizer/retrieval/<new-run>
+```
 
-No embedding database or similarity-search deployment path is used.
+The remaining sections describe the preserved **legacy classifier**, including
+its historical manual-evaluation path. That folder is not used by the retrieval
+trainer; the retrieval run reads only the curated dataset and isolated splits.
 
 ## 1. Configure The Dataset
 
