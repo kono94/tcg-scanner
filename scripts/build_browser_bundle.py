@@ -74,6 +74,51 @@ def write_pose_fixture(weights: Path, onnx_path: Path, size: int):
         'source_scene': meta['image']}, indent=1))
 
 
+BACK_NAMES = {'pokemon': 'Pokémon card back', 'onepiece': 'One Piece card back'}
+
+
+def embed_back_references(manifest_path: Path, dataset: Path, encoder: Path, dimension: int):
+    """Gallery rows for card-back references (identity ``back:<game>``).
+
+    Known-gallery-bounds adapter: each reference is a verified full-card image, so it goes straight to
+    the shared canonicalizer and encoder input (tcg-full-card-v1) without a detector, and through the
+    same fp32 ONNX encoder as the card gallery. Rows are L2-normalized; invalid vectors are rejected.
+    Returns (float32 rows, row identities, catalog entries, manifest info).
+    """
+    import numpy as np
+    import onnxruntime as ort
+    from PIL import Image
+    from training.card_recognizer.canonical import PREPROCESSING_VERSION, canonicalize_card, prepare_encoder_input
+    data = json.loads(manifest_path.read_text())
+    if data.get('artifact_type') != 'card_back_references':
+        raise ValueError(f'{manifest_path} is not a card-back reference manifest')
+    sess = ort.InferenceSession(str(encoder), providers=['CPUExecutionProvider'])
+    rows, identities, cards = [], [], {}
+    for ref in data['references']:
+        if ref.get('synthetic'):
+            raise ValueError(f"synthetic image {ref['image']} must not be enrolled as a gallery reference")
+        path = dataset / ref['image']
+        if sha256_file(path) != ref['sha256']:
+            raise ValueError(f'{path} differs from its manifest hash')
+        rgb = np.asarray(Image.open(path).convert('RGB'))
+        v = sess.run(None, {sess.get_inputs()[0].name: prepare_encoder_input(canonicalize_card(rgb))[None]})[0][0].astype(np.float64)
+        norm = float(np.linalg.norm(v))
+        if v.shape != (dimension,) or not np.isfinite(v).all() or norm < 1e-6:
+            raise ValueError(f'invalid back embedding for {path}')
+        rows.append((v / norm).astype(np.float32))
+        identities.append(ref['identity'])
+        game = ref['game']
+        cards.setdefault(ref['identity'], {
+            'id': ref['identity'], 'game': game, 'language': 'any', 'cardId': 'back', 'name': BACK_NAMES.get(game, f'{game} card back'),
+            # Own family: a back never shares an artwork family with a real card.
+            'family': ref['identity'], 'finish': 'n/a', 'printing': 'n/a', 'kind': 'back', 'ref': ref['image']})
+    info = {'rows': len(rows), 'identities': sorted(cards), 'references_manifest': str(manifest_path),
+            'references_manifest_sha256': sha256_file(manifest_path), 'encoder': encoder.name,
+            'preprocessing': PREPROCESSING_VERSION, 'adapter': 'known full-card bounds (no detector)',
+            'note': 'Back rows are appended after the card rows; backs are never priced, matched or counted as cards.'}
+    return np.stack(rows), identities, list(cards.values()), info
+
+
 def export_detector(weights: Path, size: int, out: Path) -> dict:
     """ONNX export plus a real-output parity check against PyTorch on a non-trivial input."""
     import numpy as np
@@ -115,6 +160,8 @@ def main():
     parser.add_argument('--detector-size', type=int, default=640)
     parser.add_argument('--detector-conf', type=float, default=0.25, help='app-side box confidence cut-off')
     parser.add_argument('--detector-origin', default='renderer-v2 synthetic scenes; not validated on real camera scenes')
+    parser.add_argument('--backs', type=Path, help='card-back reference manifest (default: <dataset>/recognition/backs/manifest.json when present)')
+    parser.add_argument('--no-backs', action='store_true', help='build without card-back gallery rows')
     args = parser.parse_args()
     export = args.export.resolve(strict=True)
     report = json.loads((export / 'export_report.json').read_text())
@@ -177,11 +224,20 @@ def main():
     if args.detector_weights:
         report['detector'] = export_detector(args.detector_weights.resolve(strict=True), args.detector_size, staging / 'detector.onnx')
         report['detector']['weights_origin'] = args.detector_origin
-    if len(keep) != len(gallery['identities']):
+    backs_manifest = None if args.no_backs else (args.backs or args.dataset / 'recognition/backs/manifest.json')
+    backs = None
+    if backs_manifest is not None and (args.backs or backs_manifest.exists()):
+        back_rows, back_ids, back_cards, backs = embed_back_references(backs_manifest.resolve(strict=True), args.dataset,
+                                                                       export / report['encoder']['path'], gallery['dimension'])
+        gallery_ids += back_ids
+        cards += back_cards
+    if len(keep) != len(gallery['identities']) or backs:
         import numpy as np
         vectors = np.fromfile(export / 'gallery.f16', dtype='<f2').reshape(-1, gallery['dimension'])[keep]
+        if backs:
+            vectors = np.concatenate([vectors, back_rows.astype('<f2')])
         vectors.tofile(staging / 'gallery.f16')
-        report['gallery'] = {**report['gallery'], 'rows': len(keep), 'sha256': sha256_file(staging / 'gallery.f16'),
+        report['gallery'] = {**report['gallery'], 'rows': len(vectors), 'sha256': sha256_file(staging / 'gallery.f16'),
                              'bytes': (staging / 'gallery.f16').stat().st_size}
     (staging / 'catalog.json').write_text(json.dumps({'schema_version': 2, 'languages': sorted(languages),
                                                       'gallery_identities': gallery_ids, 'cards': cards}, separators=(',', ':')))
@@ -230,7 +286,9 @@ def main():
                      'conf': args.detector_conf, 'iou': 0.7, 'weights_origin': report['detector']['weights_origin'],
                      'source_weights_sha256': report['detector'].get('source_weights_sha256'),
                      'kind': report['detector'].get('kind', 'obb')},
-        'gallery': {'path': 'gallery.f16', 'rows': len(keep), 'dimension': gallery['dimension'], 'dtype': 'float16-le'},
+        'gallery': {'path': 'gallery.f16', 'rows': len(gallery_ids), 'dimension': gallery['dimension'], 'dtype': 'float16-le',
+                    'card_rows': len(keep), 'back_rows': backs['rows'] if backs else 0},
+        **({'backs': backs} if backs else {}),
         'catalog': 'catalog.json', 'prices': 'prices.json',
         'thresholds_calibrated': False,
         'parity': {'encoder_min_cosine_vs_torch': report['encoder']['min_cosine_vs_torch_cpu'],
@@ -242,7 +300,8 @@ def main():
     if args.output.exists():
         shutil.rmtree(args.output)
     staging.rename(args.output)
-    print(json.dumps({'output': str(args.output), 'version': version, 'cards': len(cards), 'priced': len(quotes)}))
+    print(json.dumps({'output': str(args.output), 'version': version, 'cards': len(cards), 'priced': len(quotes),
+                      'gallery_rows': len(gallery_ids), 'back_rows': backs['rows'] if backs else 0}))
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Catalog } from '../src/recognition/catalog';
+import { loadPages, savePage, totals } from '../src/collection/store';
 import type { PriceService } from '../src/prices/service';
 import { PageSession, pageCounts, type RecognitionJob, type RecognitionOutput, type Recognizer } from '../src/session/page';
 import type { OrientedBox } from '../src/vision/obb';
@@ -133,5 +134,69 @@ describe('user corrections', () => {
     s.chooseNone(s.page.instances[1].id);
     expect(s.page.instances[1].state).toBe('skipped');
     expect(pageCounts(s.page)).toMatchObject({ ready: 1, skipped: 1 });
+  });
+});
+
+describe('card backs', () => {
+  const backCatalog = new Catalog([
+    ...ids.map((id) => ({ id, game: 'onepiece', language: 'en', cardId: id.split(':')[2], name: id, family: id, finish: 'unknown', printing: 'unknown' })),
+    { id: 'back:onepiece', game: 'onepiece', language: 'any', cardId: 'back', name: 'Card back', family: 'back:onepiece', finish: 'n/a', printing: 'n/a', kind: 'back' as const },
+  ]);
+  const backHit = (score = 0.85): RecognitionOutput => ({
+    hits: [{ identity: 'back:onepiece', row: 9, score }, { identity: ids[0], row: 0, score: 0.3 }],
+    quality: { shortSide: 200, glare: 0 }, ms: { rectify: 1, embed: 1, search: 1 },
+  });
+
+  it('settles backs in their own terminal state: not ready, not attention, not priced', async () => {
+    const quoted: string[][] = [];
+    const spy: PriceService = { description: 'spy', quotes: async (list) => { quoted.push([...list]); return new Map(list.map((id) => [id, null])); } };
+    const { recognizer } = fake(grid(9), async (_j, i) => (i === 2 || i === 6 ? backHit() : hit(i)));
+    const s = new PageSession(recognizer, { catalog: backCatalog, prices: spy, preferredLanguage: () => 'en' });
+    await s.capture(bitmap());
+    await tick();
+    expect(s.page.status).toBe('settled');
+    expect(pageCounts(s.page)).toMatchObject({ found: 9, ready: 7, backs: 2, attention: 0, checking: 0, skipped: 0 });
+    const backs = s.page.instances.filter((i) => i.state === 'back');
+    expect(backs.map((i) => i.number)).toEqual([3, 7]);
+    for (const b of backs) {
+      expect(b).toMatchObject({ reason: null, value: null, valueState: 'idle' });
+      expect(b.decision?.kind).toBe('back');
+    }
+    // Only real matches are priced.
+    expect(quoted.flat()).not.toContain('back:onepiece');
+    expect(quoted).toHaveLength(7);
+    // A back cannot be skipped, but the user can still correct it to a card.
+    s.skip(backs[0].id);
+    expect(s.instance(backs[0].id)?.state).toBe('back');
+    s.choose(backs[0].id, ids[1]);
+    expect(s.instance(backs[0].id)).toMatchObject({ state: 'confirmed', userChoice: { identity: ids[1] } });
+    expect(pageCounts(s.page)).toMatchObject({ ready: 8, backs: 1 });
+  });
+
+  it('keeps a weak back hit as needs-attention, never as a match', async () => {
+    const { recognizer } = fake(grid(1), async () => backHit(0.5));
+    const s = new PageSession(recognizer, { catalog: backCatalog, prices, preferredLanguage: () => 'en' });
+    await s.capture(bitmap());
+    expect(s.page.instances[0]).toMatchObject({ state: 'needs-attention', reason: 'match-unclear' });
+  });
+
+  it('never saves backs to the collection, and a page with backs is not partial', async () => {
+    const store = new Map<string, string>();
+    const g = globalThis as { localStorage?: unknown };
+    const previous = g.localStorage;
+    g.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+    try {
+      const { recognizer } = fake(grid(3), async (_j, i) => (i === 1 ? backHit() : hit(i)));
+      const s = new PageSession(recognizer, { catalog: backCatalog, prices, preferredLanguage: () => 'en' });
+      await s.capture(bitmap());
+      expect(await savePage(s.page, backCatalog)).toBe(true);
+      const [saved] = loadPages();
+      expect(saved.cards.map((c) => c.number)).toEqual([1, 3]);
+      expect(saved.cards.every((c) => c.identity && !c.identity.startsWith('back:'))).toBe(true);
+      expect(saved.partial).toBe(false);
+      expect(totals([saved]).cards).toBe(2);
+    } finally {
+      g.localStorage = previous;
+    }
   });
 });

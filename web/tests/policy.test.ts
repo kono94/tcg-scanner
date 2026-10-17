@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Catalog, type CatalogCard } from '../src/recognition/catalog';
-import { decideMatch, type MatchResult } from '../src/recognition/policy';
+import { candidates, decideMatch, userChoiceMatch, type MatchResult } from '../src/recognition/policy';
 import { formatQuote, formatRange, summarizeValue, type Quote } from '../src/recognition/value';
 
 const card = (id: string, family: string, name = 'Shanks'): CatalogCard => {
@@ -153,5 +153,49 @@ describe('language scoped by the setting (EN/DE)', () => {
     expect(op.languageAssumed).toBe(false);
     const v = summarizeValue(op, new Map([['onepiece:en:OP01-078', { ...quote(4), currency: 'EUR' }]]));
     expect(v.preferred?.amount).toBe(4);
+  });
+});
+
+describe('card backs', () => {
+  const back = (game: string): CatalogCard => ({ id: `back:${game}`, game, language: 'any', cardId: 'back', name: 'Card back', family: `back:${game}`, finish: 'n/a', printing: 'n/a', kind: 'back' });
+  const withBacks = new Catalog([
+    card('onepiece:en:OP01-120', 'onepiece:OP01-120'),
+    card('pokemon:en:sv03-224', 'pokemon:en:sv03-224', 'Charizard'),
+    back('pokemon'), back('onepiece'),
+  ]);
+
+  it('decides a back, never a card match, when a back is clearly the best hit', () => {
+    const d = decideMatch(hits(['back:pokemon', 0.82], ['back:onepiece', 0.5], ['pokemon:en:sv03-224', 0.3]), withBacks, { preferredLanguage: 'en' });
+    expect(d.kind).toBe('back');
+    if (d.kind !== 'back') return;
+    expect(d.game).toBe('pokemon');
+    // Margin is measured to the best real card, not to the other game's back.
+    expect(d.competitor?.identity).toBe('pokemon:en:sv03-224');
+    expect(d.margin).toBeCloseTo(0.52);
+    expect(d.thresholds.calibrated).toBe(false);
+  });
+
+  it('leaves a weak or ambiguous back hit unresolved instead of matching a card', () => {
+    const weak = decideMatch(hits(['back:onepiece', 0.5], ['onepiece:en:OP01-120', 0.3]), withBacks, { preferredLanguage: 'en' });
+    expect(weak.kind).toBe('match-unclear');
+    const close = decideMatch(hits(['back:onepiece', 0.7], ['onepiece:en:OP01-120', 0.65]), withBacks, { preferredLanguage: 'en' });
+    expect(close.kind).toBe('match-unclear');
+    const low = decideMatch(hits(['back:onepiece', 0.3]), withBacks, { preferredLanguage: 'en' });
+    expect(low.kind).toBe('not-found');
+  });
+
+  it('treats a close back hit as a competitor for a card match', () => {
+    const d = decideMatch(hits(['onepiece:en:OP01-120', 0.7], ['back:onepiece', 0.68]), withBacks, { preferredLanguage: 'en' });
+    expect(d.kind).toBe('match-unclear');
+    const m = matched(decideMatch(hits(['onepiece:en:OP01-120', 0.8], ['back:onepiece', 0.3]), withBacks, { preferredLanguage: 'en' }));
+    expect(m.plausible.map((c) => c.id)).toEqual(['onepiece:en:OP01-120']);
+  });
+
+  it('never offers a back as a candidate, a search result or a user choice', () => {
+    const list = candidates(hits(['back:pokemon', 0.9], ['pokemon:en:sv03-224', 0.4]), withBacks, 'en');
+    expect(list.map((c) => c.card.id)).toEqual(['pokemon:en:sv03-224']);
+    expect(withBacks.search('back', 'en')).toEqual([]);
+    expect(withBacks.search('card back', 'en')).toEqual([]);
+    expect(() => userChoiceMatch(withBacks, 'back:pokemon', [], 'en', false)).toThrow('card back');
   });
 });

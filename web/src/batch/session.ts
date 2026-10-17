@@ -55,6 +55,8 @@ export interface BatchStore {
   loadPages(): SavedPage[];
   writePage(page: SavedPage): boolean;
   patchCard(pageKey: string, number: number, patch: Partial<SavedCard>): boolean;
+  /** Remove a card from its saved page (a page left without cards is removed). */
+  removeCard(pageKey: string, number: number): void;
   putCrops(pageKey: string, number: number, crops: SavedCrops): Promise<boolean>;
   getCrops(pageKey: string, number: number): Promise<SavedCrops | null>;
   thumbUrl(blob: Blob): Promise<string | null>;
@@ -336,6 +338,8 @@ export class BatchSession {
       } catch { value = null; /* unknown, never zero */ }
     }
     if (!this.current(job)) return;
+    // Card backs are not collection cards (as in single-page mode, they are never saved).
+    if (decision.kind === 'back') { this.store.removeCard(job.pageKey, job.number); return; }
     const m = decision.kind === 'matched' ? decision : null;
     const fields = matchFields(m, value, this.options.catalog);
     const keepHits = !m || fields.checkVariant;

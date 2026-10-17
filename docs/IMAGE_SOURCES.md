@@ -31,6 +31,25 @@ Tournament broadcasts, binder tours, overhead deck profiles and pack openings ar
 | [Cardmarket](https://help.cardmarket.com/en/cardmarket-api) | Official help says new API applications are not being accepted. Product/listing pages are available, but image collection/ML access has not been established. | Low-priority acquisition dependency. Do not assume a catalog thumbnail is a unique seller photo, or that a current public training API exists. The terms page returned 403 during this check; no broader permission claim is made. |
 | Shop/collector/grading image feeds with an explicit reuse arrangement | No feed acquired in this work. | A useful route to real fronts, sleeves, glare and multiple views with source-level identity information. Obtain imagery from the contributing source and retain its reuse terms rather than assuming marketplace availability grants ML rights. |
 
+## Card-back references (2026-10-17)
+
+`scripts/acquire_card_backs.py` pins each source by URL and SHA-256, keeps the
+original bytes under `datasets/curated/recognition/backs/<game>/originals/` and
+writes `datasets/curated/recognition/backs/manifest.json` (provenance, license
+note, geometry, hashes). Nothing in it is synthetic.
+
+| Identity | Source | Role |
+| --- | --- | --- |
+| `back:pokemon` | English Wikipedia `File:Pokemon_Trading_Card_Game_cardback.png` (non-free/fair use; scan of a physical card) | gallery reference |
+| `back:pokemon` | Internet Archive `150000cardlot_batch14`, scan set 1 back side: 16 physical vintage-era backs on a flatbed scan (no license stated) | 2 crops as gallery references, 12 held out for evaluation; 2 cards were not extracted (contour too weak or touching) |
+| `back:onepiece` | English Wikipedia `File:One_Piece_Card_Game_back.webp` (non-free/fair use, 200x280) | gallery reference |
+| `back:onepiece` | Two tilted back illustrations from the official English site footer (`en.onepiece-cardgame.com`, transparent PNG/WebP), rectified from their alpha outline | gallery references |
+
+No back was found in the local video-mining frames, so there are no real camera
+views of backs yet; the other Internet Archive scan sets returned HTTP 500 at
+acquisition time. The images are copyrighted card designs used locally as
+recognition references only.
+
 ## Automatic ingestion policy
 
 Use source adapters to emit a manifest, then validate and stage imports. `scripts/import_real_card_images.py` already accepts CSV/JSONL containing card ID, image URL/local path and provenance; its training promotion is explicit. It currently targets existing One Piece identities, not a universal cross-game identity schema.

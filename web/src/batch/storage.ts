@@ -1,5 +1,5 @@
 // BatchStore on the Collection's own storage: pages in localStorage, crops in IndexedDB.
-import { currentSession, loadPages, patchSavedCard, writePage } from '../collection/store';
+import { currentSession, deleteSavedCard, loadPages, patchSavedCard, writePage } from '../collection/store';
 import { getCrops, putCrops } from '../collection/crops';
 import type { BatchRecord, BatchStore } from './session';
 
@@ -18,6 +18,7 @@ export const browserBatchStore: BatchStore = {
   loadPages,
   writePage,
   patchCard: patchSavedCard,
+  removeCard: deleteSavedCard,
   putCrops,
   getCrops,
   thumbUrl: blobToDataUrl,

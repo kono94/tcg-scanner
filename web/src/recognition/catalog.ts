@@ -11,6 +11,15 @@ export interface CatalogCard {
   printing: string;
   /** Reference image path under the curated dataset (served locally in dev). */
   ref?: string;
+  /**
+   * 'back': a card-back gallery entry (id `back:<game>`), not a card. It is never matched, priced,
+   * counted or offered as a candidate. Absent means a real card.
+   */
+  kind?: 'card' | 'back';
+}
+
+export function isBack(card: CatalogCard | undefined): boolean {
+  return card?.kind === 'back';
 }
 
 export class Catalog {
@@ -49,6 +58,7 @@ export class Catalog {
     const compact = q.replace(/ /g, '');
     const scored: [number, CatalogCard][] = [];
     for (const [, members] of this.byFamily) {
+      if (members.some(isBack)) continue;
       const card = members.find((c) => c.language === preferredLanguage) ?? members[0];
       let best = 0;
       for (const c of members) {

@@ -34,6 +34,12 @@ function memoryStore() {
       page.partial = page.cards.some((c) => c.state !== 'confirmed');
       return true;
     },
+    removeCard: (key, number) => {
+      const page = pages.find((p) => p.key === key);
+      if (!page) return;
+      page.cards = page.cards.filter((c) => c.number !== number);
+      if (!page.cards.length) pages = pages.filter((p) => p !== page);
+    },
     putCrops: async (key, n, c) => { crops.set(`${key}#${n}`, c); return true; },
     getCrops: async (key, n) => crops.get(`${key}#${n}`) ?? null,
     thumbUrl: async () => 'data:thumb',
