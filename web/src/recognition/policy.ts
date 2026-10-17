@@ -1,0 +1,143 @@
+// Match decision and preferred-language resolution (docs/MATCH_AND_VALUE_POLICY.md).
+// Retrieval identifies an artwork family; language/printing stay unresolved unless observed.
+import { Catalog, type CatalogCard } from './catalog';
+import type { Hit } from './gallery';
+
+export interface MatchThresholds {
+  /** Minimum cosine similarity of the best hit. */
+  minScore: number;
+  /** Minimum gap to the best hit outside the matched artwork family. */
+  minMargin: number;
+  /** False until thresholds come from an independent calibration set. */
+  calibrated: boolean;
+}
+
+/** Placeholder pilot values. Not calibrated and not chosen from test results. */
+export const PILOT_THRESHOLDS: MatchThresholds = { minScore: 0.45, minMargin: 0.05, calibrated: false };
+
+/** 'setting': the user scoped the app to one card language (EN or DE) in Settings. */
+export type LanguageEvidence = 'observed' | 'not-read' | 'user' | 'setting';
+
+export interface MatchResult {
+  kind: 'matched';
+  top: Hit;
+  /** Best hit from a different artwork family, used for the margin. */
+  competitor: Hit | null;
+  margin: number;
+  /** Every catalog version compatible with the matched artwork (plausible candidates). */
+  plausible: CatalogCard[];
+  observedLanguage: string | null;
+  languageEvidence: LanguageEvidence;
+  preferredLanguage: string;
+  /** Preferred compatible interpretation; null when the preferred language has no compatible entry. */
+  preferred: CatalogCard | null;
+  languageAssumed: boolean;
+  unresolved: string[];
+  thresholds: MatchThresholds;
+}
+
+export interface NoMatch {
+  kind: 'not-found' | 'match-unclear';
+  top: Hit | null;
+  competitor: Hit | null;
+  margin: number;
+  thresholds: MatchThresholds;
+}
+
+export type MatchDecision = MatchResult | NoMatch;
+
+export interface MatchOptions {
+  preferredLanguage: string;
+  /** Language read from the card (OCR or user); null when not established. */
+  observedLanguage?: string | null;
+  /** The user collects one language: that version is the card (not an assumption among alternatives). */
+  languageFromSetting?: boolean;
+  thresholds?: MatchThresholds;
+}
+
+export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: MatchOptions): MatchDecision {
+  const thresholds = options.thresholds ?? PILOT_THRESHOLDS;
+  const top = hits[0] ?? null;
+  if (!top) return { kind: 'not-found', top: null, competitor: null, margin: 0, thresholds };
+  const family = catalog.family(top.identity);
+  const familyIds = new Set(family.map((c) => c.id));
+  // Ambiguity is measured against the next distinct artwork, not another version of the same one.
+  const competitor = hits.find((h) => !familyIds.has(h.identity)) ?? null;
+  const margin = competitor ? top.score - competitor.score : top.score;
+  if (top.score < thresholds.minScore) return { kind: 'not-found', top, competitor, margin, thresholds };
+  if (margin < thresholds.minMargin) return { kind: 'match-unclear', top, competitor, margin, thresholds };
+
+  const observed = options.observedLanguage ?? null;
+  const wanted = observed ?? options.preferredLanguage;
+  const preferred = family.find((c) => c.language === wanted) ?? null;
+  const languages = new Set(family.map((c) => c.language));
+  const scoped = !observed && !!options.languageFromSetting && preferred !== null;
+  const unresolved: string[] = [];
+  if (!observed && !scoped && languages.size > 1) unresolved.push('language');
+  if (family.some((c) => c.finish === 'unknown')) unresolved.push('finish');
+  return {
+    kind: 'matched', top, competitor, margin,
+    plausible: scoped ? [preferred!] : family,
+    observedLanguage: observed,
+    languageEvidence: observed ? 'observed' : scoped ? 'setting' : 'not-read',
+    preferredLanguage: options.preferredLanguage,
+    preferred,
+    // Without observed language, a preferred-language interpretation is an assumption, not a detection.
+    languageAssumed: !observed && !scoped && preferred !== null,
+    unresolved,
+    thresholds,
+  };
+}
+
+/** The card shown for a match: the preferred interpretation, else the visual top hit. */
+export function displayCard(match: MatchResult, catalog: Catalog): CatalogCard | undefined {
+  return match.preferred ?? catalog.get(match.top.identity);
+}
+
+/**
+ * A result the user picked. Picking the artwork confirms the card; the language counts as
+ * confirmed only when the user picked a language version explicitly, otherwise the other
+ * language versions stay plausible. Machine evidence stays separate (`top` keeps the
+ * retrieval hit for that entry when there was one).
+ */
+export function userChoiceMatch(catalog: Catalog, identity: string, hits: readonly Hit[], preferredLanguage: string,
+  languageConfirmed: boolean, thresholds: MatchThresholds = PILOT_THRESHOLDS): MatchResult {
+  const card = catalog.get(identity);
+  if (!card) throw new Error(`Unknown catalog entry ${identity}`);
+  const versions = catalog.family(identity);
+  const family = new Set(versions.map((c) => c.id));
+  const languageOpen = !languageConfirmed && new Set(versions.map((c) => c.language)).size > 1;
+  const top = hits.find((h) => h.identity === identity) ?? { identity, row: -1, score: NaN };
+  const competitor = hits.find((h) => !family.has(h.identity)) ?? null;
+  return {
+    kind: 'matched', top, competitor, margin: competitor && Number.isFinite(top.score) ? top.score - competitor.score : NaN,
+    plausible: languageOpen ? versions : [card],
+    observedLanguage: languageOpen ? null : card.language, languageEvidence: languageOpen ? 'not-read' : 'user', preferredLanguage,
+    preferred: card, languageAssumed: languageOpen,
+    unresolved: [...(languageOpen ? ['language'] : []), ...(card.finish === 'unknown' ? ['finish'] : [])], thresholds,
+  };
+}
+
+export interface Candidate {
+  family: string;
+  /** Representative entry shown for the artwork: preferred language when available. */
+  card: CatalogCard;
+  /** Every catalog entry with this artwork (language versions). */
+  versions: CatalogCard[];
+  score: number;
+}
+
+/** Distinct artwork candidates from a hit list, best first. */
+export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLanguage: string, limit = 6): Candidate[] {
+  const out: Candidate[] = [];
+  const seen = new Set<string>();
+  for (const h of hits) {
+    const card = catalog.get(h.identity);
+    if (!card || seen.has(card.family)) continue;
+    seen.add(card.family);
+    const versions = catalog.family(h.identity);
+    out.push({ family: card.family, card: versions.find((v) => v.language === preferredLanguage) ?? card, versions, score: h.score });
+    if (out.length === limit) break;
+  }
+  return out;
+}

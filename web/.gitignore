@@ -1,0 +1,10 @@
+node_modules/
+dist/
+public/bundle/
+public/bundle.tmp/
+public/ort/
+public/media/
+test-results/
+playwright-report/
+.cert/
+.logs/
