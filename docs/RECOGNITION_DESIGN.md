@@ -84,7 +84,7 @@ Preserve full capture resolution. Map detector outputs back through letterbox/sc
 
 The audited detector archive has axis-aligned labels only. Expanding those boxes into four points cannot recover true card corners or supply trustworthy OBB supervision. Preserve existing labels as baseline/proposals. The implemented compositor supplies exact transformed physical-edge labels automatically; real-image teacher proposals need separate confidence/provenance and validation. With rounded corners, use the intersections of the straight card edges consistently.
 
-The existing Swift `CardDetector` consumes axis-aligned Vision object observations and `CardCropper` accepts only rectangles. OBB/keypoint export is not a drop-in model-file replacement: update output decoding, geometry types, source transforms, suppression, and quadrilateral crop extraction. Pin an exporter/runtime version and verify its real ONNX/CoreML outputs rather than copying commands for a different model generation.
+OBB and keypoint (pose) exports are not interchangeable model files: each needs its own output decoding, geometry types, source transforms, suppression and quadrilateral crop extraction (the browser has both, `web/src/vision/obb.ts` and `pose.ts`). Pin an exporter/runtime version and verify real ONNX outputs rather than copying commands for a different model generation.
 
 ## Shared canonical preprocessing for queries and gallery inserts
 
@@ -185,7 +185,7 @@ Do not apply expensive reranking to all nine cards on every frame. Run the cheap
 3. Compare single-reference versus a capped multi-reference gallery with the same queries and distinct-identity scoring. Report storage and per-identity reference counts.
 4. Compare frozen features, ArcFace fine tuning, and supervised contrastive fine tuning on task-training-held-out identities. Include a second game, then a game-held-out evaluation before claiming broad domain support.
 5. Compare global-only search versus selective verification at the same accepted precision/coverage point. Report Recall@1/5/20, wrong-variant rate, unknown false accepts, page-complete success, first-result/page latency, and phone memory.
-6. If distilling/quantizing for deployment, rebuild the gallery and rerun the same fixed evaluation. Validate ONNX output/ranking parity and nine-card performance on physical iPhone/Safari and Android/Chrome.
+6. If distilling/quantizing for deployment, rebuild the gallery and rerun the same fixed evaluation. Validate ONNX output/ranking parity and nine-card performance in Safari on iPhone and Chrome on Android.
 
 **Decision rule:** choose the least expensive complete pipeline that meets the roadmap's independently measured accuracy, rejection, and page-scanning goals. Keep the stronger offline encoder as a reference if useful; do not choose the runtime architecture based on the word ArcFace, model size, or a perfect self-match score.
 

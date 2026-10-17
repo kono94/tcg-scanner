@@ -1,6 +1,6 @@
 # Scanner interaction and overlay specification
 
-Status: proposed behavior, updated 2026-10-16. The current iOS overlay still uses large per-track labels and debug text. This specification applies to the planned browser scanner and improvements to the native baseline. It does not claim an implemented camera or recognition feature.
+Status: updated 2026-10-16; implemented in the browser scanner pilot (`web/src/ui/`), verified only on desktop Chrome with a test-video mock. It does not claim device-verified camera behavior or measured recognition accuracy.
 
 ## Primary use cases
 

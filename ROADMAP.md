@@ -1,6 +1,6 @@
 # TCG Scanner roadmap
 
-Updated: 2026-10-16. Start with the working automatic bootstrap, then connect detection to retrieval and a simple browser capture cycle. No manual dataset creation is required to begin. The [original audit](docs/REPO_AUDIT_2026-10-15.md) records the earlier repository state.
+Updated: 2026-10-17. The browser scanner pilot runs end to end (capture → corner detection → retrieval → review) on desktop Chrome with a test video. The work now is device verification, calibration on independent real captures, and a real-scene detector benchmark. No manual dataset creation is required. The [original audit](docs/REPO_AUDIT_2026-10-15.md) records the earlier repository state.
 
 ## Product contract
 
@@ -8,7 +8,7 @@ Open a URL on a phone, wait for a steady scene or tap capture, then detect and r
 
 Card count is variable, including zero and more than nine. Nine-card binder pages are a required benchmark slice, never a fixed input, required grid, or maximum. Enrollment adds reference images/metadata without expanding a classifier head; cross-game accuracy must be measured separately.
 
-Follow the [capture policy](docs/CAPTURE_CYCLE.md), [overlay specification](docs/SCANNER_UX.md), [data contract](docs/DATA_COLLECTION.md), and [recognition design](docs/RECOGNITION_DESIGN.md). Preserve the Python classifier and SwiftUI app as comparison baselines.
+Follow the [capture policy](docs/CAPTURE_CYCLE.md), [overlay specification](docs/SCANNER_UX.md), [data contract](docs/DATA_COLLECTION.md), and [recognition design](docs/RECOGNITION_DESIGN.md). The legacy Python classifier remains a historical baseline.
 
 ## Implemented and executed
 
@@ -33,7 +33,12 @@ Follow the [capture policy](docs/CAPTURE_CYCLE.md), [overlay specification](docs
 - `training/card_recognizer/train_retrieval.py`: first DINOv2-small + ArcFace pilot launched on Apple MPS, with 2,048 training visual classes, all 188 real training queries, one head warm-up sampling epoch and nine epochs fine-tuning the last two backbone blocks. The 1,000-step run excludes validation/test identities, related OP base families and image aliases from training. Interim validation uses a 2,110-reference distractor gallery; full 24,197-reference validation/test evaluation runs only after checkpoint selection. Check [live training status and scope](docs/RETRIEVAL_TRAINING.md); launch is not a completed accuracy result.
 - Dataset tools validate image bytes, hashes, source splits, reference identities, real-query admission and synthetic OBB labels. The repository's `.env/bin/python` has working PyTorch/OpenCV/Ultralytics; foundation-model dependencies are isolated under `runs/foundation_teacher/runtime/`. See the cleanup report for the latest executed checks.
 
-Outputs are ignored local artifacts under `runs/`; commands in the [detector README](training/card_detector/README.md) reproduce them in new/empty output directories. No bundled app model has been replaced. Synthetic metrics are not phone-camera accuracy.
+- 2026-10-17, LAN GPU machine ([GPU training](docs/GPU_TRAINING.md)): **corner detector** (YOLOv8-pose, box + four ordered card corners) trained on upright renderer-v2/v3 scenes; the n model (`corners-n-gpu.pt`) was bundled over the 4× larger s model for similar real-frame crop acceptance. **Encoder** `dinov2-arcface-gpu-20261017` (6,000 classes, last 4 blocks, 2,100 steps): full-catalog exact top-1 **20/24 validation, 85/86 test** (pilot: 19/24, 84/86). Same data caveats as the pilot; unknown rejection is uncalibrated.
+- **Browser scanner** (`web/`, [README](web/README.md)): stable-frame capture, corner detection and perspective warp, DINOv2/ArcFace embedding (WebGPU fp32, WASM int8), exact cosine search over 24,038 EN/DE card rows, match/value policy with preferred-language fallback and plausible-version price ranges, per-card review, local collection, single-page and batch workflows, card-back recognition. TypeScript preprocessing is bit-exact with `canonical.py` on golden fixtures; unit, parity and Playwright tests pass on desktop Chrome with a test-video mock. Not tested on a physical phone.
+- **Card backs**: `back:pokemon` and `back:onepiece` gallery rows; none of the 298 real front crops is decided as a back; 12/12 held-out real back scans and 432/432 synthetic back views are. Few, partly synthetic positives; detector recall on backs unmeasured.
+- **Hosting**: static VPS stack behind a shared Caddy HTTPS proxy with release folders and rollback ([deploy](deploy/README.md)); tested against Docker on the LAN, not yet on the VPS. Data, selected runs and the bundle are versioned with DVC.
+
+Outputs are local artifacts under `runs/` (selected runs in DVC). Synthetic metrics are not phone-camera accuracy.
 
 ## 1. Complete the simple OBB-to-crop baseline
 
@@ -81,7 +86,7 @@ Run this alongside the baseline; missing real-camera data does not block impleme
 
 ## 4. Browser capture cycle and clean overlay
 
-Run a narrow real-model ONNX/phone feasibility check once retrieval works, before committing to a costly deployment encoder. The browser UI and scan cycle then consume the same offline contracts.
+Status: implemented as a pilot (see above) and verified only on desktop Chrome. The remaining items are the device checks, live price ranges/coverage beyond the bundled snapshot, and the closer single-card investigation flow.
 
 - HTTPS camera → stability dwell/countdown → one immutable capture → detection → bounded per-card recognition → review. Provide manual capture and configurable repeat cooldown. Keep only one active batch; movement resets capture eligibility and page changes invalidate stale results.
 - Thin white outlines, restrained white capture sweep, actual per-card queued/recognizing/ready/attention states, and compact page progress. Show selected-card details without covering every card face. A wait animation reflects pending work and stops on completion/failure.
@@ -100,16 +105,22 @@ Provisional product targets remain: at least 99% accepted exact-ID precision wit
 
 ## Immediate next deliverable
 
-The first retrieval pilot completed 1,000 Apple-GPU steps and full-catalog evaluation:
-19/24 Pokémon validation views and 84/86 One Piece test views had the correct exact
-ID first. These splits cover different games and few videos; they do not establish
-scanner accuracy. Preserve that result and the locked-test provenance.
+Bundle update: `27047332` now uses the real-corner fine-tuned YOLOv8s-pose detector
+at 640 px and accepts perspective-foreshortened square card outlines. Export parity,
+unit tests and both desktop Chrome workflows pass; phone verification remains open.
+See [bundle evidence](docs/BROWSER_BUNDLE_2026-10-17.md).
 
-Implement supported candidate-family resolution, explicit preferred-language
-fallback, and uncertainty-aware value/review presentation under
-[the match and value policy](docs/MATCH_AND_VALUE_POLICY.md). Build a broader
-independent benchmark and calibrate quality/unknown/detail verification on
-permitted calibration data. The OBB set still needs complete real scene/edge
-annotations; recognition crops alone do not supply detector ground truth. Browser
-capture and the chosen corner-bracket overlay consume these measured contracts.
-Do not repeat frozen-DINO sweeps or force uncertain matches into exact labels.
+1. **Physical phones:** deploy to the VPS and test iPhone/Safari and Android/Chrome:
+   model download and load time, WebGPU/WASM provider, first/settled latency for one and
+   nine cards, memory over a long batch session, background/resume. Record the device
+   benchmark fields from AGENTS.md.
+2. **Independent real benchmark:** phone captures of single cards and binder pages (dev
+   "Save captures for training" stores them), split by session, with complete corner
+   annotations for detector recall/geometry and exact labels for retrieval. Recognition
+   crops alone do not supply detector ground truth.
+3. **Calibration:** card/back/unknown thresholds and margins on permitted calibration
+   captures, including not-enrolled cards and non-cards; report accepted precision,
+   coverage and false accepts.
+
+The locked test split and its provenance stay as recorded. Do not repeat frozen-encoder
+sweeps or force uncertain matches into exact labels.

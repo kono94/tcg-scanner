@@ -1,14 +1,24 @@
-# Retrieval fine-tuning pilot
+# Retrieval fine-tuning
 
-The first DINOv2-small/ArcFace pilot was launched on 2026-10-16 using the local
-Apple GPU through PyTorch MPS. Read its live status rather than assuming it has
-finished:
+Two DINOv2-small/ArcFace runs have completed. Both use the same data isolation and
+evaluation; the GPU run is the encoder in the browser bundle.
 
-- `runs/card_recognizer/retrieval/dinov2-arcface-pilot-20261016/status.json`
-- `runs/card_recognizer/retrieval/dinov2-arcface-pilot-20261016.log`
-- `runs/card_recognizer/retrieval/dinov2-arcface-pilot-20261016-launch.json`
+| Run | Config | Hardware | Classes / trainable blocks / steps | Full-catalog exact top-1: val | test |
+| --- | --- | --- | --- | --- | --- |
+| `dinov2-arcface-pilot-20261016` | `dinov2_arcface_pilot.yaml` | Apple M1, MPS | 2,048 / 2 / 1,000 | 19/24 | 84/86 |
+| `dinov2-arcface-gpu-20261017` | `dinov2_arcface_gpu.yaml` | RTX 4070 Super, CUDA | 6,000 / 4 / 2,100 (epoch 12 selected) | 20/24 | 85/86 |
 
-## Recipe and scope
+Gallery: all 24,197 enrolled references. Validation queries are Pokémon, test
+queries One Piece, from few videos with repeated views and AI-reviewed labels: these
+are retrieval diagnostics, not scanner accuracy. Unknown rejection is uncalibrated.
+Each run folder holds `status.json`, `full_catalog_{val,test}.json`, the gallery
+index and checkpoints (the GPU run is in DVC). GPU-machine setup: [GPU training](GPU_TRAINING.md).
+
+## Pilot recipe and scope
+
+The rest of this page describes the pilot; the GPU run changes only what its config
+diff shows (CUDA, 6,000 classes, 4 trainable blocks, 14 × 150 steps, 32 identities per
+batch).
 
 `training/card_recognizer/train_retrieval.py` is separate from the legacy
 classifier trainer. Its configuration is
@@ -97,4 +107,3 @@ identical configuration and dataset:
   --output runs/card_recognizer/retrieval/<existing-run> --resume
 ```
 
-The old app models are not replaced by this experiment.

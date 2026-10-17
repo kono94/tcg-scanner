@@ -1,6 +1,6 @@
 # Stable-frame scanning policy
 
-Status: proposed default capture architecture, 2026-10-15. The existing iOS scanner still uses continuous detection and tracking. This document changes the implementation plan, not that runtime. Applies to both single cards and nine-card binder pages.
+Status: default capture architecture since 2026-10-15, implemented in the browser scanner (`web/src/capture/`; batch workflow in `web/src/batch/`, see `web/README.md`). Not yet verified on a physical phone. Applies to both single cards and nine-card binder pages.
 
 Scene card count is variable, including zero and more than nine. Nine-card pages are one important test case. Capture eligibility, detection output, result lists, and collected annotations must not require nine instances or a fixed pocket arrangement. See [the data contract](DATA_COLLECTION.md).
 

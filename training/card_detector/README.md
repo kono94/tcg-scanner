@@ -1,4 +1,28 @@
-# YOLO OBB baseline
+# Card detector
+
+## Corner detector (deployed)
+
+The browser bundle uses a YOLOv8s-pose model that predicts a box plus four ordered card
+corners (`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt`, DVC). The app warps each card
+from those corners. It is trained with the same `train_obb.py` (`--model yolov8n-pose.pt`
+or `yolov8s-pose.pt`) on the LAN GPU machine, because Apple MPS cannot train pose models;
+the exact command is in [GPU training](../../docs/GPU_TRAINING.md).
+
+- Data: `scripts/build_corner_dataset.py --max-tilt 50` builds `corners-mix` from
+  renderer-v3 and renderer-v2 scenes without
+  sideways cards. Sideways cards make corner names ambiguous; upside-down cards are fine
+  because corner order is geometric.
+- Selection: a new model replaces the bundled one only when it wins
+  `scripts/evaluate_detector_geometry.py` (synthetic geometry) and
+  `scripts/compare_detectors_real.py` (crop acceptance on held-out real video frames).
+  The n model was chosen over the 4× larger s model for similar real-frame acceptance.
+- Current update: synthetic pretraining plus AI-reviewed real-corner fine tuning,
+  exported at 640 px. The earlier n/s selection above used synthetic-only models.
+  See [bundle evidence](../../docs/BROWSER_BUNDLE_2026-10-17.md) for hashes and parity.
+- Limits: the real comparison uses few video sources and AI-reviewed labels initially
+  proposed by an older s model. Physical-phone performance remains unverified.
+
+## YOLO OBB baseline (earlier)
 
 `train_obb.py` runs Ultralytics YOLOv8 OBB training with the dataset YAML and OBB labels emitted by the synthetic scene generator. The OBB labels contain a class id and four normalized point pairs. The separate scene manifest retains the original quadrilateral coordinates for geometry evaluation.
 

@@ -4,13 +4,14 @@ This folder contains both the legacy classifier pipeline and the enrollment-base
 retrieval trainer. The current development path is pretrained encoder fine-tuning
 with ArcFace; deployment uses normalized embeddings and cosine gallery search.
 
-See [the retrieval training guide](../../docs/RETRIEVAL_TRAINING.md) for the Apple
-GPU pilot, held-out identity policy, checkpoints, and full-catalog evaluation.
-Start a new run with:
+See [the retrieval training guide](../../docs/RETRIEVAL_TRAINING.md) for the runs,
+held-out identity policy, checkpoints, and full-catalog evaluation, and
+[GPU training](../../docs/GPU_TRAINING.md) for the CUDA machine that trained the
+deployed encoder. Start a new run with:
 
 ```bash
-.env/bin/python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_pilot.yaml \
+python training/card_recognizer/train_retrieval.py \
+  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
   --output runs/card_recognizer/retrieval/<new-run>
 ```
 
@@ -92,7 +93,7 @@ runs/card_recognizer/experiments/<experiment_id>/
   resolved_config.yaml
 ```
 
-Training and evaluation scripts print stage logs and progress bars for long loops, so a quiet terminal usually means the current subprocess is waiting on framework-level work such as CoreML conversion or model initialization.
+Training and evaluation scripts print stage logs and progress bars for long loops, so a quiet terminal usually means the current subprocess is waiting on framework-level work such as model initialization.
 
 The old trainer froze the MobileNet backbone before fine tuning it. That behavior is available in Lightning through the YAML config:
 
@@ -127,30 +128,3 @@ python training/card_recognizer/regression_report.py \
 ```
 
 The regression report is written into the candidate experiment's `reports/` folder.
-
-## 5. Latency Benchmark
-
-```bash
-python training/card_recognizer/benchmark_inference.py \
-  --experiment-id <experiment_id> \
-  --coreml-model tcg-scanner-app/tcg-scanner-app/Models/card_recognizer.mlpackage
-```
-
-The report is written to `reports/latency_report.json`. The Python CoreML benchmark is host-side only. Physical iPhone timing still needs the app/device debug metrics.
-
-## 6. CoreML Export
-
-The classifier export accepts a Lightning checkpoint and performs a PyTorch smoke test plus a best-effort CoreML prediction smoke test.
-
-```bash
-python scripts/export_recognizer_coreml.py \
-  --experiment-id <experiment_id>
-```
-
-By default this writes the export under `app_export/` inside the experiment folder. To install directly into the app bundle and stamp the app manifest with the recognizer experiment ID:
-
-```bash
-python scripts/export_recognizer_coreml.py \
-  --experiment-id <experiment_id> \
-  --install-to-app
-```

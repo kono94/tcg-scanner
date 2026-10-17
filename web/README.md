@@ -1,24 +1,42 @@
 # Browser scanner (pilot)
 
 Vite + TypeScript scanner using the stable-frame cycle from `docs/CAPTURE_CYCLE.md`:
-stability check → one capture → OBB detection → perspective warp → DINOv2/ArcFace
-embedding → exact cosine search → match/value policy → review. Inference runs in a
-worker with onnxruntime-web (WebGPU, falling back to WASM). Status: pilot. Thresholds
-are uncalibrated and the detector was trained on synthetic scenes only.
+stability check → one capture → four-corner detection (YOLOv8s-pose) → perspective warp →
+DINOv2/ArcFace embedding → exact cosine search → match/value policy → review. Inference
+runs in a worker with onnxruntime-web: WebGPU with the fp32 encoder, falling back to WASM
+with the int8 encoder. Status: pilot, verified on desktop Chrome with a test video only.
+Thresholds are uncalibrated. The detector combines synthetic pretraining with AI-reviewed
+real-corner fine tuning; phone performance remains unverified.
+
+Current bundle `27047332` (`web/public/bundle/manifest.json` records the full provenance):
+encoder from `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017`, detector
+`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt` at 640 px (box confidence 0.6), 24,038
+English/German card rows plus 6 card-back rows.
 
 ## Setup
 
 The fastest start is pulling the built artifacts with DVC (see the root README):
 `dvc pull web/public/bundle web/public/media runs/browser_export/pilot-20261016`, then step 4.
-To build them yourself:
+To build them yourself (the script defaults still point at the 2026-10-16 pilot run and the
+synthetic OBB detector, so pass the current run and corner weights explicitly):
 
 ```bash
-# 1. Export models + parity fixtures (writes runs/browser_export/<name>/)
-.env/bin/python scripts/export_browser_models.py --output runs/browser_export/pilot-20261016
+# 1. Export encoder + gallery + parity fixtures (writes runs/browser_export/<name>/)
+.env/bin/python scripts/export_browser_models.py \
+  --run runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017 \
+  --output runs/browser_export/gpu-20261017
+# 1b. int8 encoder for the WASM path: onnxruntime dynamic quantization (per-channel
+#     MatMul/Gemm weights) of encoder.onnx -> encoder.int8.onnx. No script is committed;
+#     the manifest records the top-1 parity check (24/24 validation queries).
 # 2. Assemble the versioned bundle (web/public/bundle, gitignored). Card-back rows are added
 #    from datasets/curated/recognition/backs/manifest.json when present (--no-backs to omit);
 #    scripts/acquire_card_backs.py (re)creates those references.
-.env/bin/python scripts/build_browser_bundle.py
+.env/bin/python scripts/build_browser_bundle.py \
+  --export runs/browser_export/gpu-20261017 \
+  --encoder-int8 runs/browser_export/gpu-20261017/encoder.int8.onnx \
+  --detector-weights runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt --detector-conf 0.6 \
+  --prices runs/prices/prices.json --detector-origin "<what the weights were trained on>" \
+  --german-pokemon <TCGdex /v2/de/cards list>   # German Pokémon versions of enrolled art
 # 3. Optional: local test videos for the camera mock (web/public/media, gitignored)
 node web/scripts/link-media.mjs
 # 4. Run
@@ -89,12 +107,12 @@ npm test          # parity with Python/OpenCV/Ultralytics fixtures, policy, cycl
 npm run e2e       # Chrome via Playwright: test-video scan end to end
 ```
 
-Unit tests read fixtures from `runs/browser_export/pilot-20261016` (override with
-`TCG_EXPORT_DIR`). Without them, the parity suites are skipped rather than passed.
+Unit tests read fixtures from `runs/browser_export/pilot-20261016` and the sibling
+`pose-fixture` (override with `TCG_EXPORT_DIR`). Without them, the parity suites are skipped rather than passed.
 
 ## Layout
 
-- `src/vision/`: tcg-full-card-v1 warp/resize/normalize (bit-exact with OpenCV on the fixtures), OBB decode/NMS.
+- `src/vision/`: tcg-full-card-v1 warp/resize/normalize (bit-exact with OpenCV on the fixtures), pose (four-corner) decode, legacy OBB decode, NMS.
 - `src/recognition/`: gallery search, catalog families, match policy, value ranges.
 - `src/capture/`: stability monitor and capture cycle (pure, timestamp-driven).
 - `src/session/page.ts`: page instances, one bounded recognizer, retries, timeouts, generation guards.
