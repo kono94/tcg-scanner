@@ -11,9 +11,13 @@ publish_release() {
   # Unchanged files (model bundle, runtime) are hard-linked from the live release: no re-upload.
   # -c compares content: Vite gives every copied public/ file a new timestamp on each build.
   at "test -d '$DIR/current'" && link="--link-dest=$DIR/current/"
+  # Content only (-rlt, no owner/group/perms/dir times): www/ is shared by the deploy user (tag
+  # deploys) and jan (manual deploys) through the setgid `deployers` group.
+  local copy=(-rlt --omit-dir-times --stats)
+  [[ -z "$DRY" ]] || copy+=("$DRY")
   # Test videos for the camera mock stay local.
-  rsync -a -c --stats $DRY $link --exclude 'media/' "$dist/" "$DEST$DIR/releases/$release/"
-  rsync -a --stats $DRY "$thumbs/" "$DEST$DIR/refs/"
+  rsync "${copy[@]}" -c $link --exclude 'media/' "$dist/" "$DEST$DIR/releases/$release/"
+  rsync "${copy[@]}" "$thumbs/" "$DEST$DIR/refs/"
   [[ -n "$DRY" ]] && { echo "dry run: nothing switched"; return 0; }
 
   echo "== switch"
