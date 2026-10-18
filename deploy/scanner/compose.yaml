@@ -5,8 +5,8 @@ services:
     image: caddy:2.10-alpine
     restart: unless-stopped
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./www:/srv:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - ./www:/srv:ro,z
     networks: [web]
 
 networks:

@@ -12,7 +12,7 @@ services:
       - "443:443"
       - "443:443/udp" # HTTP/3
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
       - caddy_data:/data # certificates: keep this volume
       - caddy_config:/config
     networks: [web]

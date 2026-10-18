@@ -23,6 +23,9 @@ internet ──443──> proxy (Caddy, certificates)
 | `/opt/stacks/scanner/www/releases/<release>/` | `deploy/deploy.sh` | built app + bundle, one folder per deploy |
 | `/opt/stacks/scanner/www/current` | `deploy/deploy.sh` | symlink to the live release |
 | `/opt/stacks/scanner/www/refs/` | `deploy/deploy.sh` | catalog thumbnails, shared by releases |
+| `/opt/scanner/` | git clone (owner `github-deployer`) | tag checkout that `server-deploy.sh` builds |
+| `/opt/dvc-store/` | `deploy/push-artifacts.sh` | DVC remote holding bundle + thumbnails for tag deploys |
+| `/usr/local/bin/deploy-trigger` | `deploy/deploy-trigger` | GitOps entry point, one project per deploy key |
 
 ## One-time setup
 
@@ -45,9 +48,39 @@ internet ──443──> proxy (Caddy, certificates)
 
 5. **First deploy** (from the Mac, see below). Until then the scanner answers 404.
 
-## Deploying the scanner
+## Deploying the scanner (GitOps: push a tag)
 
-From the repository root on the Mac:
+A pushed tag on this repo deploys **only the scanner**:
+
+1. `.github/workflows/deploy.yml` runs `npm ci`, `npm run typecheck` and `npm test` (bundle parity
+   tests skip without the DVC bundle).
+2. It SSHes to `github-deployer@VPS -p 2222`. That user's key is pinned in `authorized_keys` to
+   `command="/usr/local/bin/deploy-trigger scanner",restrict`, so it can only choose the tag.
+3. `deploy-trigger` fetches, checks out the tag in `/opt/scanner` and runs `deploy/server-deploy.sh`.
+   That script does `dvc pull -r vps` (bundle + thumbnails) from `/opt/dvc-store`, `npm ci && npm run build`
+   in `node:24-alpine`, and the same release/switch steps as `deploy.sh` (`deploy/release.sh`).
+
+The model bundle and thumbnails live in DVC, not git, and the LAN DVC store (`gpu-pc`) can't be
+reached from GitHub or the VPS. **Before tagging a commit that changes `web/public/bundle.dvc` or
+`runs/ref_thumbs.dvc`, push the artifacts to the VPS store from the Mac:**
+
+```bash
+dvc push web/public/bundle.dvc runs/ref_thumbs.dvc   # LAN store, as before
+deploy/push-artifacts.sh                             # VPS store for tag deploys (one rsync)
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+`dvc push -r vps ...` gives the same result, but takes hours for 24k thumbnails over SFTP.
+
+If they're missing, the deploy stops before building and the live release stays unchanged. Thumbnails
+are rebuilt with `scripts/build_ref_thumbnails.py` and tracked with `dvc add runs/ref_thumbs`. On the VPS,
+`/opt/scanner/.dvc/config.local` points `vps` at the local `/opt/dvc-store` and hard-links checkouts.
+GitHub secrets: `SERVER_IP` (173.249.10.6) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
+Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy -p 2222 github-deployer@lwenstrom.net trigger-deploy <tag>`.
+
+## Deploying the scanner manually
+
+From the repository root on the Mac (bypasses git tags, uploads straight from the working tree):
 
 ```bash
 dvc pull web/public/bundle datasets/curated     # bundle + reference images (once per change)
@@ -85,8 +118,8 @@ checks `bundle/manifest.json` on every start.
        external: true
    ```
 
-2. In `/opt/stacks/proxy/Caddyfile`, uncomment the `tft.lwenstrom.net` block and set the
-   service name and internal port (`reverse_proxy tft:3000`).
+2. `/opt/stacks/proxy/Caddyfile` already has the `tft.lwenstrom.net` block
+   (`reverse_proxy tft-nginx:80`). Until TFT runs there, that host answers 502; its certificate is issued.
 3. Reload without downtime: `docker compose -f /opt/stacks/proxy/compose.yaml exec caddy caddy reload --config /etc/caddy/Caddyfile`.
 
 ## What the scanner needs from the server
@@ -106,6 +139,16 @@ checks `bundle/manifest.json` on every start.
 - Thresholds are uncalibrated; the detector combines synthetic pretraining with
   AI-reviewed real-corner fine tuning. Physical-phone performance remains unverified
   (see [browser evidence](../docs/BROWSER_BUNDLE_2026-10-17.md)); label the site as a pilot.
+
+## This VPS (CentOS 7)
+
+The host is CentOS 7 (EOL) with SELinux enforcing, set up 2026-10-18: docker-ce 26.1.4 and the
+compose plugin 2.27.1 from the docker-ce `centos/7` repo. Docker's SELinux integration stays on, so:
+`/opt/stacks`, `/opt/scanner` and `/opt/dvc-store` carry `container_file_t` (`semanage fcontext`) and the
+compose bind mounts use `:z`. `jan` is SELinux `staff_u`: admin commands need
+`sudo -r sysadm_r -t sysadm_t`. firewalld opens 80/tcp, 443/tcp+udp and 2222/tcp; Docker-published
+ports bypass firewalld. sshd listens on 22 and 2222; `github-deployer` is in `AllowUsers` with a
+`Match` block that disables forwarding and TTYs. Git on the host is 1.8, so `deploy-trigger` avoids newer flags.
 
 ## Tested
 

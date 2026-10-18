@@ -8,9 +8,9 @@ scanner.lwenstrom.net {
 	reverse_proxy scanner:80
 }
 
-# TFT app: its compose service must join the `web` network.
-# Replace `tft:3000` with that service's name and internal port, then reload the proxy.
-# tft.lwenstrom.net {
-# 	encode zstd gzip
-# 	reverse_proxy tft:3000
-# }
+# TFT: its internal nginx (`tft-nginx`, compose profile `proxied`) joins the `web` network
+# and routes /, /api, /ws and /grafana/ itself.
+tft.lwenstrom.net {
+	encode zstd gzip
+	reverse_proxy tft-nginx:80
+}

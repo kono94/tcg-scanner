@@ -1,0 +1,47 @@
+#!/bin/bash
+# GitOps entry point on the VPS, installed as /usr/local/bin/deploy-trigger (root:root, 0755).
+#
+# Each repo's GitHub deploy key is pinned to one project in ~github-deployer/.ssh/authorized_keys:
+#   command="/usr/local/bin/deploy-trigger scanner",restrict ssh-ed25519 AAAA... tcg-scanner deploy
+#   command="/usr/local/bin/deploy-trigger tft",restrict     ssh-ed25519 AAAA... tft deploy
+# The workflow sends `trigger-deploy <tag>`; it arrives as SSH_ORIGINAL_COMMAND and only selects the tag.
+set -euo pipefail
+
+case "${1:-}" in
+  scanner) PROJECT_DIR=/opt/scanner; DEPLOY_SCRIPT=deploy/server-deploy.sh ;;
+  tft)     PROJECT_DIR=/opt/tft;     DEPLOY_SCRIPT=deployment/deploy.sh ;;
+  *) echo "unknown project: ${1:-<none>}" >&2; exit 2 ;;
+esac
+PROJECT="$1"
+
+echo "[$(date)] GitOps deploy triggered: $PROJECT"
+
+exec 9>"/tmp/deploy-$PROJECT.lock"
+if ! flock -n 9; then
+  echo "Another $PROJECT deployment is already running."
+  exit 1
+fi
+
+cd "$PROJECT_DIR"
+if [ ! -w ".git/objects" ]; then
+  echo "Repository is not writable by $(whoami): sudo chown -R github-deployer $PROJECT_DIR"
+  exit 1
+fi
+
+git fetch --all --tags --force --prune
+
+REQUESTED_TAG=""
+if [[ "${SSH_ORIGINAL_COMMAND:-}" =~ ^trigger-deploy[[:space:]]+([A-Za-z0-9._-]+)$ ]]; then
+  REQUESTED_TAG="${BASH_REMATCH[1]}"
+fi
+
+if [ -n "$REQUESTED_TAG" ] && git rev-parse -q --verify "refs/tags/$REQUESTED_TAG^{commit}" >/dev/null; then
+  DEPLOY_REF="tags/$REQUESTED_TAG"
+else
+  echo "Unknown or missing tag '${REQUESTED_TAG}'." >&2
+  exit 1
+fi
+
+echo "Deploying: $DEPLOY_REF"
+git -c advice.detachedHead=false checkout -f "$DEPLOY_REF"
+exec bash "$PROJECT_DIR/$DEPLOY_SCRIPT"

@@ -1,0 +1,6 @@
+outs:
+- md5: e101bd40389ed17ef55fa37e81484c5c.dir
+  size: 530629226
+  nfiles: 24040
+  hash: md5
+  path: ref_thumbs
