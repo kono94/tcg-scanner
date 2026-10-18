@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build and publish the checked-out tag on the VPS. Run by deploy-trigger after a tag push:
 #
-#   /usr/local/bin/deploy-trigger scanner   (checks out the tag in /opt/scanner, then runs this)
+#   /usr/local/bin/deploy-trigger scanner   (checks out the tag in /opt/stacks/scanner/src, runs this)
 #
-# The model bundle and thumbnails come from the VPS DVC store (/opt/dvc-store), filled from the
-# Mac with `dvc push -r vps`. Node and DVC run in containers; the host only needs Docker and rsync.
+# The model bundle and thumbnails come from the VPS DVC store (/opt/stacks/scanner/dvc-store), filled
+# from the Mac with deploy/push-artifacts.sh. Node and Python run in containers; the host only needs
+# Docker and rsync. Checkout, store and www share one parent so hard links work inside one mount.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,24 +13,19 @@ DIR="${DEPLOY_DIR:-/opt/stacks/scanner/www}"
 KEEP="${DEPLOY_KEEP:-3}"
 DRY=""
 NODE_IMAGE="node:24-alpine"
-DVC_VERSION="3.67.1"
-DVC_IMAGE="scanner-dvc:$DVC_VERSION"
+PY_IMAGE="python:3.12-alpine"
+STORE="${DVC_STORE:-/opt/stacks/scanner/dvc-store}"
 USER_ARGS=(-u "$(id -u):$(id -g)" -e HOME=/tmp)
 
 cd "$REPO"
 TAG="$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD)"
 
 echo "== artifacts"
-docker image inspect "$DVC_IMAGE" >/dev/null 2>&1 || docker build -q -t "$DVC_IMAGE" - <<EOF
-FROM python:3.12-slim
-RUN pip install --no-cache-dir "dvc==$DVC_VERSION"
-EOF
-# config.local (server only) points the `vps` remote at the local store and hard-links checkouts.
-docker run --rm "${USER_ARGS[@]}" -v "$REPO:$REPO" -v /opt/dvc-store:/opt/dvc-store -w "$REPO" "$DVC_IMAGE" \
-  dvc pull -r vps web/public/bundle.dvc runs/ref_thumbs.dvc \
-  || { echo "Artifacts for $TAG are missing on the VPS: run deploy/push-artifacts.sh on the Mac." >&2; exit 1; }
-BUNDLE=$(docker run --rm -v "$REPO/web/public/bundle:/b:ro" "$DVC_IMAGE" \
-  python -c "import json; print(json.load(open('/b/manifest.json'))['version'])")
+# Hard-link the bundle and thumbnails named by the .dvc pointers out of the store (no DVC needed).
+ROOT="$(dirname "$REPO")"   # one mount holding both the checkout and the store
+docker run --rm "${USER_ARGS[@]}" -v "$ROOT:$ROOT" -w "$REPO" "$PY_IMAGE" \
+  python deploy/checkout-artifacts.py "$STORE" web/public/bundle.dvc runs/ref_thumbs.dvc
+BUNDLE=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' web/public/bundle/manifest.json | head -n 1)
 RELEASE="$(date -u +%Y%m%d-%H%M%S)-$TAG-${BUNDLE:0:8}"
 
 echo "== build $RELEASE"

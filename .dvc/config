@@ -6,4 +6,4 @@
 ['remote "gpu-pc"']
     url = ssh://kono@192.168.178.38/mnt/d/tcg-scanner-dvc
 ['remote "vps"']
-    url = ssh://jan@lwenstrom.net/opt/dvc-store
+    url = ssh://jan@lwenstrom.net/opt/stacks/scanner/dvc-store

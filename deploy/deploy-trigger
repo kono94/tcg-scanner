@@ -8,7 +8,7 @@
 set -euo pipefail
 
 case "${1:-}" in
-  scanner) PROJECT_DIR=/opt/scanner; DEPLOY_SCRIPT=deploy/server-deploy.sh ;;
+  scanner) PROJECT_DIR=/opt/stacks/scanner/src; DEPLOY_SCRIPT=deploy/server-deploy.sh ;;
   tft)     PROJECT_DIR=/opt/tft;     DEPLOY_SCRIPT=deployment/deploy.sh ;;
   *) echo "unknown project: ${1:-<none>}" >&2; exit 2 ;;
 esac
