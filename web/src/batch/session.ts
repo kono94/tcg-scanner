@@ -15,6 +15,7 @@ import { boxCorners, portraitQuad, readingOrder, type OrientedBox } from '../vis
 import { attentionReason } from '../session/page';
 import { matchFields, savedNeedsUser, type SavedCard, type SavedPage } from '../collection/store';
 import type { SavedCrops } from '../collection/crops';
+import { probableDuplicate } from './duplicates';
 
 export interface Detected {
   width: number;
@@ -25,6 +26,7 @@ export interface Detected {
 }
 
 export interface ExtractedCard {
+  appearance?: string;
   canonical: Blob;
   display: Blob;
   thumb: Blob;
@@ -33,6 +35,7 @@ export interface ExtractedCard {
 
 /** Worker-backed operations (the WorkerRecognizer in the app, fakes in tests). */
 export interface BatchBackend {
+  fingerprint?(canonical: Blob): Promise<string>;
   detect(captureId: number, bitmap: ImageBitmap): Promise<Detected>;
   extract(captureId: number, quad: Quad): Promise<ExtractedCard>;
   /** Free the capture (and the worker's capture-sized buffer). */
@@ -44,7 +47,9 @@ export interface BatchBackend {
 }
 
 export interface BatchRecord {
+  pendingDuplicate?: { page: SavedPage; matchedPageKey: string; matchedPageNumber: number };
   id: string;
+  sessionId?: string;
   startedAt: string;
   pageKeys: string[];
   nextPage: number;
@@ -59,10 +64,12 @@ export interface BatchStore {
   removeCard(pageKey: string, number: number): void;
   putCrops(pageKey: string, number: number, crops: SavedCrops): Promise<boolean>;
   getCrops(pageKey: string, number: number): Promise<SavedCrops | null>;
+  removeCrops?(pageKey: string): Promise<void>;
   thumbUrl(blob: Blob): Promise<string | null>;
   loadBatch(): BatchRecord | null;
-  saveBatch(batch: BatchRecord | null): void;
+  saveBatch(batch: BatchRecord | null): boolean | void;
   sessionId(): string;
+  nextCaptureNumber?(sessionId: string): number;
 }
 
 export interface BatchOptions {
@@ -88,6 +95,7 @@ export interface BatchOptions {
 }
 
 export interface BatchStatus {
+  duplicate: { matchedPageNumber: number; cards: number } | null;
   /** The batch being scanned (null: none; the next capture starts one). */
   active: BatchRecord | null;
   pages: number;
@@ -186,12 +194,14 @@ export class BatchSession {
     this.updateFull();
     const active = this.store.loadBatch();
     const keys = new Set(active?.pageKeys ?? []);
-    const pages = active ? this.store.loadPages().filter((p) => keys.has(p.key)) : [];
+    const pages = active ? this.store.loadPages().filter((p) => keys.has(p.key) || p.batchId === active.id) : [];
     this.cached = {
       active, pages: pages.length, cards: pages.reduce((n, p) => n + p.cards.length, 0), waiting: this.waiting(),
       running: this.running ? { pageKey: this.running.pageKey, number: this.running.number } : null,
       needsUser: pages.reduce((n, p) => n + p.cards.filter(savedNeedsUser).length, 0),
       capturing: this.capturing, paused: this.paused, stalled: this.stalled, full: this.full,
+      duplicate: active?.pendingDuplicate && !pages.some((p) => p.key === active.pendingDuplicate!.page.key)
+        ? { matchedPageNumber: active.pendingDuplicate.matchedPageNumber, cards: active.pendingDuplicate.page.cards.length } : null,
     };
     return this.cached;
   }
@@ -201,29 +211,37 @@ export class BatchSession {
     const active = this.store.loadBatch();
     if (!active) return [];
     const byKey = new Map(this.store.loadPages().map((p) => [p.key, p]));
-    return active.pageKeys.map((k) => byKey.get(k)).filter((p): p is SavedPage => !!p);
+    return [...byKey.values()].filter((p) => active.pageKeys.includes(p.key) || p.batchId === active.id).sort((a, b) => a.pageNumber - b.pageNumber);
   }
 
   /** Admission control before a capture is taken (not after the work is queued). */
   canCapture(): boolean {
     this.updateFull();
-    return !this.capturing && !this.full && !this.stalled;
+    // A held possible repeat needs an explicit Keep/Dismiss first: a new capture never discards it.
+    return !this.capturing && !this.full && !this.stalled && !this.status().duplicate;
   }
 
   /**
    * One page: detect, store every card's crops, release the capture, save the page with its cards
    * queued. The bitmap is transferred to the worker. Returns the page number and card count.
    */
-  async capture(bitmap: ImageBitmap, onDetected?: (captureId: number, detected: Detected, quads: Quad[]) => Promise<void>):
-    Promise<{ pageNumber: number | null; cards: number; overLimit: number; failed: number }> {
+  async capture(bitmap: ImageBitmap, onDetected?: (captureId: number, detected: Detected, quads: Quad[]) => Promise<void>,
+    { holdRepeat = true }: { holdRepeat?: boolean } = {}):
+    Promise<{ pageNumber: number | null; cards: number; overLimit: number; failed: number; duplicate?: number; skipped?: boolean }> {
     if (!this.canCapture()) {
       bitmap.close();
-      throw new Error(this.full ? 'Batch backlog is full' : 'A capture is already being saved');
+      throw new Error(this.full ? 'Batch backlog is full' : this.status().duplicate ? 'Keep or dismiss the possible repeat first' : 'A capture is already being saved');
     }
+    const sessionId = this.store.sessionId();
+    const existing = this.store.loadBatch();
+    const batch = existing && (!existing.sessionId || existing.sessionId === sessionId) ? existing
+      : { id: `${this.now().toString(36)}-${++this.tokenCounter}`, sessionId, startedAt: new Date(this.now()).toISOString(), pageKeys: [], nextPage: 1 };
+    const pageNumber = this.store.nextCaptureNumber?.(sessionId) ?? batch.nextPage;
     this.capturing = true;
     this.emit();
     const captureId = CAPTURE_BASE + ++this.captureCounter;
     try {
+      delete batch.pendingDuplicate;
       const detected = await this.backend.detect(captureId, bitmap);
       const limit = this.options.maxInstances ?? 48;
       const ordered = readingOrder(detected.boxes.map((box, i) => ({ box, corners: detected.quads?.[i] })));
@@ -231,10 +249,9 @@ export class BatchSession {
       const overLimit = Math.max(0, ordered.length - limit);
       if (onDetected) await onDetected(captureId, detected, quads).catch(() => {});
       if (!quads.length) return { pageNumber: null, cards: 0, overLimit, failed: 0 };
-      const batch = this.store.loadBatch() ?? { id: this.now().toString(36), startedAt: new Date(this.now()).toISOString(), pageKeys: [], nextPage: 1 };
-      const pageNumber = batch.nextPage;
       const pageKey = `batch-${batch.id}-${pageNumber}`;
       const cards: SavedCard[] = [];
+      const appearance: string[] = [];
       let failed = 0;
       // One card at a time: a few hundred kB in flight, whatever the card count.
       for (let i = 0; i < quads.length; i++) {
@@ -242,6 +259,7 @@ export class BatchSession {
         const base: SavedCard = { number, identity: null, name: null, cardId: null, state: 'queued', languageAssumed: false, checkedByUser: false, value: null, thumb: null };
         try {
           const crops = await this.backend.extract(captureId, quads[i]);
+          if (crops.appearance) appearance.push(crops.appearance);
           const stored = await this.store.putCrops(pageKey, number, { canonical: crops.canonical, display: crops.display });
           const thumb = await this.store.thumbUrl(crops.thumb);
           if (!stored) failed++;
@@ -253,10 +271,24 @@ export class BatchSession {
           cards.push({ ...base, state: 'needs-attention', reason: 'error', hasCrop: false });
         }
       }
-      const page: SavedPage = { key: pageKey, sessionId: this.store.sessionId(), pageNumber, revision: 1, savedAt: new Date(this.now()).toISOString(),
-        partial: true, cards, batchId: batch.id };
+      const page: SavedPage = { key: pageKey, sessionId, pageNumber, revision: 1, savedAt: new Date(this.now()).toISOString(),
+        partial: true, cards, batchId: batch.id, appearance: !overLimit && appearance.length === cards.length ? appearance : undefined };
+      const duplicate = page.appearance ? await this.findDuplicate(page) : null;
+      // Automatic captures skip a probable repeat outright (the page was not turned); only a
+      // manual capture holds it for an explicit Keep anyway / Dismiss.
+      if (duplicate && !holdRepeat) {
+        await this.store.removeCrops?.(pageKey);
+        return { pageNumber: null, cards: 0, overLimit, failed, duplicate: duplicate.pageNumber, skipped: true };
+      }
+      if (duplicate) {
+        if (this.store.saveBatch({ ...batch, sessionId, pendingDuplicate: { page, matchedPageKey: duplicate.key, matchedPageNumber: duplicate.pageNumber } }) === false) {
+          await this.store.removeCrops?.(pageKey);
+          throw new Error('Could not hold the possible repeat: browser storage is full. Capture not saved.');
+        }
+        return { pageNumber: null, cards: 0, overLimit, failed, duplicate: duplicate.pageNumber };
+      }
       if (!this.store.writePage(page)) throw new Error('Could not save the page: browser storage is full or disabled.');
-      this.store.saveBatch({ ...batch, pageKeys: [...batch.pageKeys, pageKey], nextPage: pageNumber + 1 });
+      this.store.saveBatch({ ...batch, sessionId, pageKeys: [...batch.pageKeys, pageKey], nextPage: pageNumber + 1 });
       for (const c of cards) if (c.state === 'queued') this.queue.push({ pageKey, number: c.number, token: c.queued! });
       return { pageNumber, cards: cards.length, overLimit, failed };
     } finally {
@@ -265,6 +297,66 @@ export class BatchSession {
       this.emit();
       this.kick();
     }
+  }
+
+  private async findDuplicate(page: SavedPage): Promise<SavedPage | null> {
+    const candidates = this.store.loadPages().filter((p) => p.sessionId === page.sessionId).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    let legacyBudget = 48; // Bounded old-crop decoding per capture; new signatures need no decoding.
+    let inspected = 0;
+    for (const previous of candidates) {
+      if (++inspected % 8 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+      let appearance = previous.appearance;
+      if (!appearance && this.backend.fingerprint && previous.cards.length <= legacyBudget) {
+        legacyBudget -= previous.cards.length;
+        const values: string[] = [];
+        for (const card of previous.cards) {
+          try {
+            const crops = await this.store.getCrops(previous.key, card.number);
+            if (!crops) break;
+            values.push(await this.backend.fingerprint(crops.canonical));
+          } catch (err) { if (this.backend.failure()) throw err; break; }
+        }
+        if (values.length === previous.cards.length && values.length) {
+          appearance = values;
+          // Reload before the patch: a background recognition result may have arrived meanwhile.
+          const latest = this.store.loadPages().find((p) => p.key === previous.key);
+          if (latest) this.store.writePage({ ...latest, appearance });
+        }
+      }
+      if (appearance && probableDuplicate(page.appearance!, appearance)) return previous;
+    }
+    return null;
+  }
+
+  /** Possible repeats are excluded from collection counts/recognition until explicit override. */
+  keepDuplicate(): boolean {
+    if (this.capturing) return false;
+    const batch = this.store.loadBatch(), pending = batch?.pendingDuplicate;
+    if (!batch || !pending) return false;
+    const existing = this.store.loadPages().find((p) => p.key === pending.page.key);
+    const page = existing ?? { ...pending.page, pageNumber: this.store.nextCaptureNumber?.(pending.page.sessionId) ?? pending.page.pageNumber,
+      duplicateOverride: { pageKey: pending.matchedPageKey, at: new Date(this.now()).toISOString() } };
+    if (!existing && !this.store.writePage(page)) return false;
+    this.store.saveBatch({ ...batch, pageKeys: [...new Set([...batch.pageKeys, page.key])], nextPage: page.pageNumber + 1, pendingDuplicate: undefined });
+    this.restore();
+    this.kick();
+    return true;
+  }
+
+  async discardDuplicate(): Promise<void> {
+    const batch = this.store.loadBatch(), pending = batch?.pendingDuplicate;
+    if (!batch || !pending) return;
+    // Never delete an explicitly kept page if a previous metadata write was interrupted.
+    if (!this.store.loadPages().some((p) => p.key === pending.page.key)) await this.store.removeCrops?.(pending.page.key);
+    this.store.saveBatch({ ...batch, pendingDuplicate: undefined });
+    this.emit();
+  }
+
+  /** Deletion retires queued jobs; running callbacks already check that their saved card exists. */
+  pruneDeleted(): void {
+    this.queue = this.queue.filter((j) => this.current(j) !== null);
+    this.emit();
+    this.kick();
   }
 
   /** Background work stops while the page is hidden (a running job finishes; nothing new starts). */
@@ -276,9 +368,12 @@ export class BatchSession {
   }
 
   /** Close the active batch (after the review). Cards still waiting keep being checked. */
-  finish(): void {
+  finish(): boolean {
+    // An admitted capture must finish storing, and a held repeat must be kept or dismissed, first.
+    if (this.capturing || this.status().duplicate) return false;
     this.store.saveBatch(null);
     this.emit();
+    return true;
   }
 
   /** Start the next job when allowed; at most one runs. */

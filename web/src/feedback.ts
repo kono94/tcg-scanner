@@ -87,6 +87,7 @@ export async function sendCollectionFeedback(saved: { identity: string | null; n
 export async function uploadCapture(jpeg: Blob, meta: {
   captureSize: { width: number; height: number }; quads: number[][][]; scores: number[]; bundleVersion: string;
   cameraMock: boolean; workflow: string; page: number | null;
+  captureId: string; sessionId: string; sourceVisitId: string; userAgent: string; provider: string | null;
 }): Promise<void> {
   if (!import.meta.env.DEV) return;
   const body = {
@@ -94,6 +95,8 @@ export async function uploadCapture(jpeg: Blob, meta: {
     capture_size: meta.captureSize, detections: meta.quads.map((q, i) => ({ quad_capture_px: q, score: meta.scores[i] ?? null })),
     bundle_version: meta.bundleVersion, camera: meta.cameraMock ? 'test_video' : 'camera', workflow: meta.workflow,
     page: meta.page, test_run: isTestRun(), created_at: new Date().toISOString(),
+    capture_id: meta.captureId, scan_session_id: meta.sessionId, source_visit_id: meta.sourceVisitId,
+    device: { user_agent: meta.userAgent, execution_provider: meta.provider },
   };
   try {
     await fetch('/__capture?meta=' + encodeURIComponent(JSON.stringify(body)), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg });

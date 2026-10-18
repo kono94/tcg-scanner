@@ -28,6 +28,7 @@ export type ToWorker =
   | { type: 'crop'; requestId: number; captureId: number; quad: Quad; width: number; height: number }
   /** Re-check a saved canonical crop (already straightened, encoder-contract size). */
   | { type: 'embed'; requestId: number; bitmap: ImageBitmap }
+  | { type: 'fingerprint'; requestId: number; bitmap: ImageBitmap }
   /** Batch mode: straightened crops of one card from the held capture, encoded for storage. */
   | { type: 'extract'; requestId: number; captureId: number; quad: Quad; display: { width: number; height: number }; thumb: { width: number; height: number } }
   /** Dev only: the held capture as JPEG (training uploads). */
@@ -52,7 +53,8 @@ export type FromWorker =
   | { type: 'cropped'; requestId: number; bitmap: ImageBitmap }
   | { type: 'searched'; requestId: number; hits: Hit[] }
   /** canonical: PNG (exact encoder-contract pixels); display/thumb: JPEG. */
-  | { type: 'extracted'; requestId: number; canonical: Blob; display: Blob; thumb: Blob; quality: Quality }
+  | { type: 'extracted'; requestId: number; canonical: Blob; display: Blob; thumb: Blob; quality: Quality; appearance: string }
+  | { type: 'fingerprinted'; requestId: number; appearance: string }
   | { type: 'encoded'; requestId: number; blob: Blob }
   | { type: 'debug'; stage: string; data: Record<string, unknown> }
   | { type: 'error'; captureId?: number; instanceId?: string; revision?: number; requestId?: number; message: string };

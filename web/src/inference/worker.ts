@@ -2,7 +2,8 @@
 // Inference worker: owns the ONNX sessions, the gallery and at most one capture's pixels.
 import * as ort from 'onnxruntime-web/webgpu';
 import { Gallery } from '../recognition/gallery';
-import { type Quad, type RGBImage } from '../vision/image';
+import { appearanceFingerprint } from '../batch/duplicates';
+import { rgbFromRGBA, type Quad, type RGBImage } from '../vision/image';
 import { decodeObb, letterboxFor } from '../vision/obb';
 import { boxOfQuad, decodePose } from '../vision/pose';
 import { CANONICAL_HEIGHT, CANONICAL_WIDTH, encoderTensor, warpCard } from '../vision/preprocess';
@@ -278,7 +279,7 @@ async function extract(msg: Extract<ToWorker, { type: 'extract' }>) {
   const thumb = await thumbCtx.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.7 });
   cropCtx = rgbCanvas(warpCard(capture.image, msg.quad, msg.display.width, msg.display.height), cropCtx);
   const display = await cropCtx.canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
-  post({ type: 'extracted', requestId: msg.requestId, canonical, display, thumb, quality: q });
+  post({ type: 'extracted', requestId: msg.requestId, canonical, display, thumb, quality: q, appearance: appearanceFingerprint(crop) });
 }
 
 async function encodeCapture(msg: Extract<ToWorker, { type: 'encode-capture' }>) {
@@ -355,10 +356,20 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
       else if (msg.type === 'crop') await displayCrop(msg);
       else if (msg.type === 'embed') await embedSaved(msg);
       else if (msg.type === 'extract') await extract(msg);
+      else if (msg.type === 'fingerprint') {
+        try {
+          const ctx = context(null, msg.bitmap.width, msg.bitmap.height);
+          ctx.drawImage(msg.bitmap, 0, 0);
+          const rgba = ctx.getImageData(0, 0, msg.bitmap.width, msg.bitmap.height);
+          post({ type: 'fingerprinted', requestId: msg.requestId, appearance: appearanceFingerprint(rgbFromRGBA(rgba.data, rgba.width, rgba.height)) });
+          ctx.canvas.width = ctx.canvas.height = 1;
+        }
+        finally { msg.bitmap.close(); }
+      }
       else if (msg.type === 'encode-capture') await encodeCapture(msg);
     } catch (err) {
       const tag = msg.type === 'recognize' ? { captureId: msg.captureId, instanceId: msg.instanceId, revision: msg.revision }
-        : msg.type === 'detect' ? { captureId: msg.captureId } : msg.type === 'crop' || msg.type === 'embed' || msg.type === 'extract' || msg.type === 'encode-capture' ? { requestId: msg.requestId } : {};
+        : msg.type === 'detect' ? { captureId: msg.captureId } : msg.type === 'crop' || msg.type === 'embed' || msg.type === 'extract' || msg.type === 'fingerprint' || msg.type === 'encode-capture' ? { requestId: msg.requestId } : {};
       post({ type: 'error', ...tag, message: (err as Error).message ?? String(err) });
     }
   });

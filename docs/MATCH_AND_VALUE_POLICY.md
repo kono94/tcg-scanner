@@ -33,6 +33,14 @@ Suggested fields: `observed_language`, `language_evidence_status`,
 selection records user confirmation separately from observed evidence. Changing
 preferences must not overwrite confirmed evidence or create another copy.
 
+Implemented valuation rule (2026-10-17): an assumed language makes a value
+provisional only when the card's language versions are priced differently (or one is
+unpriced). In the current bundled snapshot, every German Pokémon quote equals its
+English quote (17,790 pairs; Cardmarket all-language averages), so language is not
+currently a value factor, and such cards count as confirmed value. Finish (holo, reverse
+holo, 1st edition) is not modelled: each identity has one quote. The TCGdex price cache
+holds per-finish prices, which a later snapshot could expose. Condition is out of scope.
+
 ## Value presentation
 
 Every card has a persistent value-status indicator. Selected-card details and

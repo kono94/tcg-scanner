@@ -152,24 +152,27 @@ export function lumaFromRGBA(rgba: Uint8ClampedArray, width: number, height: num
 export class SceneChangeGate {
   private reference: Uint8Array | null = null;
   private moved = false;
+  private deliveryWasPaused = false;
 
   constructor(public threshold = 12) {}
 
-  /** Start waiting for a change from this luma sample (the capture's view). */
-  arm(reference: Uint8Array | null): void {
+  /** After suspended delivery, a changed steady image can establish a turn that was not observed live. */
+  arm(reference: Uint8Array | null, deliveryWasPaused = false): void {
     this.reference = reference;
     this.moved = false;
+    this.deliveryWasPaused = deliveryWasPaused;
   }
 
-  /** True when no capture is pending a change, or when the scene moved and now differs from the reference. */
+  /** Require a steady, different image, plus observed motion unless delivery had been suspended. */
   update(luma: Uint8Array, state: StabilityState): boolean {
     if (!this.reference) return true;
     if (state.reason === 'motion') this.moved = true;
-    if (!this.moved || !state.steady || luma.length !== this.reference.length) return false;
+    if ((!this.moved && !this.deliveryWasPaused) || !state.steady || luma.length !== this.reference.length) return false;
     let diff = 0;
-    for (let i = 0; i < luma.length; i++) diff += Math.abs(luma[i] - this.reference[i]);
+    const mean = luma.reduce((a, b) => a + b, 0) / luma.length;
+    const referenceMean = this.reference.reduce((a, b) => a + b, 0) / luma.length;
+    for (let i = 0; i < luma.length; i++) diff += Math.abs((luma[i] - mean) - (this.reference[i] - referenceMean));
     if (diff / luma.length < this.threshold) return false;
-    this.reference = null;
     return true;
   }
 }

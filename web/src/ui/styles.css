@@ -237,7 +237,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 @media (prefers-reduced-motion: reduce) { .pbar span { transition: none; } }
 /* Live: the strip under the preview is empty; let the preview area breathe. */
 
-.viewer.swap { animation: none; }
+.viewer.swap, .start.swap, .review.swap { animation: none; }
 
 /* Cards that need the user: visible at a glance, not only by a small badge. */
 .need { fill: rgba(255, 138, 76, .22); stroke: #FF8A4C; stroke-width: 2.5; stroke-linejoin: round; }
@@ -279,6 +279,16 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .crow2 img, .crow2 .ph { width: 40px; height: 56px; border-radius: 3px; object-fit: cover; flex: none; background: var(--well); }
 .crow2 .ci { padding-left: 0; }
 .settings label { font-size: 15px; }
+.session-controls { display: grid; gap: 12px; width: 100%; margin: 20px 0; }
+.session-controls label { display: grid; gap: 6px; font-size: 14px; }
+.session-controls input { box-sizing: border-box; min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--well); color: var(--ink); font: inherit; }
+.new-session { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.session-controls button { min-height: 44px; }
+.session-head { display: block; padding-top: 14px; border-top: 1px solid var(--line); }
+.session-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.session-summary .sn { overflow-wrap: anywhere; min-width: 0; }
+.session-line .cv { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.session-summary .k { margin-top: 4px; }
 .review { top: calc(44px + env(safe-area-inset-top)); }
 .start { z-index: 37; }
 .hbtn.primary { flex: none; background: var(--btn); color: var(--btnInk); min-height: 96px; }
@@ -291,7 +301,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .savedcard .sctop { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .savedcard .scimg canvas, .savedcard .scimg img, .savedcard .scside img, .savedcard .single.ph { width: 100%; height: auto; aspect-ratio: 63 / 88; border-radius: 8px; display: block; object-fit: cover; background: var(--well); }
 .savedcard .scside .k { margin-bottom: 4px; }
-.savedcard .scimg { padding-top: 21px; }
+.savedcard .scimg .k, .savedcard .scside .k { margin-bottom: 4px; }
 .savedcard .actions { margin-top: 12px; flex-wrap: wrap; }
 .savedcard .actions .primary { flex: 1; }
 .cand.cur .k::after { content: ' · current'; }
@@ -320,3 +330,66 @@ input.search { width: 100%; box-sizing: border-box; min-height: 44px; margin: 6p
 .bthumb.need { box-shadow: inset 0 0 0 2px var(--att); }
 .bthumb.need img { opacity: .7; }
 .bfoot { margin-top: 18px; }
+.duplicatebar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 16px 0; font-size: 13px; }
+.duplicatebar[hidden] { display: none; }
+.duplicate-label { flex-basis: 100%; color: var(--att); }
+.duplicatebar button { min-height: 44px; }
+.session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 10px; }
+.session-actions .ghost { flex: none; min-height: 44px; font-size: 14px; padding: 0 18px; }
+
+/* Home: workflow choice where scanning starts. */
+.start p.modehint { font-size: 13px; margin: -6px 2px 0; }
+.seg.modes, .seg.views { margin: 0; justify-content: stretch; }
+.seg.modes button, .seg.views button { flex: 1 1 0; min-height: 40px; font-size: 13px; }
+.seg.views { margin: 10px 0 4px; }
+.binder-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.binder-actions .new-session { flex: 1 1 100%; }
+.binder-actions input { box-sizing: border-box; min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--well); color: var(--ink); font: inherit; }
+.binder-actions .ghost { flex: none; }
+
+/* Settings: everyday options first, the rest under Advanced. */
+.settings details.advanced { margin-top: 18px; }
+.settings details.advanced summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 15px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.settings details.advanced > .k { margin-top: 10px; }
+
+/* Batch: cards found in the frozen capture, before the page is turned. */
+.st-found .br { stroke: #EDE9E3; opacity: 1; stroke-width: 2.5; stroke-linejoin: round; filter: drop-shadow(0 0 2px rgba(0, 0, 0, .6)); }
+.st-found.saved .br { stroke: #A7D7B5; }
+
+/* The capture chip never runs under the full-screen button. */
+.chip { max-width: calc(100% - 24px); }
+.cam.captured .chip { max-width: calc(100% - 72px); }
+
+/* Card viewer: your scan beside the catalog image, compact enough to keep name and price in view. */
+.vimg .pane { max-width: 190px; }
+.vimg .pane .k { text-align: center; }
+.viewer.pick .vimg .pane { max-width: 150px; }
+
+/* Batch review: a held repeat with room for both actions. */
+.held { margin-top: 18px; font-size: 13px; color: var(--ink2); line-height: 1.45; }
+.heldactions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.heldactions .ghost { flex: none; }
+.chips button[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+/* The page review has its own back link; the hidden Home bar leaves no gap above it. */
+.review { top: env(safe-area-inset-top); z-index: 37; }
+
+/* Batch auto scanning: the instruction over the live preview, with its timer bar. */
+.cuebox { position: absolute; left: 50%; top: 50%; z-index: 5; transform: translate(-50%, -50%); display: none; min-width: 200px; max-width: calc(100% - 32px);
+  padding: 14px 22px 12px; border-radius: 16px; background: rgba(15, 14, 13, .78); color: #EDE9E3; text-align: center; pointer-events: none; }
+.cuebox.show { display: block; }
+.cuebox .cuet { font: 700 22px var(--sans); letter-spacing: -.01em; }
+.cuebox .cued { font: 500 14px var(--sans); color: #D6D0C6; margin-top: 2px; min-height: 18px; font-variant-numeric: tabular-nums; }
+.cuebox .cuebar { height: 4px; margin-top: 10px; border-radius: 2px; background: rgba(237, 233, 227, .25); overflow: hidden; }
+.cuebox .cuebar span { display: block; height: 100%; background: #EDE9E3; transition: width .1s linear; }
+.cuebox.turn { border: 2px solid #EDE9E3; }
+.primary.paused { background: transparent; color: var(--ink); border: 1px solid var(--line2); }
+@media (prefers-reduced-motion: reduce) { .cuebox .cuebar span { transition: none; } }
+
+/* In-app dialogs (confirm / rename). */
+dialog.modal { border: 1px solid var(--line); border-radius: 18px; padding: 20px; width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); font-family: var(--sans); }
+dialog.modal::backdrop { background: rgba(0, 0, 0, .55); }
+dialog.modal h2 { font-size: 18px; margin: 0 0 8px; overflow-wrap: anywhere; }
+dialog.modal p { margin: 0 0 4px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+dialog.modal input { box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--well); color: var(--ink); font: 16px var(--sans); }
+.modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+.primary.danger { background: var(--att); color: #fff; }

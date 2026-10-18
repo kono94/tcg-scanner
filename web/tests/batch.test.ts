@@ -8,6 +8,7 @@ import { Catalog } from '../src/recognition/catalog';
 import type { Hit } from '../src/recognition/gallery';
 import type { PriceService } from '../src/prices/service';
 import type { OrientedBox } from '../src/vision/obb';
+import { appearanceFingerprint } from '../src/batch/duplicates';
 
 const ids = ['onepiece:en:OP01-001', 'onepiece:en:OP01-002', 'onepiece:en:OP01-003'];
 const catalog = new Catalog(ids.map((id) => ({ id, game: 'onepiece', language: 'en', cardId: id.split(':')[2], name: id, family: id, finish: 'unknown', printing: 'unknown' })));
@@ -42,6 +43,7 @@ function memoryStore() {
     },
     putCrops: async (key, n, c) => { crops.set(`${key}#${n}`, c); return true; },
     getCrops: async (key, n) => crops.get(`${key}#${n}`) ?? null,
+    removeCrops: async (key) => { for (const k of crops.keys()) if (k.startsWith(`${key}#`)) crops.delete(k); },
     thumbUrl: async () => 'data:thumb',
     loadBatch: () => (batch ? JSON.parse(JSON.stringify(batch)) : null),
     saveBatch: (b) => { batch = b; },
@@ -72,6 +74,107 @@ const good = (i: number): Hit[] => [{ identity: ids[i % 3], row: 0, score: 0.8 }
 const options = { catalog, prices, preferredLanguage: () => 'en', bundleVersion: 'v1' };
 
 describe('batch session', () => {
+  it('quarantines a probable duplicate across reload, and only an explicit override adds quantities', async () => {
+    const mem = memoryStore(), be = backend(() => grid(2), () => good(0));
+    const extract = be.b.extract;
+    const appearance = appearanceFingerprint({ width: 6, height: 8, data: new Uint8Array(6 * 8 * 3).fill(100) });
+    be.b.extract = async (...args) => ({ ...await extract(...args), appearance });
+    const s = new BatchSession(be.b, mem.store, options);
+    await s.capture(bitmap());
+    const duplicate = await s.capture(bitmap());
+    expect(duplicate).toMatchObject({ duplicate: 1, pageNumber: null, cards: 0 });
+    expect(mem.pages()).toHaveLength(1);
+    expect(s.status().cards).toBe(2);
+    // The held repeat is never discarded implicitly: no new capture and no finish until Keep/Dismiss.
+    expect(s.canCapture()).toBe(false);
+    await expect(s.capture(bitmap())).rejects.toThrow(/possible repeat/);
+    expect(s.finish()).toBe(false);
+    expect(mem.crops.size).toBe(4);
+    const restored = new BatchSession(be.b, mem.store, options);
+    expect(restored.status().duplicate).toMatchObject({ matchedPageNumber: 1, cards: 2 });
+    expect(restored.keepDuplicate()).toBe(true);
+    expect(restored.keepDuplicate()).toBe(false);
+    expect(mem.pages()).toHaveLength(2);
+    expect(mem.pages()[1]).toMatchObject({ pageNumber: 2, duplicateOverride: { pageKey: mem.pages()[0].key } });
+    await settle();
+  });
+
+  it('skips an automatic repeat without holding it or keeping its crops', async () => {
+    const mem = memoryStore(), be = backend(() => grid(2), () => good(0));
+    const extract = be.b.extract;
+    const appearance = appearanceFingerprint({ width: 6, height: 8, data: new Uint8Array(6 * 8 * 3).fill(100) });
+    be.b.extract = async (...args) => ({ ...await extract(...args), appearance });
+    const s = new BatchSession(be.b, mem.store, options);
+    s.setPaused(true);
+    await s.capture(bitmap());
+    const repeat = await s.capture(bitmap(), undefined, { holdRepeat: false });
+    expect(repeat).toMatchObject({ duplicate: 1, skipped: true, pageNumber: null, cards: 0 });
+    expect(mem.pages()).toHaveLength(1);
+    expect(mem.crops.size).toBe(2);
+    expect(s.status().duplicate).toBeNull();
+    expect(s.canCapture()).toBe(true);
+  });
+
+  it('discards unkept duplicate crops and prunes deleted queue work without resurrecting cards', async () => {
+    const mem = memoryStore(), be = backend(() => grid(1), () => good(0));
+    const extract = be.b.extract;
+    const appearance = 'a1:' + '80'.repeat(144);
+    be.b.extract = async (...args) => ({ ...await extract(...args), appearance });
+    const s = new BatchSession(be.b, mem.store, options);
+    s.setPaused(true);
+    await s.capture(bitmap());
+    await s.capture(bitmap());
+    expect(mem.crops.size).toBe(2);
+    await s.discardDuplicate();
+    expect(mem.crops.size).toBe(1);
+    expect(s.canCapture()).toBe(true);
+    expect(mem.pages()).toHaveLength(1);
+    mem.deletePage(mem.pages()[0].key);
+    s.pruneDeleted();
+    expect(s.status().waiting).toBe(0);
+    s.setPaused(false);
+    await settle();
+    expect(mem.pages()).toHaveLength(0);
+    expect(be.searches).toHaveLength(0);
+  });
+  it('does not retire a batch while an admitted capture is still being stored', async () => {
+    const mem = memoryStore(), be = backend(() => grid(1), () => good(0));
+    let resume!: () => void;
+    const barrier = new Promise<void>((resolve) => { resume = resolve; });
+    const detect = be.b.detect;
+    be.b.detect = async (id, bitmap) => { await barrier; return detect(id, bitmap); };
+    const s = new BatchSession(be.b, mem.store, options);
+    const capture = s.capture(bitmap());
+    expect(s.finish()).toBe(false);
+    resume();
+    await capture;
+    expect(mem.pages()).toHaveLength(1);
+    expect(s.finish()).toBe(true);
+    expect(s.status().active).toBeNull();
+    await settle();
+    expect(s.status().active).toBeNull();
+  });
+  it('uses the shared capture counter across batch boundaries and binds session ownership before async detection', async () => {
+    const mem = memoryStore();
+    let session = 's1', next = 4;
+    mem.store.sessionId = () => session;
+    mem.store.nextCaptureNumber = () => next;
+    const write = mem.store.writePage;
+    mem.store.writePage = (page) => { next = page.pageNumber + 1; return write(page); };
+    const s = new BatchSession(backend(() => grid(1), () => good(0)).b, mem.store, options);
+    const first = s.capture(bitmap());
+    session = 's2'; // A later session change cannot steal an already acquired capture.
+    await first;
+    expect(mem.pages()[0]).toMatchObject({ sessionId: 's1', pageNumber: 4 });
+    session = 's1';
+    s.finish();
+    expect((await s.capture(bitmap())).pageNumber).toBe(5);
+    next = 1; session = 's2';
+    expect((await s.capture(bitmap())).pageNumber).toBe(1);
+    expect(mem.pages()[2].sessionId).toBe('s2');
+    expect(mem.pages()[2].batchId).not.toBe(mem.pages()[1].batchId);
+    await settle();
+  });
   it('saves each page right away, releases the capture, and checks the cards in the background', async () => {
     const mem = memoryStore();
     let n = 0;
@@ -188,7 +291,27 @@ describe('batch session', () => {
 describe('batch auto capture: page-turn gate', () => {
   const steady: StabilityState = { steady: true, steadyMs: 2000, motion: 1, sharp: true, reason: 'steady' };
   const moving: StabilityState = { steady: false, steadyMs: 0, motion: 30, sharp: true, reason: 'motion' };
-  const luma = (v: number) => new Uint8Array(64 * 48).fill(v);
+  const luma = (v: number) => Uint8Array.from({ length: 64 * 48 }, (_, i) => i % 2 ? v : 200 - v);
+
+  it('does not latch a temporary scene change or mistake exposure for a new page', () => {
+    const gate = new SceneChangeGate(12);
+    gate.arm(luma(100), true);
+    expect(gate.update(luma(140), steady)).toBe(true);
+    expect(gate.update(luma(100), steady)).toBe(false);
+    gate.arm(luma(60), true);
+    expect(gate.update(luma(60).map((v) => v + 20), steady)).toBe(false);
+  });
+
+  it('recognizes a page turned during suspended delivery, but never recaptures the unchanged steady view', () => {
+    const gate = new SceneChangeGate(12);
+    gate.arm(luma(100), true);
+    expect(gate.update(luma(102), steady)).toBe(false);
+    expect(gate.update(luma(140), moving)).toBe(false);
+    expect(gate.update(luma(140), steady)).toBe(true);
+    gate.arm(luma(100), true);
+    // No motion samples are available during processing; the changed image is still evidence.
+    expect(gate.update(luma(140), steady)).toBe(true);
+  });
 
   it('does not capture the same page again; captures once the scene moved and changed', () => {
     const gate = new SceneChangeGate(12);

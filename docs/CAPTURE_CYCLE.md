@@ -25,7 +25,16 @@ live preview + lightweight scene-stability sampling
 
 All boxes, corners, crops, and results in a batch refer to the same capture. Number physical instances once in capture reading order. Two identical cards in different pockets remain two copies. The UI switches to a clearly labeled captured image for processing/review; it must not draw snapshot boxes on a changing live preview.
 
-Keep camera/session handling responsive. Whether the camera stream stays active during review is a device/resource policy; the displayed captured image remains fixed. Camera movement after capture does not invalidate that image or cancel useful recognition. Explicit cancel/reset/next-page actions invalidate the relevant batch generation.
+Keep camera/session handling responsive. The browser reuses its stream during
+short foreground navigation and disables tracks, video delivery/frame callbacks
+and stability sampling during processing/non-repeating review/covered screens.
+Repeat mode resumes delivery when acquiring another replacement. Explicit session
+finish and hidden/pagehide transitions end tracks and detach the video. This
+reduces repeated camera requests; browser-controlled grant persistence and actual
+phone resource behavior require device checks. Resume waits for fresh nonblank
+preview pixels and fresh stability samples. The displayed captured image remains
+fixed. Camera movement after capture does not invalidate that image or cancel useful
+recognition. Explicit cancel/reset/next-page actions invalidate the batch generation.
 
 ## User controls and proposed starting values
 
@@ -74,6 +83,29 @@ Being steady does not imply that nine cards are sharp, large enough, unoccluded,
 
 ## Batch workflow (browser pilot, implemented 2026-10-17)
 
+Batch processing holds one bounded display copy of its capture while camera
+delivery is disabled, at least one second after the save, and until fresh preview
+pixels return. Detected outlines and the save confirmation are drawn on it. This is distinct
+from the full worker capture, which is released after crop extraction. Automatic
+capture requires an explicit **Start scanning** (entering the scanner never starts it;
+Pause, leaving the scanner or losing the camera stops it), then a currently different
+steady scene after a configurable page-turn window (default 5 seconds, starting when the
+saved photo gives way to the live preview); a transient change does not disarm the page gate.
+The window is presented as `Turn the page` with its own countdown, not as part of the
+`Scan in` countdown. The steady dwell counts only from the end of the window.
+Uniform exposure offsets alone do not count as page changes.
+
+Probable repeated pages are detected using rectified appearance evidence. From an
+automatic capture they are skipped: crops removed, nothing saved, a note shown, and
+auto capture waits for a page turn again. From a manual capture they are quarantined
+outside collection quantities and recognition admission until explicit `Keep anyway`.
+Manual capture bypasses auto timing, not that quarantine. A held
+candidate blocks further captures and batch/session completion until the user keeps
+or dismisses it; it is never discarded implicitly. Keep reduced pending crops
+reload-safe and
+preserve one-to-one physical-instance counts. This heuristic is uncalibrated;
+it cannot distinguish physically different pages with identical visible designs.
+
 An optional "review at the end" workflow for binders: each capture is a new page. After detection the
 straightened crops of every card are stored and the capture is released at once, so acquisition of
 the next page starts immediately and nothing capture-sized is retained between pages. Recognition
@@ -103,4 +135,7 @@ Retry recognition/verification on the same crop when appropriate, or recapture t
 - [MDN track settings](https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getSettings): inspect actual selected camera settings rather than assuming requested resolution or cadence was granted.
 - [OpenCV motion analysis](https://docs.opencv.org/4.13.0/d7/df3/group__imgproc__motion.html): global motion estimation is an available implementation technique; it is not a requirement to ship OpenCV in the browser.
 
-The policy, defaults, and expected engineering simplifications are proposals. They have not yet been benchmarked or wired into either client.
+The browser implements this cycle and the camera-delivery policy above. Initial
+timing/quality thresholds and physical-device performance remain uncalibrated or
+unmeasured; the user-reported iPhone visit is not a controlled benchmark. See the
+[phone-feedback work log](PHONE_FEEDBACK_2026-10-17.md).

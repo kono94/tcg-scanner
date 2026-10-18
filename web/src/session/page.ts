@@ -47,6 +47,8 @@ export interface CardInstance {
 export type PageStatus = 'empty' | 'detecting' | 'processing' | 'settled' | 'failed';
 
 export interface PageState {
+  /** Persistent collection session that owned this capture when pixels were acquired. */
+  scanSessionId?: string;
   generation: number;
   pageNumber: number;
   captureId: number | null;
@@ -343,8 +345,8 @@ export class PageSession {
   }
 
   /** Explicit page boundary: invalidate all work of the previous generation. */
-  nextPage(): void {
-    this.reset(this.page.pageNumber + 1);
+  nextPage(pageNumber = this.page.pageNumber + 1): void {
+    this.reset(pageNumber);
   }
 
   /** Cancel the active batch (stop, hide, background). Confirmed results of a settled page stay reviewable. */

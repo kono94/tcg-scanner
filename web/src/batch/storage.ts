@@ -1,6 +1,6 @@
 // BatchStore on the Collection's own storage: pages in localStorage, crops in IndexedDB.
-import { currentSession, deleteSavedCard, loadPages, patchSavedCard, writePage } from '../collection/store';
-import { getCrops, putCrops } from '../collection/crops';
+import { currentSession, deleteSavedCard, loadPages, nextCaptureNumber, patchSavedCard, writePage } from '../collection/store';
+import { deletePageCrops, getCrops, putCrops } from '../collection/crops';
 import type { BatchRecord, BatchStore } from './session';
 
 const BATCH = 'tcg-scanner-batch-v1';
@@ -21,15 +21,22 @@ export const browserBatchStore: BatchStore = {
   removeCard: deleteSavedCard,
   putCrops,
   getCrops,
+  removeCrops: deletePageCrops,
   thumbUrl: blobToDataUrl,
   loadBatch() {
-    try { return JSON.parse(localStorage.getItem(BATCH) ?? 'null') as BatchRecord | null; } catch { return null; }
+    try {
+      const batch = JSON.parse(localStorage.getItem(BATCH) ?? 'null') as BatchRecord | null;
+      if (batch && !batch.sessionId) batch.sessionId = loadPages().find((p) => batch.pageKeys.includes(p.key))?.sessionId;
+      return batch;
+    } catch { return null; }
   },
   saveBatch(batch) {
     try {
       if (batch) localStorage.setItem(BATCH, JSON.stringify(batch));
       else localStorage.removeItem(BATCH);
-    } catch { /* storage unavailable */ }
+      return true;
+    } catch { return false; }
   },
   sessionId: () => currentSession(),
+  nextCaptureNumber,
 };

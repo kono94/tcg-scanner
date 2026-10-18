@@ -42,23 +42,121 @@ node web/scripts/link-media.mjs
 cd web && npm install && npm run dev
 ```
 
-Open `http://localhost:5173`. Choose **Use camera** or a **Test video**. `?mock=<file>`
+Open `http://localhost:5173`. Choose **Scan**, **New binder…**, or a **Test video**. `?mock=<file>`
 starts a test video directly. The video mock plays a local file and passes
 `captureStream()` into the same path as `getUserMedia`. It is labeled in the UI and is
 not a camera benchmark. Phones need HTTPS for camera access; a laptop's LAN HTTP
 address does not count as localhost on the phone.
 
+## Home, binders and the Collection
+
+Home shows **Continue <binder>**, the workflow choice (**Single review** = review each
+capture before the next, the default; **Batch review** = scan many pages, review at the end)
+with a one-line explanation, then Collection (its subtitle reads `€X · N cards · M binders`:
+matched cards with a known price, unknown prices never counted), Settings, **New binder…**
+(optional name) and **Finish binder**. Binder headings in Collection show name and value,
+the details below, then **Continue scanning**, **Rename** and **Delete** in one row.
+Confirmations and renaming use an in-app modal dialog (`src/ui/dialog.ts`, native
+`<dialog>`), not the browser's `confirm()`/`prompt()`.
+
+The UI says binder → page → card. In code and storage a binder is still a scan session
+and a page a capture/`SavedPage`. A new unnamed binder is called `Binder N`. Rename or
+continue any binder from its Collection heading. Collection has two views: **Binders**
+(binder → pages) and **All cards** (every saved card sorted by current value, with a
+**Needs a check** filter). Sessions persist
+across reloads and days. Starting another session parks the previous one; it does
+not delete it, except an unnamed session that never saved a capture. On upgrade, the
+legacy session stays active only if it was used within its old three-hour window. Both scan workflows share the session's capture counter.
+
+Saved captures appear as **Page 1**, **Page 2**, etc. A retry revises the
+current capture; repeated saves are idempotent. New sessions start at 1; finishing
+a batch, switching workflows, deleting a capture or reloading does not reset the
+counter. Existing saved groups migrate without changing their keys, numbering,
+quantities or stored crops. Existing duplicate display numbers are preserved.
+Each binder in Collection also has **Delete**, including binders with no saved pages. The in-app confirmation removes that group's saved cards,
+crop storage and session metadata, and retires its queue work. Other collections
+and already uploaded training originals are unaffected.
+
+## Camera lifecycle and responsiveness
+
+One stream is reused during foreground scanning and short Home/Settings/Collection/
+review visits. When camera pixels are unnecessary (including snapshot processing,
+ordinary review and batch extraction), tracks are disabled, video playback/frame callbacks and
+stability sampling stop. Returning to acquisition requires fresh nonblank pixels
+and resets the stability dwell. Finishing a session, hiding or leaving the browser
+page ends tracks and detaches the video. Model sessions remain independent.
+
+Concurrent camera opens are coalesced; obsolete permission results are closed.
+No automatic permission retry loop runs. Browser permission persistence is outside
+the app's control: reuse avoids repeat requests during short navigation, but one
+prompt across all reloads/restarts cannot be guaranteed. Physical Safari camera
+indicator, power consumption, focus/restart timing and sustained performance still
+need controlled checks. The iPhone 13 mini feedback is recorded in
+[the work log](../docs/PHONE_FEEDBACK_2026-10-17.md).
+
+Rendering follows state changes and active presenter animations instead of an
+unconditional frame loop throughout inference. Diagnostics log camera-open and
+first nonblank-preview timing; these do not measure autofocus completion. Repeat
+mode resumes camera delivery when acquiring the next replacement capture.
+
 ## Batch workflow (Settings → Scan workflow)
 
-"Batch (review at the end)" scans page after page (auto when steady or manual). Per capture:
+"Batch review" scans page after page (auto when steady or manual). In auto mode, entering
+the scanner (e.g. **Continue <binder>**) only opens the live preview: automatic scanning
+starts with **Start scanning** under the preview, **Pause scanning** stops it (`Scanning
+paused` with a `Paused` box over the preview; **Continue scanning** resumes), and leaving the
+scanner or losing the camera stops it again (a manual shutter button stays available
+while it runs). Start scans the page in view after the steady dwell, without a page-turn
+gate. Per capture:
 detect → the worker writes each card's canonical crop (PNG, encoder-contract pixels), display
 crop and thumbnail → IndexedDB → the capture is released (worker buffer dropped) → the page is saved
-to the Collection with its cards `queued` → back to the live preview. `src/batch/session.ts`
+to the Collection with its cards `queued` → back to the live preview. During
+processing and camera warm-up, one display-sized frozen capture stays visible;
+muting the stream never intentionally exposes its black output. The full worker
+capture is still released after extraction. `src/batch/session.ts`
 then embeds + searches one stored crop at a time (FIFO across pages, yields to single-page work,
 paused while hidden) and writes each result into the saved card. The queue is rebuilt from the
 saved pages at boot, so a reload or killed tab loses nothing. Admission control: no capture while
 90 cards wait (resumes at 60). Auto mode waits for a page turn (scene moved and differs from the
-last capture; uncalibrated threshold) before the next automatic capture. "Review" (finish the batch) lists
+last capture; uncalibrated threshold) before the next automatic capture. When frame
+delivery was suspended during extraction, a fresh steady image that differs from
+the captured reference can establish a page turn that occurred during the gap.
+The unchanged page remains gated, and the scene is rechecked up to the actual
+capture rather than latching a temporary change. Uniform exposure shifts are
+removed from the luma comparison. After a saved (or skipped repeat) page, a page-turn window
+(Settings → Advanced → Time to turn the page, default 5 s; settings revision 3 raises
+stored values below 5 s once) starts when the saved photo is replaced by the live preview.
+During it no capture happens and a large `Turn the page · N s` instruction with an emptying
+bar sits over the preview. Then `Hold steady · Scan in X s` with a filling bar: the steady
+dwell counts only from the end of the window, so steadiness while turning does not
+trigger a capture. If the scene still matches the previous page, `Turn the page · Waiting
+for page N` stays up. A capture that found no cards only waits 1.5 s. The window is
+separate from steady dwell and single-capture repeat cooldown. Timings are uncalibrated
+and not device-verified.
+
+After detection the found cards are outlined on the frozen capture. When the page is
+stored, the frozen photo shows `Page N saved · K cards · turn the page` for at least 1.5
+seconds and until fresh preview pixels arrive, instead of a `Starting camera` flash, so a
+missed card can be seen before the page is turned. Each capture also gives a short
+vibration (Settings → Capture feedback). Browsers without the Vibration API (iOS Safari)
+play a soft click instead, once audio was unlocked by a tap. Neither is device-verified.
+
+Before admission, rectified card appearances are compared one-to-one with saved
+captures in the same named session. A repeat found by an **automatic** capture is
+skipped silently: its crops are removed, nothing is saved, and a note says
+`Already scanned (page N) · turn the page`; auto capture waits for a page turn again.
+A repeat found by a **manual** Scan now is a **possible repeat**: excluded from saved
+counts and background recognition, its reduced crops held for explicit
+**Keep anyway**, which also works after reload. While a repeat is held, capture (auto and manual),
+finishing the batch and switching or finishing the session wait for **Keep anyway**
+or **Dismiss**; only Dismiss (or deleting its collection) discards the candidate.
+Overridden captures record that decision.
+These are uncalibrated appearance heuristics, not physical-card identity or a
+guarantee of duplicate detection. Identical-looking physical pages may need
+Keep anyway. Existing saved crops acquire signatures lazily with a bounded
+48-card decoding budget per attempt; missing old crops cannot establish a match.
+
+"Review" (finish the batch) lists
 the cards that need the user and opens the Collection card screen for each. On desktop Chrome
 (WebGPU) the stored-crop path gave identical top-1 identities and scores to direct recognition on
 six cards of the test video; not measured on a phone.
@@ -75,6 +173,10 @@ reload a connected phone. Capture/page breadcrumbs carry what is alive on the UI
 "Save captures for training" (Settings, dev server only, off by default) POSTs each full capture
 (JPEG) with its detections to `/__capture`, stored under `runs/captures/<date>/`
 (`runs/captures-tests/` for automated runs). Not present in production builds.
+New uploads also carry persistent scan-session, capture and source-visit IDs,
+plus reported browser user agent and execution provider. A source visit is one
+document load; repeated physical views across visits must still be grouped during
+dataset review. Uploaded geometry is an unverified detector proposal, not a label.
 
 ## Card backs
 

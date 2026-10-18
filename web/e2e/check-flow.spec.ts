@@ -26,7 +26,7 @@ test('scan, check unknown cards, next scan', async ({ page }) => {
       } else if (steps % 3 === 1 && (await page.getByRole('button', { name: 'None of these' }).count())) {
         await page.getByRole('button', { name: 'None of these' }).click();
       } else {
-        const skip = page.getByRole('button', { name: 'Skip', exact: true });
+        const skip = page.getByRole('button', { name: 'Decide later', exact: true });
         if (await skip.count()) await skip.click();
         else await page.getByRole('button', { name: /Correct · (next|done)/ }).click();
       }
@@ -68,6 +68,6 @@ test('scan, check unknown cards, next scan', async ({ page }) => {
   await page.locator('.swipe.open .swipedel').click();
   await expect(page.locator('.crow2')).toHaveCount(rows - 1);
   await page.locator('.homebtn').click();
-  await page.locator('.hbtn', { hasText: 'Scan' }).click();
+  await page.locator('.hbtn.primary').click();
   await expect(page.getByRole('button', { name: 'Scan now' })).toBeVisible();
 });

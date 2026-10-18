@@ -14,7 +14,7 @@ The user should always understand what to point at, whether to hold still, which
 - **Camera area:** live framing guides and steady/countdown cues before capture; detection starts after capture, so do not invent live card boxes. Show thin white outlines on actual detections in the fixed captured image, clearly labeled as captured. Prefer corner brackets or light quadrilateral strokes over heavy filled boxes. A restrained white scan-line traverses the captured region once when a usable capture is accepted. It represents acquisition, not model execution progress.
 - **Per-card status:** small anchored badge with a physical-instance number and icon: queued, working, check, or attention. Confirmed outlines may use a restrained success accent; pair it with a check so meaning survives grayscale. Keep names, prices, and match percentages out of nine-card overlays.
 - **Bottom:** one short instruction and real page counts, such as `6 ready · 2 checking · 1 needs attention`. A compact activity indicator appears only while work is pending. Show one contextual primary action: capture, review, retry selected, or next page.
-- **Selection/review:** tapping a card opens a compact detail area with its crop, name, exact ID, state, and relevant retry/skip control. Page review lists each physical copy once, grouped quantities optionally. Prices are secondary and load independently.
+- **Selection/review:** tapping a card opens its details: the user's crop beside the catalog image (or the photo region), name, card number, state, price, and the relevant retry / `None of these` / `Decide later` controls. Candidate thumbnails carry the card name and number. Cards of the expected game (the capture's matched cards, else the binder's saved cards) are listed first. That is display order only, never match evidence. A catalog search by name or number is available in the viewer as well as in the Collection. Page review lists each physical copy once and ends with `Scan again` and `Save & next` (save and next page are one step). Prices load independently.
 
 Use a dark camera scrim only behind instructions/chrome where needed for contrast. Do not dim or blur all card faces while processing. Keep labels inside the visible preview and resolve collisions; show a selected card's details rather than stacking nine wide labels.
 
@@ -66,6 +66,25 @@ The default auto-when-steady mode stops for review after one capture. Optional r
 
 ## Multi-card identity and scheduling
 
+- The browser exposes a named scan session above captures and card instances; the UI
+  calls them binder → page → card. Home shows the collection value and provides
+  continue / new binder / finish and the workflow choice; Collection can rename,
+  continue or delete any binder and lists all cards by value with a needs-a-check filter.
+  Sessions continue across days and workflows, with one persistent capture
+  counter. UI uses `Capture N`; legacy page numbers are preserved on migration.
+  Session names are editable display metadata, never recognition evidence or
+  physical-card identity. A rescan revises its capture rather than adding copies.
+  Collection headings expose Delete collection, with an in-app confirmation of
+  the group and capture count. Delete the group's saved crops and retire queue
+  callbacks; deleting one group must not remove another or training originals.
+- Batch processing shows its frozen capture while camera delivery is suspended,
+  outlines the detected cards on it, confirms `Page N saved` there for at least a
+  second, then returns to live preview after fresh pixels arrive. Automatic captures
+  of an unchanged page are skipped with an `Already scanned` note. A repeat from a
+  manual capture is held: a notice below the preview states `not saved` and offers
+  `Keep anyway` and `Dismiss`. It is not counted or recognized as an admitted page
+  until kept. Scanning and Done stay disabled until one is chosen; batch review
+  offers both too. A capture also gives a short vibration (a click where unsupported).
 - Maintain separate IDs for scan session, page instance, physical card instance/pocket, transient track, and catalog card. Two pockets with the same catalog ID are two copies. Grouping by catalog ID may change display, never silently delete a physical copy. The old duplicate-card setting must not suppress instances in a binder-page scan.
 - Preserve stable display numbers within a captured page; use reading order once acquisition is stable rather than renumbering on every frame. Map crop/recognition results to the captured instances. Do not draw a stale snapshot box over a moved live page.
 - With one recognition worker, retain the bounded crops of one immutable capture under a total memory cap. Nine-card support means nine independent progress states, not nine uncontrolled simultaneous model invocations. Unresolved instances receive fair opportunities; one expensive or ambiguous crop cannot starve the rest. Tracking modes may coalesce live crops later; snapshot mode does not maintain a live per-track crop queue.

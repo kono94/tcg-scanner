@@ -29,6 +29,12 @@ describe('collection prices', () => {
     expect(scanAmountIn(saved.cards[1].value, 'EUR', 0.9)).toBeCloseTo(9);
   });
 
+  it('counts an assumed language as confirmed only when all language versions cost the same', () => {
+    const card = (number: number, low: number, high: number): SavedPage['cards'][number] => ({ number, identity: `pokemon:en:c${number}`, name: 'C', cardId: `c${number}`,
+      state: 'confirmed', languageAssumed: true, checkedByUser: false, value: { currency: 'EUR', preferred: low, low, high, cue: false }, thumb: null });
+    expect(totals([page([card(1, 2, 2), card(2, 1, 5)])])).toMatchObject({ confirmed: 2, provisionalHigh: 5 });
+  });
+
   it('keeps a missing current price unknown, never zero', async () => {
     const saved = page([{ number: 1, identity: 'pokemon:de:x', name: 'X', cardId: 'x', state: 'confirmed', languageAssumed: false, checkedByUser: false,
       versions: ['pokemon:de:x'], preferredId: 'pokemon:de:x', value: null, thumb: null }]);

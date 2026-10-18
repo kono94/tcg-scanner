@@ -9,6 +9,10 @@ limitations are in [the browser README](../web/README.md) and
 
 Next work:
 
+The [2026-10-17 phone-feedback work log](PHONE_FEEDBACK_2026-10-17.md) records
+the iPhone 13 mini report, capture inventory, implemented session/camera changes,
+validation and remaining work. The phone report is not a controlled benchmark.
+
 1. Verify physical iPhone/Safari and Android/Chrome: HTTPS camera access,
    orientation, WebGPU/WASM fallback, first/settled latency, memory, thermal
    behavior, sustained batches and background/resume. Record named devices and

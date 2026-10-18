@@ -31,6 +31,37 @@ describe('stability monitor', () => {
 });
 
 describe('capture cycle', () => {
+  it('paces auto batch acquisition and rechecks scene change right up to capture', () => {
+    const cycle = new CaptureCycle({ mode: 'auto', dwellMs: 800, cooldownMs: 3000 });
+    const steady = { steady: true, steadyMs: 2000, motion: 0, sharp: true, reason: 'steady' as const };
+    cycle.rearm(3000);
+    cycle.requireSceneChange();
+    // The pause is not a steadiness countdown: no "Scan in" until it has passed.
+    expect(cycle.tick(1000, steady, true).view).toMatchObject({ countdownMs: null, coolingDown: true, cooldownLeftMs: 2000 });
+    // The camera moved briefly and came back: the original page remains blocked at expiry.
+    expect(cycle.tick(3001, steady, false).capture).toBe(false);
+    // Steadiness during the page-turn window does not count: the dwell starts when it ends.
+    expect(cycle.tick(3002, steady, true).view.countdownMs).toBe(798);
+    expect(cycle.tick(3800, steady, true).capture).toBe(true);
+    expect(cycle.canCaptureManually()).toBe(true);
+  });
+  it('an explicit rearm (Start) clears the page-turn gate', () => {
+    const cycle = new CaptureCycle({ mode: 'auto', dwellMs: 800, cooldownMs: 3000 });
+    const steady = { steady: true, steadyMs: 2000, motion: 0, sharp: true, reason: 'steady' as const };
+    cycle.requireSceneChange();
+    expect(cycle.tick(100, steady, false).view.awaitingChange).toBe(true);
+    cycle.rearm();
+    expect(cycle.tick(200, steady, false).capture).toBe(true);
+  });
+  it('freezes both automatic and manual live acquisition behind another screen', () => {
+    const cycle = new CaptureCycle({ mode: 'auto', dwellMs: 800, cooldownMs: 3000 });
+    const steady = { steady: true, steadyMs: 2000, motion: 0, sharp: true, reason: 'steady' as const };
+    cycle.setFrozen(true);
+    expect(cycle.tick(2000, steady).view.armed).toBe(false);
+    expect(cycle.canCaptureManually()).toBe(false);
+    cycle.setFrozen(false);
+    expect(cycle.tick(2001, steady).capture).toBe(true);
+  });
   const steady = (ms: number) => ({ steady: true, steadyMs: ms, motion: 0, sharp: true, reason: 'steady' as const });
   const moving = { steady: false, steadyMs: 0, motion: 9, sharp: true, reason: 'motion' as const };
 

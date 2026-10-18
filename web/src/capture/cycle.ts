@@ -24,6 +24,10 @@ export interface CycleView {
   armed: boolean;
   /** Batch mode: the last page was captured; waiting for the scene to change (page turned). */
   awaitingChange?: boolean;
+  /** Batch mode: the page-turn window after a capture is still running (not a steadiness countdown). */
+  coolingDown?: boolean;
+  /** Remaining page-turn window while coolingDown. */
+  cooldownLeftMs?: number;
 }
 
 export class CaptureCycle {
@@ -32,6 +36,7 @@ export class CaptureCycle {
   private settledAt: number | null = null;
   private frozen = false;
   private awaitingChange = false;
+  private liveNotBefore = 0;
 
   constructor(public settings: CycleSettings = { ...DEFAULT_CYCLE }) {}
 
@@ -47,11 +52,15 @@ export class CaptureCycle {
   tick(t: number, s: StabilityState, sceneChanged = true): { capture: boolean; view: CycleView } {
     const { mode, dwellMs, cooldownMs } = this.settings;
     const idle = { capture: false, view: { phase: this.phase, countdownMs: null, armed: false } };
+    if (this.frozen) return idle;
     if (this.phase === 'live') {
       if (mode === 'manual') return idle;
-      if (this.awaitingChange && sceneChanged) this.awaitingChange = false;
-      if (this.awaitingChange) return { capture: false, view: { phase: 'live', countdownMs: null, armed: false, awaitingChange: true } };
-      const remaining = s.steady ? Math.max(0, dwellMs - s.steadyMs) : null;
+      // The page-turn window is not shown as "hold steady": the user is turning the page.
+      if (t < this.liveNotBefore) return { capture: false, view: { phase: 'live', countdownMs: null, armed: false, coolingDown: true, cooldownLeftMs: this.liveNotBefore - t } };
+      if (this.awaitingChange && !sceneChanged) return { capture: false, view: { phase: 'live', countdownMs: null, armed: false, awaitingChange: true } };
+      // The steady dwell starts when the window ends: steadiness while turning does not count.
+      const steadyMs = this.liveNotBefore ? Math.min(s.steadyMs, t - this.liveNotBefore) : s.steadyMs;
+      const remaining = s.steady ? Math.max(0, dwellMs - steadyMs) : null;
       // Steady long enough is not enough: also wait for a sharp frame (no motion/focus blur).
       return { capture: remaining === 0 && s.sharp !== false, view: { phase: 'live', countdownMs: remaining, armed: true } };
     }
@@ -65,7 +74,7 @@ export class CaptureCycle {
 
   /** Manual capture bypasses the dwell, not later quality checks; refused while a batch runs. */
   canCaptureManually(): boolean {
-    return this.phase === 'live' || this.phase === 'review';
+    return !this.frozen && (this.phase === 'live' || this.phase === 'review');
   }
 
   beginBatch(): void {
@@ -91,11 +100,13 @@ export class CaptureCycle {
     this.awaitingChange = true;
   }
 
-  /** Return to live acquisition (scan again or next page). */
-  rearm(): void {
+  /** Return to live acquisition (scan again, next page, or an explicit start); clears the page-turn gate. */
+  rearm(notBefore = 0): void {
     if (this.phase === 'paused') this.beforePause = 'live';
     else this.phase = 'live';
     this.settledAt = null;
+    this.awaitingChange = false;
+    this.liveNotBefore = notBefore;
   }
 
   pause(): void {

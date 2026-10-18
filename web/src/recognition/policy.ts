@@ -180,7 +180,7 @@ export interface Candidate {
 }
 
 /** Distinct artwork candidates from a hit list, best first. */
-export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLanguage: string, limit = 6): Candidate[] {
+export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLanguage: string, limit = 6, preferGame: string | null = null): Candidate[] {
   const out: Candidate[] = [];
   const seen = new Set<string>();
   for (const h of hits) {
@@ -189,7 +189,18 @@ export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLang
     seen.add(card.family);
     const versions = catalog.family(h.identity);
     out.push({ family: card.family, card: versions.find((v) => v.language === preferredLanguage) ?? card, versions, score: h.score });
-    if (out.length === limit) break;
   }
-  return out;
+  // Display order only: cards of the expected game first (score order within each group). This
+  // never changes the match decision; other games stay available further along.
+  if (preferGame) out.sort((a, b) => Number(b.card.game === preferGame) - Number(a.card.game === preferGame));
+  return out.slice(0, limit);
+}
+
+/** The game most cards resolved to (for candidate display order); null without a clear majority. */
+export function dominantGame(games: readonly (string | null | undefined)[]): string | null {
+  const counts = new Map<string, number>();
+  for (const g of games) if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+  const ranked = [...counts].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || (ranked[1] && ranked[1][1] * 2 > ranked[0][1])) return null;
+  return ranked[0][0];
 }

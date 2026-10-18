@@ -32,7 +32,7 @@ Card count is variable. Nine is a benchmark scenario, never a fixed input shape,
 
 Prefer stable-frame capture as the first scanning mode: lightweight scene-stability check → capture → detect → recognize → review on that fixed image. Continuous per-card tracking is optional later work. Provide configurable auto-when-steady, manual, and optional repeat-while-steady triggering as specified in `docs/CAPTURE_CYCLE.md`.
 
-Two scan workflows exist (Settings → Scan workflow). **Single page** recognizes and reviews each capture before the next. **Batch (review at the end)** detects, stores each card's canonical crop in IndexedDB, saves the page with cards `queued`, releases the capture and returns to the preview; a persisted background queue recognizes stored crops one at a time and survives reloads. See `web/README.md`.
+Two scan workflows exist (Home → workflow choice). **Single review** recognizes and reviews each capture before the next. **Batch review** (auto scanning starts only on an explicit Start, with a page-turn window after each page) detects, stores each card's canonical crop in IndexedDB, saves the page with cards `queued`, releases the capture and returns to the preview; a persisted background queue recognizes stored crops one at a time and survives reloads. See `web/README.md`.
 
 Card backs are enrolled as gallery rows (`back:pokemon`, `back:onepiece`). A confident back hit becomes the `back` state: shown and counted separately, never matched, priced, reviewed or saved as a card. Back thresholds are uncalibrated.
 

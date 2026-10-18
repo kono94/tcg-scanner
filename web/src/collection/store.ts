@@ -53,6 +53,9 @@ export interface SavedCard {
 }
 
 export interface SavedPage {
+  /** Original rectified appearances, including backs; not exact-card identities. */
+  appearance?: string[];
+  duplicateOverride?: { pageKey: string; at: string };
   key: string;
   sessionId: string;
   pageNumber: number;
@@ -69,7 +72,19 @@ const BOOT = Date.now().toString(36);
 
 const PAGES = 'tcg-scanner-collection-v1';
 const SESSION = 'tcg-scanner-session-v1';
-const SESSION_GAP_MS = 3 * 60 * 60 * 1000;
+const SESSIONS = 'tcg-scanner-sessions-v2';
+
+export interface ScanSession {
+  id: string;
+  name: string;
+  startedAt: string;
+  finishedAt?: string;
+  nextCapture: number;
+  /** The user named it; an unnamed session that never saved a capture is not kept. */
+  named?: boolean;
+}
+
+interface SessionRecords { activeId: string | null; sessions: ScanSession[] }
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -89,12 +104,108 @@ function write(key: string, value: unknown): boolean {
   }
 }
 
-/** Current session: continues while active, a new one starts after 3 hours without saving. */
+function defaultSessionName(at: string): string {
+  return `Scan · ${new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** Short default for a new binder ("Binder 3"); the user can rename it. */
+function nextBinderName(sessions: readonly ScanSession[]): string {
+  const names = new Set(sessions.map((s) => s.name));
+  let n = sessions.length + 1;
+  while (names.has(`Binder ${n}`)) n++;
+  return `Binder ${n}`;
+}
+
+/** Migrate grouping metadata only: original page keys, numbering, cards and crops stay intact. */
+function sessionRecords(): SessionRecords {
+  const stored = read<SessionRecords | null>(SESSIONS, null);
+  if (stored) return stored;
+  const groups = new Map<string, SavedPage[]>();
+  for (const p of loadPages()) groups.set(p.sessionId, [...(groups.get(p.sessionId) ?? []), p]);
+  const sessions = [...groups].map(([id, pages]) => {
+    const startedAt = pages.map((p) => p.savedAt).sort()[0];
+    return { id, startedAt, name: defaultSessionName(startedAt), nextCapture: Math.max(...pages.map((p) => p.pageNumber)) + 1 };
+  });
+  // The legacy session continues only if it was still active under its old three-hour rule.
+  const legacy = read<{ id: string; last: number } | null>(SESSION, null);
+  const recent = legacy && Date.now() - legacy.last < 3 * 60 * 60 * 1000;
+  const records = { sessions, activeId: recent ? sessions.find((s) => s.id === legacy.id)?.id ?? null : null };
+  // Do not persist an empty migration on every boot: new sessions are explicit.
+  if (sessions.length) write(SESSIONS, records);
+  return records;
+}
+
+export function loadScanSessions(): ScanSession[] { return sessionRecords().sessions; }
+
+export function activeScanSession(): ScanSession | null {
+  const records = sessionRecords();
+  return records.sessions.find((s) => s.id === records.activeId) ?? null;
+}
+
+/** Unnamed sessions that never saved a capture would otherwise pile up as empty collections. */
+function withoutUnusedActive(records: SessionRecords): SessionRecords {
+  const active = records.sessions.find((s) => s.id === records.activeId);
+  if (!active || active.named || active.nextCapture > 1 || loadPages().some((p) => p.sessionId === active.id)) return records;
+  return { activeId: null, sessions: records.sessions.filter((s) => s !== active) };
+}
+
+export function startScanSession(name = '', now = Date.now()): ScanSession {
+  const records = withoutUnusedActive(sessionRecords());
+  const at = new Date(now).toISOString();
+  const custom = name.trim().slice(0, 80);
+  const session: ScanSession = { id: `s-${crypto.randomUUID()}`, name: custom || nextBinderName(records.sessions), startedAt: at, nextCapture: 1, ...(custom ? { named: true } : {}) };
+  records.sessions.push(session);
+  if (!write(SESSIONS, { ...records, activeId: session.id })) throw new Error('Could not save the session: browser storage is full or disabled.');
+  return session;
+}
+
+export function resumeScanSession(id: string): boolean {
+  const current = sessionRecords();
+  const records = current.activeId === id ? current : withoutUnusedActive(current);
+  const session = records.sessions.find((s) => s.id === id);
+  if (!session) return false;
+  delete session.finishedAt;
+  return write(SESSIONS, { ...records, activeId: id });
+}
+
+export function renameScanSession(id: string, name: string): boolean {
+  const records = sessionRecords();
+  const session = records.sessions.find((s) => s.id === id);
+  if (!session || !name.trim()) return false;
+  session.name = name.trim().slice(0, 80);
+  session.named = true;
+  return write(SESSIONS, records);
+}
+
+export function finishScanSession(now = Date.now()): boolean {
+  const records = withoutUnusedActive(sessionRecords());
+  const session = records.sessions.find((s) => s.id === records.activeId);
+  if (session) session.finishedAt = new Date(now).toISOString();
+  return write(SESSIONS, { ...records, activeId: null });
+}
+
+/** Delete a named collection and its stored crops; no raw training uploads are removed. */
+export async function deleteScanSession(id: string): Promise<boolean> {
+  const pages = loadPages();
+  const records = sessionRecords();
+  if (!write(PAGES, pages.filter((p) => p.sessionId !== id))) return false;
+  if (!write(SESSIONS, { activeId: records.activeId === id ? null : records.activeId, sessions: records.sessions.filter((s) => s.id !== id) })) {
+    write(PAGES, pages);
+    return false;
+  }
+  await Promise.all(pages.filter((p) => p.sessionId === id).map((p) => deletePageCrops(p.key)));
+  return true;
+}
+
+/** Explicit lifetime: no date rollover or inactivity timeout. */
 export function currentSession(now = Date.now()): string {
-  const s = read<{ id: string; last: number } | null>(SESSION, null);
-  const id = s && now - s.last < SESSION_GAP_MS ? s.id : `s${now}`;
-  write(SESSION, { id, last: now });
-  return id;
+  return activeScanSession()?.id ?? startScanSession('', now).id;
+}
+
+export function nextCaptureNumber(id = activeScanSession()?.id): number {
+  if (!id) return 1;
+  return Math.max(loadScanSessions().find((s) => s.id === id)?.nextCapture ?? 1,
+    ...loadPages().filter((p) => p.sessionId === id).map((p) => p.pageNumber + 1));
 }
 
 export function loadPages(): SavedPage[] {
@@ -138,7 +249,11 @@ export function patchSavedCard(pageKey: string, number: number, patch: Partial<S
 export function writePage(page: SavedPage): boolean {
   const pages = loadPages().filter((p) => p.key !== page.key);
   pages.push(page);
-  return write(PAGES, pages);
+  if (!write(PAGES, pages)) return false;
+  const records = sessionRecords();
+  const session = records.sessions.find((s) => s.id === page.sessionId);
+  if (session) { session.nextCapture = Math.max(session.nextCapture, page.pageNumber + 1); write(SESSIONS, records); }
+  return true;
 }
 
 /** Saved-card fields for a match (identity, versions, scan-time value), shared by page saves and batch results. */
@@ -176,6 +291,10 @@ async function thumbnail(bitmap: ImageBitmap | null): Promise<string | null> {
 export async function savePage(page: PageState, catalog: Catalog, displayCrop?: (id: string) => Promise<ImageBitmap | null>): Promise<boolean> {
   const cards: SavedCard[] = [];
   const key = `page-${BOOT}-${page.generation}`;
+  // Bind ownership before any async crop work; saving this generation again keeps its number.
+  const previous = loadPages().find((p) => p.key === key);
+  const sessionId = previous?.sessionId ?? page.scanSessionId ?? currentSession();
+  const pageNumber = previous?.pageNumber ?? page.pageNumber;
   for (const i of page.instances) {
     // Card backs are not cards: they are never saved, so they never enter counts or totals.
     if (i.state === 'back') continue;
@@ -194,7 +313,7 @@ export async function savePage(page: PageState, catalog: Catalog, displayCrop?: 
     });
   }
   const saved: SavedPage = {
-    key, sessionId: currentSession(), pageNumber: page.pageNumber, revision: page.revision, savedAt: new Date().toISOString(),
+    key, sessionId, pageNumber, revision: page.revision, savedAt: previous?.savedAt ?? new Date().toISOString(),
     partial: page.instances.some((i) => i.state !== 'confirmed' && i.state !== 'back') || page.overLimit > 0, cards,
   };
   return writePage(saved);
@@ -250,6 +369,14 @@ export interface Totals {
   currency: string;
 }
 
+/**
+ * An assumed language only makes a value provisional when the language versions are priced
+ * differently: in the current snapshot, English and German quotes are identical.
+ */
+export function languageMatters(languageAssumed: boolean, v: { low: number | null; high: number | null }): boolean {
+  return languageAssumed && (v.low === null || v.high === null || v.low !== v.high);
+}
+
 /** Confirmed values, provisional upper bounds and unpriced cards are kept apart (never summed together). */
 export function totals(pages: readonly SavedPage[]): Totals {
   const t: Totals = { cards: 0, identified: 0, confirmed: 0, provisionalHigh: 0, provisionalOpen: false, unpriced: 0, currency: 'USD' };
@@ -261,7 +388,7 @@ export function totals(pages: readonly SavedPage[]): Totals {
       const v = c.current !== undefined ? c.current : c.value;
       if (!v || (v.preferred === null && v.low === null)) { t.unpriced++; continue; }
       t.currency = v.currency;
-      if (!v.cue && !c.languageAssumed && v.preferred !== null) t.confirmed += v.preferred;
+      if (!v.cue && !languageMatters(c.languageAssumed, v) && v.preferred !== null) t.confirmed += v.preferred;
       else if (v.high === null) t.provisionalOpen = true;
       else t.provisionalHigh += v.high;
     }

@@ -7,6 +7,7 @@ import type { OrientedBox } from '../vision/obb';
 import type { BundleManifest, FromWorker, Provider, Quality, RecognitionStep } from './protocol';
 
 export interface ExtractedCrops {
+  appearance: string;
   canonical: Blob;
   display: Blob;
   thumb: Blob;
@@ -36,6 +37,7 @@ export class WorkerRecognizer implements Recognizer {
   private crops = new Map<number, Pending<ImageBitmap>>();
   private searches = new Map<number, Pending<Hit[]>>();
   private extracts = new Map<number, Pending<ExtractedCrops>>();
+  private fingerprints = new Map<number, Pending<string>>();
   private encodes = new Map<number, Pending<Blob>>();
   private nextCrop = 1;
   status: RuntimeStatus = { stage: 'loading', detail: 'Starting', provider: null };
@@ -86,6 +88,9 @@ export class WorkerRecognizer implements Recognizer {
       } else if (m.type === 'searched') {
         this.searches.get(m.requestId)?.resolve(m.hits);
         this.searches.delete(m.requestId);
+      } else if (m.type === 'fingerprinted') {
+        this.fingerprints.get(m.requestId)?.resolve(m.appearance);
+        this.fingerprints.delete(m.requestId);
       } else if (m.type === 'extracted') {
         this.extracts.get(m.requestId)?.resolve(m);
         this.extracts.delete(m.requestId);
@@ -101,6 +106,8 @@ export class WorkerRecognizer implements Recognizer {
           this.searches.delete(m.requestId);
           this.extracts.get(m.requestId)?.reject(err);
           this.extracts.delete(m.requestId);
+          this.fingerprints.get(m.requestId)?.reject(err);
+          this.fingerprints.delete(m.requestId);
           this.encodes.get(m.requestId)?.reject(err);
           this.encodes.delete(m.requestId);
         } else if (m.instanceId !== undefined && m.captureId !== undefined && m.revision !== undefined) {
@@ -121,8 +128,9 @@ export class WorkerRecognizer implements Recognizer {
       const message = e.message || 'Inference worker stopped (possibly out of memory)';
       // Every pending request fails (collection re-checks and batch jobs included), so nothing waits forever.
       for (const p of [...this.detects.values(), ...this.jobs.values(), ...this.crops.values(), ...this.searches.values(),
-        ...this.extracts.values(), ...this.encodes.values()]) p.reject(new Error(message));
+        ...this.extracts.values(), ...this.fingerprints.values(), ...this.encodes.values()]) p.reject(new Error(message));
       this.detects.clear(); this.jobs.clear(); this.crops.clear(); this.searches.clear(); this.extracts.clear(); this.encodes.clear();
+      this.fingerprints.clear();
       this.setStatus({ stage: 'failed', detail: message, provider: null });
       fail(new Error(message));
       this.onCrash(message);
@@ -174,6 +182,16 @@ export class WorkerRecognizer implements Recognizer {
   }
 
   /** Batch mode: storable crops of one card from the held capture. */
+  async fingerprint(blob: Blob): Promise<string> {
+    if (this.status.stage === 'failed') throw new Error(this.status.detail);
+    const bitmap = await createImageBitmap(blob);
+    const requestId = this.nextCrop++;
+    return new Promise((resolve, reject) => {
+      this.fingerprints.set(requestId, { resolve, reject });
+      this.worker.postMessage({ type: 'fingerprint', requestId, bitmap }, [bitmap]);
+    });
+  }
+
   extract(captureId: number, quad: Quad): Promise<ExtractedCrops> {
     if (this.status.stage === 'failed') return Promise.reject(new Error(this.status.detail));
     const requestId = this.nextCrop++;
