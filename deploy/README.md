@@ -154,6 +154,16 @@ ports bypass firewalld. sshd listens on 22 and 2222; `github-deployer` is in `Al
 
 ## Tested
 
+2026-10-18, on the real VPS: Caddy got Let's Encrypt certificates for `scanner.lwenstrom.net` and
+`tft.lwenstrom.net`. Tag `v1.2.2` deployed through GitHub Actions → `deploy-trigger scanner` →
+`server-deploy.sh`: artifact checkout, container build and release switch together took under a
+minute; 24,040 thumbnails were copied on the first run. Checked over HTTPS: COOP/COEP, `no-cache` HTML,
+immutable `/assets/`, `application/wasm` for `/ort/`, bundle `270473320b53d5b4`, a `/refs/` WebP with
+week-long caching, HTTP→HTTPS redirect. Not yet checked there: the page in a browser (cross-origin
+isolation, model load) and any physical phone.
+
+Earlier:
+
 2026-10-17: the full flow (`deploy.sh` → release folder → `current` switch → `scanner`
 container behind the `web` network) was run against Docker on the LAN GPU PC: headers,
 caching, thumbnails, WASM MIME type, a second deploy with zero re-upload, and the production
