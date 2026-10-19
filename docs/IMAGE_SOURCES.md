@@ -2,7 +2,7 @@
 
 Checked: 2026-10-15. Source discovery and one AI-restored example are complete; no marketplace photo corpus has been acquired and no recognition improvement has been measured.
 
-A later [official-source clean-reference probe](ONEPIECE_CLEAN_REFERENCES.md) found one watermark-free Japanese-language `OP03-094` asset; two inspected OP01 variants still contained SAMPLE. This is a separate language-specific digital-reference candidate, not a clean English replacement or independent camera image. The probe does not establish broad clean-source coverage.
+A later [official-source clean-reference probe](../archive/docs/ONEPIECE_CLEAN_REFERENCES.md) found one watermark-free Japanese-language `OP03-094` asset; two inspected OP01 variants still contained SAMPLE. This is a separate language-specific digital-reference candidate, not a clean English replacement or independent camera image. The probe does not establish broad clean-source coverage.
 
 ## Watermark findings and handling
 
@@ -52,7 +52,7 @@ recognition references only.
 
 ## Automatic ingestion policy
 
-Use source adapters to emit a manifest, then validate and stage imports. `scripts/import_real_card_images.py` already accepts CSV/JSONL containing card ID, image URL/local path and provenance; its training promotion is explicit. It currently targets existing One Piece identities, not a universal cross-game identity schema.
+Use source adapters to emit a manifest, then validate and stage imports. Catalog references come from the game sync scripts (`sync_pokemon_gallery.py`, `fill_pokemon_gallery_gaps.py`, `sync_onepiece_gallery.py` — see [ONEPIECE_GALLERY_SYNC.md](ONEPIECE_GALLERY_SYNC.md) — and `sync_onepiece_ja_gallery.py`); `build_reference_manifest.py` and `curate_datasets.py` validate and promote them. The classifier-era `import_real_card_images.py` is archived.
 
 For each candidate, retain source URL/item/image ID, source identity and confidence, language/variant, image hashes, acquisition/reuse terms and actual role. Distinguish clean scan, real capture, watermarked reference and generated restoration. Resolve ambiguous listing titles with visible card-number/variant evidence; lots, backs, slabs, reprints and reused stock images must not become automatic exact-ID labels.
 

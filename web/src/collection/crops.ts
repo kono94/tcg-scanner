@@ -1,7 +1,7 @@
 // Straightened crops of saved cards, in IndexedDB (localStorage is too small for images).
 // `canonical`: the exact encoder-contract crop as PNG, so a re-check embeds the same pixels.
 // `display`: a larger JPEG for viewing and as a training example after a correction.
-// Per viewer and per browser, like the rest of the pilot collection; absent crops are normal.
+// Per viewer and per browser, like the rest of the local collection; absent crops are normal.
 
 export interface SavedCrops {
   canonical: Blob;

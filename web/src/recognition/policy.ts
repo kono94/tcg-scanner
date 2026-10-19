@@ -12,8 +12,8 @@ export interface MatchThresholds {
   calibrated: boolean;
 }
 
-/** Placeholder pilot values. Not calibrated and not chosen from test results. */
-export const PILOT_THRESHOLDS: MatchThresholds = { minScore: 0.45, minMargin: 0.05, calibrated: false };
+/** Placeholder defaults. Not calibrated and not chosen from test results. */
+export const DEFAULT_THRESHOLDS: MatchThresholds = { minScore: 0.45, minMargin: 0.05, calibrated: false };
 
 export interface BackThresholds {
   /** Minimum cosine similarity of the best card-back reference. */
@@ -24,13 +24,13 @@ export interface BackThresholds {
 }
 
 /**
- * Uncalibrated pilot values for card backs (scripts/evaluate_card_backs.py, 2026-10-17): the 298
+ * Uncalibrated defaults for card backs (scripts/evaluate_card_backs.py, 2026-10-17): the 298
  * real front crops scored at most 0.34 against a back row and the closest card references (Poké
  * Ball trainers) 0.57, while held-out real back scans and synthetic photo-like back views scored
  * at least 0.77 with a margin of at least 0.35 to the best card. Few, partly synthetic positives
  * and no phone captures: not a calibrated operating point.
  */
-export const PILOT_BACK_THRESHOLDS: BackThresholds = { minScore: 0.65, minMargin: 0.1, calibrated: false };
+export const DEFAULT_BACK_THRESHOLDS: BackThresholds = { minScore: 0.65, minMargin: 0.1, calibrated: false };
 
 /** 'setting': the user scoped the app to one card language (EN or DE) in Settings. */
 export type LanguageEvidence = 'observed' | 'not-read' | 'user' | 'setting';
@@ -92,13 +92,13 @@ export interface MatchOptions {
 }
 
 export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: MatchOptions): MatchDecision {
-  const thresholds = options.thresholds ?? PILOT_THRESHOLDS;
+  const thresholds = options.thresholds ?? DEFAULT_THRESHOLDS;
   const top = hits[0] ?? null;
   if (!top) return { kind: 'not-found', top: null, competitor: null, margin: 0, thresholds };
   const topCard = catalog.get(top.identity);
   if (isBack(topCard)) {
     // A back is never a card match: either a confident back, or unresolved.
-    const back = options.backThresholds ?? PILOT_BACK_THRESHOLDS;
+    const back = options.backThresholds ?? DEFAULT_BACK_THRESHOLDS;
     const competitor = hits.find((h) => !isBack(catalog.get(h.identity))) ?? null;
     const margin = competitor ? top.score - competitor.score : top.score;
     if (top.score >= back.minScore && margin >= back.minMargin) {
@@ -152,7 +152,7 @@ export function displayCard(match: MatchResult, catalog: Catalog): CatalogCard |
  * retrieval hit for that entry when there was one).
  */
 export function userChoiceMatch(catalog: Catalog, identity: string, hits: readonly Hit[], preferredLanguage: string,
-  languageConfirmed: boolean, thresholds: MatchThresholds = PILOT_THRESHOLDS): MatchResult {
+  languageConfirmed: boolean, thresholds: MatchThresholds = DEFAULT_THRESHOLDS): MatchResult {
   const card = catalog.get(identity);
   if (!card) throw new Error(`Unknown catalog entry ${identity}`);
   if (isBack(card)) throw new Error(`${identity} is a card back, not a card`);

@@ -1,6 +1,6 @@
 # Card data collection and annotation
 
-Status: data contract with an implemented automatic synthetic bootstrap, 2026-10-15. `scripts/generate_synthetic_cards.py` produces images, exact renderer corners/identities, derived OBB labels, recognition crops, source-separated splits, and optional labeled video. It does not constitute real-camera validation.
+Status: data contract with an implemented automatic synthetic bootstrap. `scripts/generate_detection_scenes.py` (renderer `training/card_detector/scene_renderer.py`) produces scenes with exact renderer corners; `scripts/build_corner_dataset.py` converts them, plus AI-reviewed real corners, to YOLO-pose labels. Synthetic scenes do not constitute real-camera validation. The v1 generator `generate_synthetic_cards.py` is archived.
 
 ## Variable card count
 

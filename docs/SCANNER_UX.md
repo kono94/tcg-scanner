@@ -1,6 +1,6 @@
 # Scanner interaction and overlay specification
 
-Status: updated 2026-10-16; implemented in the browser scanner pilot (`web/src/ui/`), verified only on desktop Chrome with a test-video mock. It does not claim device-verified camera behavior or measured recognition accuracy.
+Status: updated 2026-10-16; implemented in the browser scanner (`web/src/ui/`); automated checks use desktop Chrome with a test-video mock. It does not claim benchmarked device camera behavior or measured recognition accuracy.
 
 ## Primary use cases
 

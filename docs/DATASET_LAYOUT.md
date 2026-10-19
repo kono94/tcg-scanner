@@ -63,7 +63,7 @@ datasets/curated/
     exact_reference_aliases.json
     gallery/{game}/{language}/{card_id}/reference-{sha12}.{ext}[.json]
     {train,val,test}/{game}/{language}/{card_id}/query-{sha16}.{ext}[.json]
-  detection/                         # optional synthetic import only
+  detection/                         # legacy v1 synthetic OBB scenes; unused, not rebuilt
     dataset.yaml
     manifest.json
     {train,val,test}/{images,labels,annotations}/
@@ -90,19 +90,13 @@ modify the original. Write transformations to a new artifact instead.
 
 ## Detector data
 
-`--synthetic-detector` only imports a synthetic renderer directory named
-`synthetic` below `runs/card_detector/<run>/`. The importer validates scene
-images, matching labels, counts and dimensions, true renderer quadrilaterals,
-and derived OBB corner annotations. It writes YOLO split paths that point to
-`train/images`, `val/images`, and `test/images`; only renderer-produced train
-and validation scenes are populated. It records
-`real_camera_validation: false`. Real unreviewed scenes are not promoted into
-detector ground truth, and partially annotated multi-card scenes are not
-imported as complete labels.
-The generated YAML records an absolute local dataset root so Ultralytics does
-not resolve a relative root under its configured download directory. Recreate
-the YAML after moving the dataset. Annotation image/label paths are rebased to
-the detection root; original renderer annotations remain unchanged.
+Detector training data is not curated here. `scripts/generate_detection_scenes.py`
+renders synthetic scenes with exact corners, and `scripts/build_corner_dataset.py`
+converts them, together with AI-reviewed real corners, to a YOLO-pose dataset
+under `runs/card_detector/`. Its YAML records an absolute local dataset root;
+recreate it after moving the dataset. Real unreviewed scenes are not promoted into
+detector ground truth, and partially annotated multi-card scenes are not imported
+as complete labels.
 
 ## Example
 
@@ -113,8 +107,7 @@ From the repository root, after placing the manifests and source images under
 .env/bin/python scripts/curate_datasets.py \
   --input-root runs/video_mining/<review-batch> \
   --references-manifest runs/video_mining/<review-batch>/references.json \
-  --review-manifest runs/video_mining/<review-batch>/review.json \
-  --synthetic-detector runs/card_detector/synthetic
+  --review-manifest runs/video_mining/<review-batch>/review.json
 ```
 
 `datasets/curated/` is ignored because it contains local derived data. The current

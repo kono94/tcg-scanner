@@ -57,6 +57,6 @@ Both fit on the 12 GB GPU at the same time (about 11.7 GB together). Logs go to 
 ## Back on the Mac
 
 Copy the finished run folders back into `runs/`, then evaluate and build the bundle here:
-`scripts/evaluate_detector_geometry.py`, `scripts/compare_detectors_real.py`,
+`scripts/evaluate_corners_real.py`, `scripts/compare_detectors_real.py`,
 `scripts/export_browser_models.py`, int8 quantization, `scripts/build_browser_bundle.py`, and the
 web unit/browser tests. A model only replaces the current one when it wins these checks.

@@ -12,7 +12,7 @@ rectifications. No candidate in this review pool remains unreviewed.
 | Japanese One Piece references | 154 | `recognition/gallery/onepiece/ja/` |
 | Japanese Pokémon references | 5 | `recognition/gallery/pokemon/ja/` |
 | Accepted real single-card queries | **298 / 158 catalog-art identities** | `recognition/{train,val,test}/` |
-| Synthetic OBB scenes | 200 / 1,321 card instances | `detection/{train,val}/` |
+| Synthetic OBB scenes (v1, unused; see below) | 200 / 1,321 card instances | `detection/{train,val}/` |
 | Bad derived crops removed, both passes | **304** | `rejected_crops.json` |
 | Identity reviewed; usable full-card geometry unavailable | 45 | `datasets/staging/recognition/` |
 | Exact identity/printing unresolved after review | 69 | `datasets/staging/recognition/` |
@@ -89,14 +89,12 @@ a visual family when constructing negatives.
 
 ## Detector data
 
-The organized detector set retains **160 train / 40 validation scenes**, with
-zero to fourteen cards per scene. True renderer quadrilaterals and derived OBB
-labels remain separate. Multiple cards belong here; the single-card rule
-applies to recognition queries.
-
-Video crop matches are not complete binder-page annotations. Real-domain OBB
-refinement still needs complete scene/edge labels so omitted cards do not
-become false background. No detector or encoder training ran during this pass.
+The organized detector set retains **160 train / 40 validation scenes** from the
+archived v1 OBB generator. Nothing trains on it any more and `curate_datasets.py`
+no longer imports detector data: the deployed corner detector trains on
+`generate_detection_scenes.py` scenes plus AI-reviewed real corners via
+`build_corner_dataset.py` (see `training/card_detector/README.md`). Remove
+`detection/` with the next `datasets/curated` DVC snapshot.
 
 ## Checks and reproduction
 
@@ -127,7 +125,6 @@ Build a new empty snapshot from the approved inputs:
   --input-root . \
   --references-manifest runs/dataset_cleanup/pass2/references_v5.json \
   --review-manifest runs/dataset_cleanup/pass2/sol_review_merged.json \
-  --synthetic-detector runs/card_detector/synthetic \
   --output datasets/curated-next --copy-mode hardlink
 ```
 

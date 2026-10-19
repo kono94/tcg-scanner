@@ -81,7 +81,7 @@ Being steady does not imply that nine cards are sharp, large enough, unoccluded,
 - A repeat capture replaces the active page's candidate result revision atomically. Do not union old and new detections or match pockets by raw screen position. Keep earlier saved revisions inspectable; do not silently overwrite a saved page. Updating a saved page is explicit.
 - Freeze automatic replacement while the user reviews details or edits a result; require an explicit return to scanning. An explicit next-page boundary creates a new page generation. Scene motion alone does not establish a new page.
 
-## Batch workflow (browser pilot, implemented 2026-10-17)
+## Batch workflow (browser scanner, implemented 2026-10-17)
 
 Batch processing holds one bounded display copy of its capture while camera
 delivery is disabled, at least one second after the save, and until fresh preview
@@ -138,4 +138,4 @@ Retry recognition/verification on the same crop when appropriate, or recapture t
 The browser implements this cycle and the camera-delivery policy above. Initial
 timing/quality thresholds and physical-device performance remain uncalibrated or
 unmeasured; the user-reported iPhone visit is not a controlled benchmark. See the
-[phone-feedback work log](PHONE_FEEDBACK_2026-10-17.md).
+[archived phone-feedback work log](../archive/docs/PHONE_FEEDBACK_2026-10-17.md).

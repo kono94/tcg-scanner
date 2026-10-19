@@ -1,9 +1,8 @@
 # Card-corner detector
 
 The browser uses YOLOv8s-pose at 640 px from
-`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt` (DVC). The `obb` parent
-name is historical; the deployed model predicts a box and four geometric corners.
-The browser perspective-warps each card from those corners.
+`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt` (DVC). The model predicts
+a box and four geometric corners; the browser perspective-warps each card from them.
 
 ## Dataset format
 
@@ -38,12 +37,12 @@ and intermediate runs are retired; the final checkpoint remains usable for expor
 and further fine tuning. See [GPU setup](../../docs/GPU_TRAINING.md) and
 [bundle evidence](../../docs/BROWSER_BUNDLE_2026-10-17.md).
 
-`train_obb.py` is the shared Ultralytics trainer for pose and the retained OBB
-comparison decoder. Select a pose checkpoint using `--model <weights.pt>`.
+`train_detector.py` is the Ultralytics YOLO-pose trainer (`--data` from
+`build_corner_dataset.py`; `--model <weights.pt>` fine-tunes a checkpoint). The earlier
+OBB detector path and its synthetic comparison tools are archived.
 Apple MPS cannot train this pose implementation; use the LAN CUDA machine.
 
-Evaluate changes with `evaluate_detector_geometry.py` (synthetic geometry),
-`evaluate_corners_real.py` (AI-reviewed real labels), and
+Evaluate changes with `evaluate_corners_real.py` (AI-reviewed real labels) and
 `compare_detectors_real.py` (retrieval-acceptance proxy, not labeled accuracy).
 Real labels originate from few videos and older s-model proposals; phone results
 and real-world operating thresholds remain unverified.

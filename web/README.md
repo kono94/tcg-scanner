@@ -1,10 +1,10 @@
-# Browser scanner (pilot)
+# Browser scanner
 
 Vite + TypeScript scanner using the stable-frame cycle from `docs/CAPTURE_CYCLE.md`:
 stability check → one capture → four-corner detection (YOLOv8s-pose) → perspective warp →
 DINOv2/ArcFace embedding → exact cosine search → match/value policy → review. Inference
 runs in a worker with onnxruntime-web: WebGPU with the fp32 encoder, falling back to WASM
-with the int8 encoder. Status: pilot, verified on desktop Chrome with a test video only.
+with the int8 encoder. Status: in use on phones; automated checks run on desktop Chrome with a test video.
 Thresholds are uncalibrated. The detector combines synthetic pretraining with AI-reviewed
 real-corner fine tuning; phone performance remains unverified.
 
@@ -92,7 +92,7 @@ the app's control: reuse avoids repeat requests during short navigation, but one
 prompt across all reloads/restarts cannot be guaranteed. Physical Safari camera
 indicator, power consumption, focus/restart timing and sustained performance still
 need controlled checks. The iPhone 13 mini feedback is recorded in
-[the work log](../docs/PHONE_FEEDBACK_2026-10-17.md).
+[the archived work log](../archive/docs/PHONE_FEEDBACK_2026-10-17.md).
 
 Rendering follows state changes and active presenter animations instead of an
 unconditional frame loop throughout inference. Diagnostics log camera-open and

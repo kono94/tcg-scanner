@@ -140,7 +140,7 @@ checks `bundle/manifest.json` on every start.
   no sync between devices, and clearing site data deletes them.
 - Thresholds are uncalibrated; the detector combines synthetic pretraining with
   AI-reviewed real-corner fine tuning. Physical-phone performance remains unverified
-  (see [browser evidence](../docs/BROWSER_BUNDLE_2026-10-17.md)); label the site as a pilot.
+  (see [browser evidence](../docs/BROWSER_BUNDLE_2026-10-17.md)); show these limits on the site.
 
 ## This VPS (CentOS 7)
 

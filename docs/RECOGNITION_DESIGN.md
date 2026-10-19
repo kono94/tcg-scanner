@@ -26,7 +26,7 @@ broad frozen-encoder sweeps. The deployed DINOv2-small ViT-S/14 yields normalize
 held-out evaluation, rebuilt gallery embeddings and deployment parity evidence.
 Training from scratch is not the default with the current data.
 
-Keep architecture, initialization and objective explicit: `pretrained backbone → pooling/projection → L2 descriptor → cosine gallery`; during training, the descriptor also feeds the chosen angular-margin or contrastive objective. DINOv3 supplies ViT and ConvNeXt backbones; SigLIP2 is another pretrained encoder family. Their generic benchmark results do not establish TCG accuracy, and access/runtime requirements must be checked before choosing a checkpoint. See the primary references in `FOUNDATION_MODELS.md`.
+Keep architecture, initialization and objective explicit: `pretrained backbone → pooling/projection → L2 descriptor → cosine gallery`; during training, the descriptor also feeds the chosen angular-margin or contrastive objective. DINOv3 supplies ViT and ConvNeXt backbones; SigLIP2 is another pretrained encoder family. Their generic benchmark results do not establish TCG accuracy, and access/runtime requirements must be checked before choosing a checkpoint. See the primary references in the archived [`FOUNDATION_MODELS.md`](../archive/docs/FOUNDATION_MODELS.md).
 
 ## Candidate families, language preference and value uncertainty
 
@@ -41,7 +41,7 @@ Details/review show the preferred estimate and the supported plausible-versions
 range independently, including quote coverage and assumptions. Material value
 ambiguity produces a compact `Check variant` cue and a closer single-card review
 flow, preserving physical-copy identity and other binder results. Range pricing
-and family resolution are planned and do not change the pilot's exact-ID scores.
+and family resolution are planned and do not change the deployed exact-ID scores.
 Measure artwork-family retrieval and exact language/printing resolution separately.
 
 ## Proposed inference pipeline
@@ -78,7 +78,7 @@ Compare three localization paths on the same independent captures:
 | Generic detector + local four-corner refiner | Reuse coarse localization, then predict/refine the actual card boundary at higher source resolution |
 | Generic detector with four corner keypoints | Direct per-card localization plus quadrilateral geometry; bootstrap with renderer-known corners, then validate on real scenes |
 
-Start with YOLO OBB and rotation-aligned crops. Compare these with renderer-known perspective crops to quantify whether a separate corner estimator would help. Add corner refinement or direct keypoints only when measured crop failures justify the complexity. Segmentation/contour fitting is another candidate when edges are reliable, but binder seams, sleeves, rounded corners, and overlap can mislead it; require a valid-quad check.
+The project started with YOLO OBB and rotation-aligned crops; the synthetic geometry comparison (archived `evaluate_detector_geometry.py`) selected direct corner keypoints, and the deployed detector is YOLOv8-pose with perspective warp. OBB decoding has been removed. A local corner refiner remains an option only when measured crop failures justify it. Segmentation/contour fitting is another candidate when edges are reliable, but binder seams, sleeves, rounded corners, and overlap can mislead it; require a valid-quad check.
 
 Detect generic card fronts rather than requiring the correct game label to permit localization/recognition. Define how backs and severely occluded cards are labeled/rejected. Improve the training set with varied card counts/layouts, real binder backgrounds/reflections, orientation/perspective, hard background negatives, and small-card examples. Synthetic compositions may bootstrap localization if corner geometry is transformed consistently; real camera testing is still required.
 
@@ -86,7 +86,7 @@ Preserve full capture resolution. Map detector outputs back through letterbox/sc
 
 The audited detector archive has axis-aligned labels only. Expanding those boxes into four points cannot recover true card corners or supply trustworthy OBB supervision. Preserve existing labels as baseline/proposals. The implemented compositor supplies exact transformed physical-edge labels automatically; real-image teacher proposals need separate confidence/provenance and validation. With rounded corners, use the intersections of the straight card edges consistently.
 
-OBB and keypoint (pose) exports are not interchangeable model files: each needs its own output decoding, geometry types, source transforms, suppression and quadrilateral crop extraction (the browser has both, `web/src/vision/obb.ts` and `pose.ts`). Pin an exporter/runtime version and verify real ONNX outputs rather than copying commands for a different model generation.
+Detector exports are not interchangeable model files: each task needs its own output decoding, geometry types, source transforms, suppression and quadrilateral crop extraction (the browser decodes pose in `web/src/vision/pose.ts`; shared quad geometry is in `quad.ts`). Pin an exporter/runtime version and verify real ONNX outputs rather than copying commands for a different model generation.
 
 ## Shared canonical preprocessing for queries and gallery inserts
 

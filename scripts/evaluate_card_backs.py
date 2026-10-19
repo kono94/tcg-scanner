@@ -16,7 +16,7 @@ gallery.f16 rows of the bundle languages plus the card-back rows from build_brow
    as not independent.
 
 Scores are cosine similarities, not probabilities. Thresholds picked from these numbers are
-uncalibrated pilot values: the positives are few, partly synthetic, and not phone captures.
+uncalibrated defaults: the positives are few, partly synthetic, and not phone captures.
 """
 from __future__ import annotations
 

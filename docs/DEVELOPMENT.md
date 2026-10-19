@@ -9,9 +9,10 @@ limitations are in [the browser README](../web/README.md) and
 
 Next work:
 
-The [2026-10-17 phone-feedback work log](PHONE_FEEDBACK_2026-10-17.md) records
-the iPhone 13 mini report, capture inventory, implemented session/camera changes,
-validation and remaining work. The phone report is not a controlled benchmark.
+The [archived 2026-10-17 phone-feedback work log](../archive/docs/PHONE_FEEDBACK_2026-10-17.md)
+records the iPhone 13 mini report, capture inventory and the session/camera changes.
+The phone report is not a controlled benchmark. Its open items are folded into the
+list below.
 
 1. Verify physical iPhone/Safari and Android/Chrome: HTTPS camera access,
    orientation, WebGPU/WASM fallback, first/settled latency, memory, thermal
@@ -21,10 +22,15 @@ validation and remaining work. The phone report is not a controlled benchmark.
    pixels, source/session splits and auditable AI-reviewed corner/identity labels.
    Include single cards, binder pages, >9 cards, negatives, backs and difficult
    variants. No user transcription or manual dataset creation is required.
+   Start with the uploaded phone captures (`runs/captures/`, `runs/feedback/`):
+   AI visual review and exact-reference matching per instance, diagnosis of the
+   three reported misses where source evidence permits, and session-grouped
+   train/evaluation intake before any further training.
 3. Calibrate identity/back/unknown and variant-review thresholds on permitted
    calibration data. Keep locked test captures out of selection; report precision,
    coverage, false accepts and per-scene latency with provenance and denominators.
-4. Improve localization/retrieval only against declared baselines. Maintain the
+4. Improve localization/retrieval only against declared baselines (detector:
+   `scripts/evaluate_corners_real.py` and `scripts/compare_detectors_real.py`). Maintain the
    shared canonicalization contract and regenerate gallery/export fixtures after
    encoder changes. Similarity is the normal path; OCR is optional and bounded.
 

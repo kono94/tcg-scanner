@@ -1,4 +1,4 @@
-// Saved pages for the Collection tab (per-viewer, in localStorage; a pilot store, not a sync service).
+// Saved pages for the Collection tab (per-viewer, in localStorage; a local store, not a sync service).
 // Saving the same page generation again replaces it: quantities never double.
 import { Catalog } from '../recognition/catalog';
 import { displayCard, type MatchResult } from '../recognition/policy';

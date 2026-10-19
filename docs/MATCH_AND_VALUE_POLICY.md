@@ -2,7 +2,7 @@
 
 Status: agreed product direction, 2026-10-16. Candidate-family resolution, range
 pricing and these controls are planned; they are not implemented in the app or
-retrieval pilot.
+retrieval yet.
 
 ## Language preference and candidate identity
 
@@ -101,7 +101,7 @@ Check variant · Range incomplete
 [Inspect this card]
 ```
 
-## Card backs (implemented in the browser pilot, 2026-10-17)
+## Card backs (implemented in the browser scanner, 2026-10-17)
 
 Binder pages often show a card face down. Backs are enrolled as special gallery
 rows (`back:pokemon`, `back:onepiece`; catalog `kind: 'back'`, own family, no
@@ -109,7 +109,7 @@ price), so the normal similarity search recognizes them:
 
 - Best hit is a back with score ≥ 0.65 and a margin ≥ 0.10 to the best real
   card: the instance becomes **Card back** (session state `back`). Uncalibrated
-  pilot values (`PILOT_BACK_THRESHOLDS`, chosen from
+  defaults (`DEFAULT_BACK_THRESHOLDS`, chosen from
   `scripts/evaluate_card_backs.py`; see `web/README.md`).
 - A weaker back hit is never turned into a card match: it stays
   `match-unclear`/`not-found` (needs attention). A back close behind a card hit
