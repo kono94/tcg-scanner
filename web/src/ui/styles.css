@@ -336,9 +336,11 @@ input.search { width: 100%; box-sizing: border-box; min-height: 44px; margin: 6p
 .duplicatebar button { min-height: 44px; }
 .session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 10px; }
 .session-actions .ghost { flex: none; min-height: 44px; font-size: 14px; padding: 0 18px; }
+.transfer-actions { display: flex; justify-content: flex-end; gap: 12px; margin: 0 0 4px; }
 
 /* Home: workflow choice where scanning starts. */
 .start p.modehint { font-size: 13px; margin: -6px 2px 0; }
+.start p.appversion { margin-top: auto; padding-top: 16px; text-align: center; font-size: 12px; }
 .seg.modes, .seg.views { margin: 0; justify-content: stretch; }
 .seg.modes button, .seg.views button { flex: 1 1 0; min-height: 40px; font-size: 13px; }
 .seg.views { margin: 10px 0 4px; }

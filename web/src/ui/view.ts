@@ -141,6 +141,9 @@ export interface Handlers {
   renameSession(id: string, name: string): void;
   finishSession(): void;
   deleteSession(id: string): void;
+  /** Save the collection (or one binder) as a file; merge an exported file into this browser. */
+  exportCollection(sessionId?: string): void;
+  importCollection(file: File): void;
   keepDuplicate(): void;
   discardDuplicate(): void;
   changeSetting(patch: Partial<Settings>): void;
@@ -1095,6 +1098,7 @@ export class View {
       }
       wrap.append(dev);
     }
+    wrap.append(el('p', 'appversion', `Version ${__APP_VERSION__} · bundle ${s.manifest.version.slice(0, 8)}`));
     return wrap;
   }
 
@@ -1186,8 +1190,22 @@ export class View {
       return wrap;
     }
     wrap.append(el('h1', 'title', 'Collection'));
+    const transfer = el('div', 'transfer-actions');
+    const load = el('button', 'linkbtn', 'Import');
+    load.setAttribute('aria-label', 'Import a collection file');
+    load.disabled = s.sessionChanging;
+    load.onclick = () => this.filePicker().click();
+    if (pages.length) {
+      const save = el('button', 'linkbtn', 'Export');
+      save.setAttribute('aria-label', 'Export the collection as a file');
+      save.disabled = s.sessionChanging;
+      save.onclick = () => this.handlers.exportCollection();
+      transfer.append(save);
+    }
+    transfer.append(load);
+    wrap.append(transfer);
     if (!pages.length && !s.scanSessions.length) {
-      wrap.append(el('p', 'note', 'Scanned pages appear here once they are saved.'));
+      wrap.append(el('p', 'note', 'Scanned pages appear here once they are saved. Import restores a collection exported from another browser.'));
       return wrap;
     }
     const all = totals(pages);
@@ -1253,7 +1271,12 @@ export class View {
         del.onclick = async () => {
           if (await confirmDialog({ title: `Delete “${name}”?`, message: `Its ${plural(list.length, 'saved page')} and ${plural(t.cards, 'card')} are removed from this browser. This cannot be undone.`, confirm: 'Delete binder', danger: true })) this.handlers.deleteSession(id);
         };
-        actions.append(resume, rename, del);
+        const exp = el('button', 'linkbtn', 'Export');
+        exp.setAttribute('aria-label', `Export ${name}`);
+        exp.disabled = s.sessionChanging;
+        exp.hidden = !list.length;
+        exp.onclick = () => this.handlers.exportCollection(id);
+        actions.append(resume, rename, exp, del);
         head.append(summary, actions);
         wrap.append(head);
         for (const p of list) {
@@ -1585,6 +1608,20 @@ export class View {
   private screenId = '';
   private refImages = new Map<string, { img: HTMLImageElement; build: number }>();
   private build = 0;
+
+  private picker: HTMLInputElement | null = null;
+
+  /** One file input outside the rendered tree: a re-render while the picker is open must not drop the choice. */
+  private filePicker(): HTMLInputElement {
+    if (this.picker) return this.picker;
+    const picker = el('input');
+    picker.type = 'file';
+    picker.accept = '.json,application/json';
+    picker.hidden = true;
+    picker.onchange = () => { const file = picker.files?.[0]; picker.value = ''; if (file) this.handlers.importCollection(file); };
+    document.body.append(picker);
+    return (this.picker = picker);
+  }
 
   private refImage(card: CatalogCard | undefined, cls = ''): HTMLElement {
     if (!card?.ref) return el('div', `ph ${cls}`, 'No reference image');

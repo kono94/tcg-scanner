@@ -29,7 +29,7 @@ BUNDLE=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' web/public/bundle/manifest
 RELEASE="$(date -u +%Y%m%d-%H%M%S)-$TAG-${BUNDLE:0:8}"
 
 echo "== build $RELEASE"
-docker run --rm "${USER_ARGS[@]}" -e npm_config_cache=/tmp/.npm -v "$REPO:$REPO" -w "$REPO/web" "$NODE_IMAGE" \
+docker run --rm "${USER_ARGS[@]}" -e npm_config_cache=/tmp/.npm -e APP_VERSION="$TAG" -v "$REPO:$REPO" -w "$REPO/web" "$NODE_IMAGE" \
   sh -c "npm ci --no-audit --no-fund && npm run build"
 
 echo "== publish"

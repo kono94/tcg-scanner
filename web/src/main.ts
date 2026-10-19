@@ -3,6 +3,7 @@ import './ui/styles.css';
 import { installCrashTrace, trace } from './debug';
 import { sendCollectionFeedback, sendFeedback, uploadCapture } from './feedback';
 import { getCrops } from './collection/crops';
+import { exportCollection, exportFileName, importCollection, parseCollection } from './collection/transfer';
 import { activeScanSession, currentSession, deletePage, deleteSavedCard, deleteScanSession, finishScanSession, loadPages, loadScanSessions, nextCaptureNumber, renameScanSession, resumeScanSession, savedNeedsUser, savePage, startScanSession, updateSavedCard, withCurrentPrices } from './collection/store';
 import { BatchSession } from './batch/session';
 import { browserBatchStore } from './batch/storage';
@@ -310,6 +311,8 @@ export class App {
       },
       finishSession: () => { void this.endScanSession(); },
       deleteSession: (id) => { void this.deleteCollection(id); },
+      exportCollection: (id) => { void this.exportCollection(id); },
+      importCollection: (file) => { void this.importCollection(file); },
       keepDuplicate: () => {
         if (!this.batch.keepDuplicate()) {
           this.error = 'Could not keep this capture. Browser storage may be full.';
@@ -487,6 +490,46 @@ export class App {
       this.reloadCollection();
     } catch (err) { this.error = (err as Error).message; }
     finally { this.sessionChanging = false; this.render(); }
+  }
+
+  /** Hand the collection file to the share sheet where files can be shared (phones), otherwise download it. */
+  private async exportCollection(sessionId?: string) {
+    const now = new Date();
+    const data = exportCollection(this.manifest.version, sessionId ? [sessionId] : undefined, now);
+    const name = exportFileName(now, sessionId ? loadScanSessions().find((s) => s.id === sessionId)?.name : undefined);
+    const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
+    try {
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return; // the user closed the share sheet
+    }
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const cards = data.pages.reduce((n, p) => n + p.cards.length, 0);
+    this.toast = { text: `Exported ${data.pages.length} page${data.pages.length === 1 ? '' : 's'} · ${cards} card${cards === 1 ? '' : 's'}`, until: performance.now() + 2600 };
+    this.render();
+  }
+
+  private async importCollection(file: File) {
+    if (this.sessionChanging || this.saving) return;
+    this.sessionChanging = true;
+    this.render();
+    try {
+      const { addedPages, skippedPages, addedSessions } = importCollection(parseCollection(await file.text()));
+      const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+      const text = addedPages ? `Imported ${plural(addedPages, 'page')}` + (addedSessions ? ` · ${plural(addedSessions, 'new binder')}` : '') + (skippedPages ? ` · ${skippedPages} already here` : '')
+        : 'Nothing new: these pages are already in this collection.';
+      this.toast = { text, until: performance.now() + 4000 };
+      this.error = null;
+      this.reloadCollection();
+    } catch (err) {
+      this.error = (err as Error).message;
+      this.toast = { text: this.error, until: performance.now() + 5000 };
+    } finally { this.sessionChanging = false; this.render(); }
   }
 
   private async deleteCollection(id: string) {

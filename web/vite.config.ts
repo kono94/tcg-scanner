@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,13 @@ const certDir = resolve(dirname(fileURLToPath(import.meta.url)), '.cert');
 const https = existsSync(resolve(certDir, 'cert.pem'))
   ? { cert: readFileSync(resolve(certDir, 'cert.pem')), key: readFileSync(resolve(certDir, 'key.pem')) }
   : undefined;
+
+// App version shown on Home: the release tag. Tag deploys build without git (server-deploy.sh passes
+// APP_VERSION); local builds describe the checkout (v1.2.3-4-gabc1234-dirty between tags).
+function appVersion(): string {
+  if (process.env.APP_VERSION) return process.env.APP_VERSION;
+  try { return execSync('git describe --tags --always --dirty', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'dev'; }
+}
 
 const curated = resolve(dirname(fileURLToPath(import.meta.url)), '../datasets/curated');
 const TYPES: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
@@ -138,6 +146,7 @@ function captures(): Plugin {
 
 export default defineConfig({
   plugins: [referenceImages(), clientLog(), feedback(), captures()],
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   server: { headers: isolation, host: '0.0.0.0', https },
   preview: { headers: isolation, host: '0.0.0.0', https },
   worker: { format: 'es' },

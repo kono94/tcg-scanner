@@ -77,6 +77,14 @@ Each binder in Collection also has **Delete**, including binders with no saved p
 crop storage and session metadata, and retires its queue work. Other collections
 and already uploaded training originals are unaffected.
 
+The collection lives only in this browser. **Export** (collection header, or per binder) saves it as
+a JSON file (`src/collection/transfer.ts`), through the share sheet where the browser can share files
+and as a download otherwise. The file holds binders, pages and saved cards (identities, choices,
+scan-time values, small thumbnails) but not the full crops. **Import** merges such a file into this
+browser: pages already present are skipped (re-importing never doubles cards), existing binders keep
+their names, imported cards cannot be re-checked from a crop, and cards still queued in the exporting
+browser arrive as needing a check. There is no server sync and no account.
+
 ## Camera lifecycle and responsiveness
 
 One stream is reused during foreground scanning and short Home/Settings/Collection/

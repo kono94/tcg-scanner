@@ -1,4 +1,5 @@
-// Saved pages for the Collection tab (per-viewer, in localStorage; a local store, not a sync service).
+// Saved pages for the Collection tab (per-viewer, in localStorage; a local store, not a sync service:
+// collection/transfer.ts moves it between browsers as an exported file).
 // Saving the same page generation again replaces it: quantities never double.
 import { Catalog } from '../recognition/catalog';
 import { displayCard, type MatchResult } from '../recognition/policy';
@@ -254,6 +255,39 @@ export function writePage(page: SavedPage): boolean {
   const session = records.sessions.find((s) => s.id === page.sessionId);
   if (session) { session.nextCapture = Math.max(session.nextCapture, page.pageNumber + 1); write(SESSIONS, records); }
   return true;
+}
+
+export interface ImportResult { addedPages: number; skippedPages: number; addedSessions: number }
+
+/**
+ * Merge exported binders and pages into this browser. Pages already present (same key) are skipped, so
+ * importing a file twice never doubles quantities; existing binders keep their names; the active binder
+ * stays as it is. Returns null when storage is full (nothing is changed then).
+ */
+export function importRecords(sessions: readonly ScanSession[], pages: readonly SavedPage[]): ImportResult | null {
+  const current = loadPages();
+  const records = sessionRecords();
+  const known = new Set(current.map((p) => p.key));
+  const added = pages.filter((p) => !known.has(p.key)).map((p) => ({
+    ...p,
+    // No queue owns these cards here and their crops stayed on the other device.
+    cards: p.cards.map(({ current: _, queued: __, ...c }) => c.state === 'queued' ? { ...c, state: 'needs-attention', reason: 'error', hasCrop: false } : { ...c, hasCrop: false }),
+  }));
+  let addedSessions = 0;
+  for (const id of new Set(added.map((p) => p.sessionId))) {
+    const own = added.filter((p) => p.sessionId === id);
+    const next = Math.max(...own.map((p) => p.pageNumber)) + 1;
+    const existing = records.sessions.find((s) => s.id === id);
+    if (existing) { existing.nextCapture = Math.max(existing.nextCapture, next); continue; }
+    const imported = sessions.find((s) => s.id === id);
+    const startedAt = imported?.startedAt ?? own.map((p) => p.savedAt).sort()[0];
+    records.sessions.push({ ...(imported ?? { id, name: defaultSessionName(startedAt), startedAt }), nextCapture: Math.max(imported?.nextCapture ?? 1, next) });
+    addedSessions++;
+  }
+  if (!added.length) return { addedPages: 0, skippedPages: pages.length, addedSessions: 0 };
+  if (!write(PAGES, [...current, ...added])) return null;
+  if (!write(SESSIONS, records)) { write(PAGES, current); return null; }
+  return { addedPages: added.length, skippedPages: pages.length - added.length, addedSessions };
 }
 
 /** Saved-card fields for a match (identity, versions, scan-time value), shared by page saves and batch results. */
