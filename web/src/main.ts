@@ -365,7 +365,7 @@ export class App {
     if (identity && m && m.top.identity === identity && card.state === 'confirmed' && !languageConfirmed) return;
     const crop = this.bigCrops.get(`${id}|${card.revision}`) ?? card.crop;
     const page = this.session.page;
-    void sendFeedback(card, crop, { identity, languageConfirmed },
+    if (this.settings.saveCaptures) void sendFeedback(card, crop, { identity, languageConfirmed },
       { bundleVersion: this.manifest.version, pageNumber: page.pageNumber, captureSize: page.captureSize, cameraMock: !!this.camera?.mock });
     trace('feedback', { card: card.number, identity, none: identity === null });
   }
@@ -875,9 +875,9 @@ export class App {
     this.render();
   }
 
-  /** Dev only ("Save captures for training"): the held capture as JPEG plus its detections. */
+  /** "Share scans to improve recognition": the held capture as JPEG plus its detections; skipped without cards. */
   private async uploadCapture(captureId: number, size: { width: number; height: number }, quads: Quad[], scores: number[], page: number | null) {
-    if (!import.meta.env.DEV || !this.settings.saveCaptures || this.uploadedCapture === captureId) return;
+    if (!this.settings.saveCaptures || !quads.length || this.uploadedCapture === captureId) return;
     this.uploadedCapture = captureId;
     const provenance = this.captureProvenance;
     const workflow = this.settings.workflow;
@@ -1106,7 +1106,7 @@ export class App {
     }
     c.pick = null;
     // Corrections become training examples, like decisions during scanning.
-    if (saved.identity !== identity || languageConfirmed) {
+    if (this.settings.saveCaptures && (saved.identity !== identity || languageConfirmed)) {
       void getCrops(c.pageKey, c.number).then((crops) => crops && sendCollectionFeedback(
         { identity: saved.identity, number: saved.number, pageNumber: page.pageNumber }, crops.display ?? crops.canonical, c.hits, { identity, languageConfirmed }, this.manifest.version));
     }

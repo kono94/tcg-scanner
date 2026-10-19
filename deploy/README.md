@@ -1,8 +1,9 @@
 # Hosting on the VPS
 
-The scanner is a static site. Recognition runs in the visitor's browser; the server only
+The scanner is a static site. Recognition runs in the visitor's browser; the server
 delivers the app, ONNX runtime, versioned model bundle and catalog thumbnails (loaded
-as needed). Bundle `27047332` contains a 46.0 MB raw / 38.6 MB gzip detector; this is
+as needed), and a small upload service stores training uploads (captures and corrections)
+when visitors leave "Share scans to improve recognition" on. Bundle `27047332` contains a 46.0 MB raw / 38.6 MB gzip detector; this is
 only the detector, and encoders, gallery, catalog and runtime add download size. Actual
 transfer size depends on compression, execution provider and browser cache.
 
@@ -13,13 +14,15 @@ and publishes no ports itself.
 ```text
 internet ──443──> proxy (Caddy, certificates)
                     ├── scanner.lwenstrom.net ──> scanner:80  (Caddy, static files)
+                    │                               └── /api/* ──> uploads:8080 (training uploads)
                     └── tft.lwenstrom.net     ──> tft:<port>  (the TFT compose app)
 ```
 
 | Path on the VPS | From this repo | Purpose |
 | --- | --- | --- |
 | `/opt/stacks/proxy/` | `deploy/proxy/` | shared HTTPS proxy, one Caddyfile entry per domain |
-| `/opt/stacks/scanner/` | `deploy/scanner/` | static file server for the scanner |
+| `/opt/stacks/scanner/` | `deploy/scanner/` | static file server + upload service for the scanner |
+| `/opt/stacks/scanner/uploads/` | upload service | training uploads: `captures/`, `feedback/` by UTC date |
 | `/opt/stacks/scanner/www/releases/<release>/` | `deploy/deploy.sh` | built app + bundle, one folder per deploy |
 | `/opt/stacks/scanner/www/current` | `deploy/deploy.sh` | symlink to the live release |
 | `/opt/stacks/scanner/www/refs/` | `deploy/deploy.sh` | catalog thumbnails, shared by releases |
@@ -105,6 +108,40 @@ deployed.
 commit the `.dvc` file, deploy. Visitors get the new bundle on their next visit; the app
 checks `bundle/manifest.json` on every start.
 
+## Training uploads
+
+"Share scans to improve recognition" is on by default in the app and can be turned off in
+Settings. With it on, each capture with at least one detected card (`/api/capture`) and each
+correction (`/api/feedback`) is POSTed to the scanner origin. The scanner Caddy forwards
+`/api/*` to the `uploads` service (`scanner/upload-service/server.py`, stock
+`python:3.12-alpine`, no build), which validates JPEG/JSON, limits sizes (25 MB per request),
+allows 300 uploads per visitor per hour (`PER_CLIENT_PER_HOUR`) and stops accepting at 20 GB
+(`QUOTA_GB`, answers 507). It writes `uploads/{captures,feedback}/<UTC date>/<name>.jpg + .json`;
+automated test runs go to `*-tests/`. Visitor IPs are only used for the rate limit and are
+not stored. Caddy cannot write request bodies itself, hence the service.
+
+One-time setup (and after changing `deploy/scanner/`), on the VPS:
+
+```bash
+# from the Mac:
+rsync -a deploy/scanner/ user@VPS:/opt/stacks/scanner/ --exclude www --exclude uploads
+# on the VPS:
+cd /opt/stacks/scanner && mkdir -p uploads && sudo chown 65534:65534 uploads
+docker compose up -d                                   # starts `uploads`, reloads the scanner Caddy
+curl -sI https://scanner.lwenstrom.net/api/health      # 204
+```
+
+Bring uploads into the dataset (from the Mac; never deletes anything):
+
+```bash
+DEPLOY_HOST=user@VPS deploy/pull-uploads.sh
+dvc add datasets/sources/phone && dvc push && git commit -m "Pull scanner uploads" datasets/sources/phone.dvc
+```
+
+Uploaded detections are unverified proposals and user corrections are user decisions; both go
+through the normal review before they become training labels ([VIDEO_MINING.md](../docs/VIDEO_MINING.md),
+step 5).
+
 ## Adding the TFT app (or any other subdomain)
 
 1. In the TFT `compose.yaml`, attach the web-facing service to the shared network and drop
@@ -134,8 +171,8 @@ checks `bundle/manifest.json` on every start.
 
 ## Limits of a deployment (vs. the dev server)
 
-- No `/__feedback` or `/__log`: corrections made in the app are not collected as training
-  examples, and phone errors are not logged on the server. Both are dev-server features.
+- No `/__log`: phone errors are not logged on the server (dev-server feature). Captures and
+  corrections do reach the server through the upload service (below).
 - Saved collections live in each visitor's browser (localStorage + IndexedDB): no accounts,
   no sync between devices, and clearing site data deletes them.
 - Thresholds are uncalibrated; the detector combines synthetic pretraining with

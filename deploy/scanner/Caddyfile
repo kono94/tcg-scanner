@@ -2,6 +2,10 @@
 {
 	auto_https off
 	admin off
+	servers {
+		# Keep the visitor address the shared proxy forwards (rate limiting in the upload service).
+		trusted_proxies static private_ranges
+	}
 }
 
 :80 {
@@ -24,6 +28,15 @@
 		root * /srv/refs
 		header Cache-Control "public, max-age=604800"
 		file_server
+	}
+
+	# Training uploads (deploy/scanner/upload-service): captures and corrections, when the visitor allows it.
+	handle /api/* {
+		request_body {
+			max_size 25MB
+		}
+		header Cache-Control no-store
+		reverse_proxy uploads:8080
 	}
 
 	handle {

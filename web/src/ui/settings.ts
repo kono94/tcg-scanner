@@ -19,7 +19,8 @@ export interface Settings {
   priceMarket: 'EUR' | 'USD';
   /** 'page': review each page before the next; 'batch': scan page after page, check in the background, review at the end. */
   workflow: 'page' | 'batch';
-  /** Dev server only: upload every full capture with its detections for training (datasets/sources/phone/captures/). */
+  /** On by default: upload every capture with at least one detected card (with its detections) and every
+   *  correction to the server for future training (src/feedback.ts). */
   saveCaptures: boolean;
   /** Capture confirmation besides the flash: a short vibration (a click sound where vibration is unsupported). */
   captureFeedback: 'vibrate' | 'off';
@@ -30,7 +31,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   preferredLanguage: 'en', mode: DEFAULT_CYCLE.mode, dwellMs: DEFAULT_CYCLE.dwellMs, cooldownMs: DEFAULT_CYCLE.cooldownMs,
   tolerance: 'normal', theme: 'system', preferWebGPU: true, diagnostics: false, reviewMode: 'trust', priceMarket: 'EUR',
-  workflow: 'page', saveCaptures: false, batchCooldownMs: 5000, captureFeedback: 'vibrate', rev: 3,
+  workflow: 'page', saveCaptures: true, batchCooldownMs: 5000, captureFeedback: 'vibrate', rev: 4,
 };
 
 const KEY = 'tcg-scanner-settings-v1';
@@ -40,11 +41,12 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(KEY);
     const s = raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULT_SETTINGS };
     if (s.preferredLanguage !== 'en' && s.preferredLanguage !== 'de') s.preferredLanguage = 'en'; // only EN/DE supported
-    if (!import.meta.env.DEV) s.saveCaptures = false; // never in production builds
     // rev 2: the batch pause no longer doubles as a page-turn guard (the scene-change gate is), so 3 s became 1.5 s.
     if ((s.rev ?? 1) < 2) { if (s.batchCooldownMs === 3000) s.batchCooldownMs = 1500; s.rev = 2; }
     // rev 3: the pause became an explicit page-turn window; 1.5 s left too little time to turn a page.
     if ((s.rev ?? 1) < 3) { if (s.batchCooldownMs < 5000) s.batchCooldownMs = DEFAULT_SETTINGS.batchCooldownMs; s.rev = 3; }
+    // rev 4: sharing scans for training became the default; stored settings still hold the old default (off).
+    if ((s.rev ?? 1) < 4) { s.saveCaptures = true; s.rev = 4; }
     return s;
   } catch {
     return { ...DEFAULT_SETTINGS };

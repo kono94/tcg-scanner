@@ -1,5 +1,7 @@
-// User decisions as labeled training examples. In dev they go to the dev server (/__feedback),
-// which stores the crop and metadata under datasets/sources/phone/feedback/. A deployed app needs a real endpoint.
+// Training uploads ("Share scans to improve recognition", on by default): user decisions as labeled
+// examples (/api/feedback) and captures with their detections (/api/capture). The dev server stores them
+// under datasets/sources/phone/; a deployment's upload service (deploy/scanner/upload-service) on the VPS.
+// Callers check the setting; uploads never block or break scanning.
 import type { CardInstance } from './session/page';
 
 export interface FeedbackContext {
@@ -28,7 +30,7 @@ async function jpeg(bitmap: ImageBitmap): Promise<string> {
 /** decision: a catalog identity the user picked, or null for "none of these" (not in the catalog). */
 export async function sendFeedback(card: CardInstance, crop: ImageBitmap | null, decision: { identity: string | null; languageConfirmed: boolean },
   ctx: FeedbackContext): Promise<void> {
-  if (!import.meta.env.DEV || !crop) return;
+  if (!crop) return;
   try {
     const body = {
       schema_version: 1,
@@ -49,14 +51,13 @@ export async function sendFeedback(card: CardInstance, crop: ImageBitmap | null,
       created_at: new Date().toISOString(),
       crop_jpeg_base64: await jpeg(crop),
     };
-    await fetch('/__feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   } catch { /* feedback must never break scanning */ }
 }
 
 /** A correction made later in the Collection, from the saved crop (re-checked with the current bundle). */
 export async function sendCollectionFeedback(saved: { identity: string | null; number: number; pageNumber: number }, crop: Blob,
   hits: readonly { identity: string; score: number }[] | null, decision: { identity: string | null; languageConfirmed: boolean }, bundleVersion: string): Promise<void> {
-  if (!import.meta.env.DEV) return;
   try {
     const bitmap = await createImageBitmap(crop);
     const body = {
@@ -76,20 +77,16 @@ export async function sendCollectionFeedback(saved: { identity: string | null; n
       crop_jpeg_base64: await jpeg(bitmap),
     };
     bitmap.close();
-    await fetch('/__feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   } catch { /* feedback must never break the collection */ }
 }
 
-/**
- * Dev only ("Save captures for training"): a full capture as JPEG plus its detections, POSTed to the
- * dev server (/__capture), which stores them under datasets/sources/phone/captures/<date>/. Never in production builds.
- */
+/** A full capture with at least one detected card, as JPEG plus its (unverified) detections. */
 export async function uploadCapture(jpeg: Blob, meta: {
   captureSize: { width: number; height: number }; quads: number[][][]; scores: number[]; bundleVersion: string;
   cameraMock: boolean; workflow: string; page: number | null;
   captureId: string; sessionId: string; sourceVisitId: string; userAgent: string; provider: string | null;
 }): Promise<void> {
-  if (!import.meta.env.DEV) return;
   const body = {
     schema_version: 1, kind: 'scanner_capture', label_origin: 'detector_proposals_unverified',
     capture_size: meta.captureSize, detections: meta.quads.map((q, i) => ({ quad_capture_px: q, score: meta.scores[i] ?? null })),
@@ -99,6 +96,6 @@ export async function uploadCapture(jpeg: Blob, meta: {
     device: { user_agent: meta.userAgent, execution_provider: meta.provider },
   };
   try {
-    await fetch('/__capture?meta=' + encodeURIComponent(JSON.stringify(body)), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg });
+    await fetch('/api/capture?meta=' + encodeURIComponent(JSON.stringify(body)), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg });
   } catch { /* uploads must never break scanning */ }
 }

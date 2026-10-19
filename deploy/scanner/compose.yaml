@@ -1,4 +1,5 @@
-# The scanner is a static site: app, ONNX runtime, model bundle and reference thumbnails.
+# The scanner is a static site (app, ONNX runtime, model bundle, reference thumbnails) plus a small
+# upload service for "Share scans to improve recognition" (captures and corrections for training).
 # deploy.sh uploads releases to ./www; `current` points at the live one (switched atomically).
 services:
   scanner:
@@ -7,7 +8,23 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
       - ./www:/srv:ro,z
-    networks: [web]
+    networks: [web, default]
+
+  # Reached only through the scanner Caddy (/api/*); publishes no port. Stdlib Python, no build.
+  uploads:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    command: ["python", "-u", "/app/server.py"]
+    user: "65534:65534"          # nobody; ./uploads must be writable by it (see deploy/README.md)
+    read_only: true
+    environment:
+      DATA_DIR: /data
+      QUOTA_GB: "20"             # refuses uploads (507) once ./uploads holds this much
+      PER_CLIENT_PER_HOUR: "300"
+    volumes:
+      - ./upload-service/server.py:/app/server.py:ro,z
+      - ./uploads:/data:z
+    networks: [default]
 
 networks:
   web:

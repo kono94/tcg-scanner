@@ -76,7 +76,7 @@ function feedback(): Plugin {
   const root = resolve(repo, 'datasets/sources/phone/feedback');
   const testRoot = resolve(repo, 'runs/feedback-tests');
   const handler: Connect.NextHandleFunction = (req, res, next) => {
-    if (req.url !== '/__feedback' || req.method !== 'POST') return next();
+    if (req.url !== '/api/feedback' || req.method !== 'POST') return next();
     let body = '';
     req.on('data', (c) => { body += c; if (body.length > 8_000_000) req.destroy(); });
     req.on('end', () => {
@@ -111,7 +111,7 @@ function captures(): Plugin {
   const root = resolve(repo, 'datasets/sources/phone/captures');
   const testRoot = resolve(repo, 'runs/captures-tests');
   const handler: Connect.NextHandleFunction = (req, res, next) => {
-    if (!req.url?.startsWith('/__capture') || req.method !== 'POST') return next();
+    if (!req.url?.startsWith('/api/capture?') || req.method !== 'POST') return next();
     const chunks: Buffer[] = [];
     let size = 0;
     req.on('data', (c: Buffer) => { size += c.length; if (size > 20_000_000) req.destroy(); else chunks.push(c); });

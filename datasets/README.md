@@ -56,11 +56,13 @@ of public videos are unknown; these are local inspection and training inputs.
 
 ## sources/phone/
 
-`captures/<date>/` holds full scanner captures with detections and `feedback/<date>/` holds
-per-card user decisions. Both come from the Vite dev server when "Save captures for
-training" is on (`web/vite.config.ts`). `intake/` holds inventories of a capture session.
-These are the next independent real-camera evaluation inputs; they are not reviewed yet.
-Re-run `dvc add datasets/sources/phone` after a session.
+`captures/<date>/` holds scanner captures with at least one detected card (JPEG plus
+unverified detections) and `feedback/<date>/` holds per-card user corrections. They come from
+the app's "Share scans to improve recognition" setting (on by default): directly from the
+Vite dev server, or from the deployed scanner's upload service via
+`deploy/pull-uploads.sh`. `intake/` holds inventories of a capture session. These are the next
+independent real-camera evaluation inputs; they are not reviewed yet. After new uploads:
+`dvc add datasets/sources/phone`, `dvc push`, commit the pointer.
 
 ## review/
 

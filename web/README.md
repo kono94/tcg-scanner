@@ -170,9 +170,11 @@ or `previous-session-unclean` (no pagehide: crash or tab killed) with its last b
 reload a connected phone. Capture/page breadcrumbs carry what is alive on the UI thread
 (display crops, still image, batch backlog); WebKit exposes no heap size.
 
-"Save captures for training" (Settings, dev server only, off by default) POSTs each full capture
-(JPEG) with its detections to `/__capture`, stored under `datasets/sources/phone/captures/<date>/`
-(`runs/captures-tests/` for automated runs). Not present in production builds.
+"Share scans to improve recognition" (Settings → Advanced, **on by default**, can be turned off) POSTs each
+capture with at least one detected card (JPEG plus detections) to `/api/capture`, and each user
+correction (crop plus decision) to `/api/feedback`. The dev server stores them under
+`datasets/sources/phone/{captures,feedback}/<date>/` (automated runs: `runs/*-tests/`); a deployment
+sends them to the upload service on the VPS ([deploy/README.md](../deploy/README.md)).
 New uploads also carry persistent scan-session, capture and source-visit IDs,
 plus reported browser user agent and execution provider. A source visit is one
 document load; repeated physical views across visits must still be grouped during
