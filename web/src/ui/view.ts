@@ -141,8 +141,8 @@ export interface Handlers {
   renameSession(id: string, name: string): void;
   finishSession(): void;
   deleteSession(id: string): void;
-  /** Save the collection (or one binder) as a file; merge an exported file into this browser. */
-  exportCollection(sessionId?: string): void;
+  /** Save the whole collection as a file; merge an exported file into this browser. */
+  exportCollection(): void;
   importCollection(file: File): void;
   keepDuplicate(): void;
   discardDuplicate(): void;
@@ -1271,12 +1271,7 @@ export class View {
         del.onclick = async () => {
           if (await confirmDialog({ title: `Delete “${name}”?`, message: `Its ${plural(list.length, 'saved page')} and ${plural(t.cards, 'card')} are removed from this browser. This cannot be undone.`, confirm: 'Delete binder', danger: true })) this.handlers.deleteSession(id);
         };
-        const exp = el('button', 'linkbtn', 'Export');
-        exp.setAttribute('aria-label', `Export ${name}`);
-        exp.disabled = s.sessionChanging;
-        exp.hidden = !list.length;
-        exp.onclick = () => this.handlers.exportCollection(id);
-        actions.append(resume, rename, exp, del);
+        actions.append(resume, rename, del);
         head.append(summary, actions);
         wrap.append(head);
         for (const p of list) {

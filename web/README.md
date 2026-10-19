@@ -77,7 +77,7 @@ Each binder in Collection also has **Delete**, including binders with no saved p
 crop storage and session metadata, and retires its queue work. Other collections
 and already uploaded training originals are unaffected.
 
-The collection lives only in this browser. **Export** (collection header, or per binder) saves it as
+The collection lives only in this browser. **Export** (Collection header) saves the whole collection as
 a JSON file (`src/collection/transfer.ts`), through the share sheet where the browser can share files
 and as a download otherwise. The file holds binders, pages and saved cards (identities, choices,
 scan-time values, small thumbnails) but not the full crops. **Import** merges such a file into this

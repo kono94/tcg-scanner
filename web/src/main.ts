@@ -311,7 +311,7 @@ export class App {
       },
       finishSession: () => { void this.endScanSession(); },
       deleteSession: (id) => { void this.deleteCollection(id); },
-      exportCollection: (id) => { void this.exportCollection(id); },
+      exportCollection: () => { void this.exportCollection(); },
       importCollection: (file) => { void this.importCollection(file); },
       keepDuplicate: () => {
         if (!this.batch.keepDuplicate()) {
@@ -493,10 +493,10 @@ export class App {
   }
 
   /** Hand the collection file to the share sheet where files can be shared (phones), otherwise download it. */
-  private async exportCollection(sessionId?: string) {
+  private async exportCollection() {
     const now = new Date();
-    const data = exportCollection(this.manifest.version, sessionId ? [sessionId] : undefined, now);
-    const name = exportFileName(now, sessionId ? loadScanSessions().find((s) => s.id === sessionId)?.name : undefined);
+    const data = exportCollection(this.manifest.version, undefined, now);
+    const name = exportFileName(now);
     const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
     try {
       if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
