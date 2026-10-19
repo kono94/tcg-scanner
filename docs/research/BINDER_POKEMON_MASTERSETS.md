@@ -10,7 +10,7 @@ The PokeUnlocked tour appears strongest from titles and chapter structure, with 
 
 Retained frame manifests:
 
-- `runs/video_mining/binder-search-pokemon-mastersets/zjoawf6wEgc-frames/manifest.json`
-- `runs/video_mining/binder-search-pokemon-mastersets/6uXaVLcBo5I-frames/manifest.json`
+- `datasets/sources/videos/binder-search-pokemon-mastersets/zjoawf6wEgc-frames/manifest.json`
+- `datasets/sources/videos/binder-search-pokemon-mastersets/6uXaVLcBo5I-frames/manifest.json`
 
 Clip-local frame times use reported FPS and keyframe-aligned extraction; requested source windows are approximate, not exact presentation-time annotations. All frames remain unlabeled, and repeated frames from a single source are not independent identity examples. No frames are promoted to training or evaluation. The source group must remain intact if later proposals are evaluated. Similarity is the normal recognition path; OCR is an optional bounded fast pass only for exceptionally clear card crops.

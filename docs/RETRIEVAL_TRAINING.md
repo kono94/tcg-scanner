@@ -1,108 +1,88 @@
-# Retrieval fine-tuning
+# Card encoder training
 
-Two DINOv2-small/ArcFace runs have completed. Both use the same data isolation and
-evaluation; the GPU run is the encoder in the browser bundle.
+The scanner identifies a card by embedding its rectified crop and searching the enrolled
+gallery by cosine similarity. The encoder is a pretrained DINOv2-small backbone fine-tuned
+with ArcFace; the ArcFace class proxies are discarded after training, so enrolling new
+references never needs a new classifier head. Code: `training/recognition/`.
 
-| Run | Config | Hardware | Classes / trainable blocks / steps | Full-catalog exact top-1: val | test |
-| --- | --- | --- | --- | --- | --- |
-| `dinov2-arcface-pilot-20261016` | retired pilot config | Apple M1, MPS | 2,048 / 2 / 1,000 | 19/24 | 84/86 |
-| `dinov2-arcface-gpu-20261017` | `dinov2_arcface_gpu.yaml` | RTX 4070 Super, CUDA | 6,000 / 4 / 2,100 (epoch 12 selected) | 20/24 | 85/86 |
+## Deployed run
 
-Gallery: all 24,197 enrolled references. Validation queries are Pokémon, test
-queries One Piece, from few videos with repeated views and AI-reviewed labels: these
-are retrieval diagnostics, not scanner accuracy. Unknown rejection is uncalibrated.
-Each run folder holds `status.json`, `full_catalog_{val,test}.json`, the gallery
-index and checkpoints (only the current GPU run is retained in DVC; pilot/smoke artifacts were retired). GPU-machine setup: [GPU training](GPU_TRAINING.md).
+`models/card-encoder/dinov2-arcface-gpu-20261017` (DVC), trained with
+`training/recognition/configs/dinov2_arcface_gpu.yaml` on the RTX 4070 Super
+([GPU_TRAINING.md](GPU_TRAINING.md)) in 38 minutes.
 
-## Pilot recipe and scope
+| | |
+| --- | --- |
+| Backbone | `facebook/dinov2-small`, revision `ed25f3a3`, weights hash-pinned (`models/pretrained/dinov2-small`) |
+| Descriptor | CLS token → 384×384 projection (identity-initialized) → L2 normalization |
+| Objective | ArcFace, margin 0.2 rad, scale 16 |
+| Trainable | projection and proxies from the start; last 4 transformer blocks + final LayerNorm after a 1-epoch warm-up |
+| Optimizer | AdamW, cosine decay; learning rates backbone 3e-5, projection 1e-4, proxies 1e-3 |
+| Budget | 14 sampling epochs × 150 steps = 2,100 steps; 32 identities × 2 views = 64 images per step |
+| Training pool | 6,000 visual classes (6,001 catalog identities), game-balanced, including all 188 real train crops |
+| Augmentation | whole-card perspective with corners kept inside, mild exposure/color/contrast, blur, JPEG, glare; no erasing or generated SAMPLE removal |
+| Input contract | `tcg-full-card-v1` (`canonical.py`): 224×312 rectified card, aspect fit into 224×224 with mean padding, ImageNet normalization |
+| Selected | epoch 12 by validation Recall@1, then Recall@5, then true-vs-impostor margin |
 
-The rest of this page describes the pilot; the GPU run changes only what its config
-diff shows (CUDA, 6,000 classes, 4 trainable blocks, 14 × 150 steps, 32 identities per
-batch).
+Full-catalog results (all 24,197 references enrolled, exact matrix search):
 
-`training/card_recognizer/train_retrieval.py` is separate from the legacy
-classifier trainer. Its configuration is
-the historical Apple-MPS pilot config (retired).
+| Split | Queries | Recall@1 | Recall@5 | Mean margin true vs best other |
+| --- | --- | --- | --- | --- |
+| val (Pokémon) | 24 | 20/24 | 24/24 | 0.250 |
+| test (One Piece) | 86 | 85/86 | 86/86 | 0.276 |
 
-- Pinned, cached `facebook/dinov2-small`, revision
-  `ed25f3a31f01632728cabb09d1542f84ab7b0056`; pretrained weight hash checked.
-- CLS features → learned 384-dimensional projection → L2-normalized descriptor.
-  The projection starts as an identity matrix. ArcFace uses a 0.2-radian margin
-  and scale 16. Training proxies are discarded for deployment.
-- One projection/proxy warm-up sampling epoch, then the final two transformer
-  blocks and final backbone LayerNorm are fine-tuned. Separate learning rates:
-  backbone 3e-5, projection 1e-4, proxies 1e-3; AdamW with cosine decay.
-- Ten sampling epochs × 100 optimizer steps = **1,000 steps**. These are fixed
-  sampling budgets, not full passes through every image/class.
-- Eight different training identities per batch, two augmented views each:
-  **16 images**. Half the sampled classes have real training views, where
-  available; their positive pair uses a reference and a real query.
-- **2,048 training visual classes / 2,049 catalog identities**, including all
-  **188 real training crops / 119 real-query identities** and a deterministic,
-  game-balanced gallery sample. One exact-byte alias pair shares a proxy.
-  This pilot does not train on every acquired reference identity.
-- Whole-card geometric perturbation keeps all corners inside the canvas;
-  mild exposure/color/contrast, blur, JPEG and glare augmentations. No erasing,
-  generated SAMPLE removal or invented missing card content.
-- Query and gallery share `tcg-full-card-v1` canonicalization, 224×312 card
-  geometry and mean-padded, normalized 224×224 encoder tensors.
+These are retrieval diagnostics on AI-reviewed crops from few videos with repeated views,
+not scanner accuracy. Unknown-card rejection is uncalibrated.
 
-## Isolation and evaluation
+## Data isolation
 
-Training selection starts after source/identity isolation. The **39 validation
-and test query identities** are excluded from training, including related
-One Piece base IDs across languages/art suffixes and exact-image aliases.
-The known same-art Limejuice printing pair is also excluded. This removes
-**61 catalog identities** from the training pool; none of the 188 accepted
-training queries is lost. All source videos stay in their existing split.
+Splits are by source video (source group) and fixed in `datasets/curated`. Before
+sampling, the trainer removes from all gradients the 39 val/test query identities, their
+One Piece base families across languages and art suffixes, and exact-byte aliases
+(61 catalog identities in total), plus the known same-art pair `OP09-014`/`OP09-014_p1`.
+During training, each epoch evaluates the 24 validation crops against a fixed
+6,062-reference distractor gallery; these interim numbers are not full-catalog results.
+Test pixels are read once, after checkpoint selection. No threshold or retraining
+decision uses test results.
 
-Each sampling epoch evaluates the 24 validation crops against a fixed
-**2,110-reference distractor gallery** containing the selected training
-references and excluded/held-out identity families. These interim Recall@K
-values are **not full-catalog results**. Validation Recall@1, then Recall@5,
-then mean true-versus-impostor similarity margin select the best checkpoint.
+## Outputs and safeguards
 
-After selection, the trainer rebuilds embeddings for **all 24,197 enrolled
-references** and evaluates validation and test crops. Test pixels are first
-loaded at that final stage. It writes `full_catalog_val.json`,
-`full_catalog_test.json`, `gallery_embeddings.npy` and `gallery_index.json`.
-The index records checkpoint/vector hashes and reference ordering. Unknown
-rejection thresholds and export/runtime parity remain uncalibrated/unverified.
-No test-driven retraining or threshold selection occurs in this run.
+A run folder holds `resolved_config.json`, `training_plan.json`, `encoder_contract.json`
+(backbone, preprocessing and source hashes), per-epoch validation reports, `last.pt`,
+`best.pt`, `full_catalog_{val,test}.json`, `gallery_embeddings.npy` and `gallery_index.json`
+(checkpoint/vector hashes and reference order). The trainer refuses silent CPU fallback,
+changed data or config on resume, non-finite loss or gradients, and missing or
+hash-mismatched inputs. The positional-embedding grid for the fixed 224×224 input is
+interpolated once on CPU (identical outputs), which also keeps Apple MPS usable for
+small checks.
 
-Repeated views, few videos, AI-reviewed labels and gallery-derived synthetic
-augmentation limit these diagnostics. They do not establish end-to-end
-scanner accuracy or broad cross-game generalization.
-
-## Apple GPU and checkpoints
-
-The selected PyTorch 2.4.0 MPS backend lacks bicubic positional-grid resizing.
-The trainer computes the frozen pretrained grid once on CPU for the fixed
-224×224 input, then moves the model to MPS. A full-backbone parity check found
-**zero maximum absolute output difference** before/after that preparation.
-Training forward/backward runs on MPS with CPU operator fallback disabled.
-Pixel decoding/augmentation remains CPU work. An actual MPS backward step,
-backbone-weight update, checkpoint save and resume passed the smoke check.
-This was an executed historical pilot check; its local smoke artifacts were retired.
-
-`last.pt` is saved every sampling epoch; `best.pt` is selected only on validation.
-The run records the resolved configuration, data selection, model/preprocessing
-contract, source snapshots and hashes. It refuses silent CPU fallback, changed
-resume data/config, nonfinite loss/gradients and missing/hash-mismatched inputs.
-
-Launch in a new output directory with GPU access:
+## Commands
 
 ```bash
-.env/bin/python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
-  --output runs/card_recognizer/retrieval/<new-run>
+# new run (on the GPU PC); output must be below runs/recognition/
+.env/bin/python training/recognition/train_retrieval.py \
+  --config training/recognition/configs/dinov2_arcface_gpu.yaml \
+  --output runs/recognition/retrieval/<new-run>
+
+# resume an interrupted run with the identical config and dataset
+.env/bin/python training/recognition/train_retrieval.py \
+  --config training/recognition/configs/dinov2_arcface_gpu.yaml \
+  --output runs/recognition/retrieval/<new-run> --resume
 ```
 
-Resume an interrupted run from its last complete sampling epoch using the
-identical configuration and dataset:
+A new run replaces the deployed encoder only after it beats it on the same full-catalog
+val/test evaluation. Then move it to `models/card-encoder/`, `dvc add` it, re-export with
+`scripts/release/export_browser_models.py` (fp32 and int8, parity checked) and rebuild the
+bundle; the gallery must always be re-embedded with the new encoder.
 
-```bash
-.env/bin/python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
-  --output runs/card_recognizer/retrieval/<existing-run> --resume
-```
+## History
+
+| Run | Hardware | Classes / trainable blocks / steps | Val R@1 | Test R@1 |
+| --- | --- | --- | --- | --- |
+| `dinov2-arcface-pilot-20261016` (retired) | Apple M1, MPS | 2,048 / 2 / 1,000 | 19/24 | 84/86 |
+| `dinov2-arcface-gpu-20261017` (deployed) | RTX 4070 Super | 6,000 / 4 / 2,100 | 20/24 | 85/86 |
+
+Before that, a MobileNetV3 classifier and frozen-encoder baselines were used; they are
+archived ([FOUNDATION_MODELS.md](../archive/docs/FOUNDATION_MODELS.md)). Candidates for
+the next encoder (DINOv3, ConvNeXt, SigLIP-family) need the same fine-tuning, isolation
+and evaluation; see [RECOGNITION_DESIGN.md](RECOGNITION_DESIGN.md).

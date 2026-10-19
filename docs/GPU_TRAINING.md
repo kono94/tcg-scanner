@@ -1,62 +1,79 @@
 # Training on the LAN GPU machine
 
-Status: used 2026-10-17 for the corner detector and the second card-embedding run. The Mac
-(Apple M1) stays the place for data preparation, evaluation, export and the web bundle; the GPU
-machine only trains. Apple's MPS backend cannot train Ultralytics pose (keypoint) models
-(Ultralytics issue 4031), and is several times slower for everything else.
+The Mac (Apple M1) prepares data, evaluates, exports and builds the web bundle; the GPU PC
+only trains. Apple's MPS backend cannot train Ultralytics pose (keypoint) models
+(Ultralytics issue 4031) and is several times slower for everything else. The GPU PC also
+hosts the DVC remote (`gpu-pc` in `.dvc/config`).
 
 ## Machine
 
-- Windows PC, WSL2 Ubuntu 24.04 with mirrored networking, reachable as `kono@192.168.178.38`
-  (SSH key from the Mac; WSL OpenSSH on port 22).
+- Windows PC, WSL2 Ubuntu 24.04 with mirrored networking, `kono@192.168.178.38`
+  (SSH key from the Mac; WSL OpenSSH on port 22). DVC store: `/mnt/d/tcg-scanner-dvc`.
 - NVIDIA RTX 4070 Super (12 GB), 16 cores, 30 GB RAM.
-- `~/tcg-train/.venv`: Python 3.12, torch 2.4.0+cu124, torchvision 0.19.0, ultralytics 8.2.82,
-  transformers 4.46.3 (pip, not the macOS runtime folder), onnx/onnxruntime for checks.
-- `~/tcg-train/repo`: a partial mirror of this repository (training code, scripts, the data below).
-  `runs/foundation_teacher/runtime` exists there only as an empty folder; the trainer adds it to
-  `sys.path`, and the packages come from the venv instead.
+- `~/tcg-train/.venv`: Python 3.12 with `requirements.txt` (torch 2.4.0+cu124 instead of
+  the CPU wheel).
+- `~/tcg-train/repo`: a partial mirror of this repository: code plus the inputs below.
 
-## What gets copied (rsync from the Mac)
+## Inputs on the PC
 
 | Path | Size | Used by |
 | --- | --- | --- |
-| `datasets/curated/` | 3.0 GB | card embedding (gallery + labeled query crops) |
-| `runs/card_recognizer/dinov2_baseline/hf_cache` | 84 MB | pinned DINOv2-small weights |
-| `runs/card_detector/corners-mix` (copied with `-L`, symlinks resolved) | ~1.2 GB | corner detector |
-| `training/card_detector`, `training/card_recognizer`, corner/eval scripts | small | code |
+| `datasets/curated/` | 3.0 GB | encoder training (gallery + labeled query crops) |
+| `models/pretrained/dinov2-small/` | 84 MB | encoder initialization |
+| `models/corner-detector/corners-s640-v4-ft/` | 23 MB | detector fine-tuning start point |
+| `runs/detection/<corner dataset>/` | ~1.2 GB | detector training (built by `build_corner_dataset.py`) |
+| `training/`, `scripts/`, `requirements.txt` | small | code |
 
-After copying a YOLO dataset, rewrite the absolute `path:` in its `dataset.yaml` for the PC.
+Get data with `dvc pull <pointer>` in the mirror, or rsync from the Mac. YOLO datasets
+built with symlinks must be copied with `rsync -L`; afterwards fix the absolute `path:` in
+their `dataset.yaml`.
 
-## Runs
+The mirror predates the 2026-10-19 relayout. After syncing code, run
+`python scripts/maintenance/relayout_2026_10.py` there once: it moves the old `runs/...`
+inputs to the new paths (missing ones are skipped), rewrites paths stored inside them,
+and `dvc add`s the results. That includes the training set of the deployed detector,
+`runs/card_detector/corners-v4mix`, which exists only on the PC and becomes
+`datasets/detection/corners-v4mix`; `dvc push` it and commit its pointer.
 
-Current corner detector: YOLOv8s-pose, `corners-s640-v4-ft`. The final checkpoint
-and export evidence are in DVC. Its saved training arguments record a five-epoch
-final fine tune from `corners-s640-v4/weights/last.pt`, using `corners-v4mix`, 640 px,
-batch 24, seven workers, learning rate 0.002, no warm-up and mosaic disabled. The
-superseded parent/intermediate checkpoints were retired during cleanup. Further
-fine tuning can start from the retained current checkpoint; exact replay of all
-historical stages requires the old artifacts.
-
-Datasets use YOLO pose labels (one class, normalized box plus four corner
-keypoints; `kpt_shape: [4, 3]`), not Hugging Face datasets. The merged
-`scripts/generate_detection_scenes.py`, `build_corner_dataset.py` and
-`real_corner_labels.py` provide scene generation, pose conversion and auditable
-AI-reviewed real-corner labeling. Keep source groups and exact physical-edge
-annotations separate from model proposals.
-
-Card embedding (DINOv2-small + ArcFace), `training/card_recognizer/configs/dinov2_arcface_gpu.yaml`:
+## Card encoder
 
 ```bash
-python training/card_recognizer/train_retrieval.py \
-  --config training/card_recognizer/configs/dinov2_arcface_gpu.yaml \
-  --output runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017
+python training/recognition/train_retrieval.py \
+  --config training/recognition/configs/dinov2_arcface_gpu.yaml \
+  --output runs/recognition/retrieval/<new-run>
 ```
 
-Both fit on the 12 GB GPU at the same time (about 11.7 GB together). Logs go to `~/tcg-train/logs/`.
+The deployed run took 38 minutes. Recipe and evaluation:
+[RETRIEVAL_TRAINING.md](RETRIEVAL_TRAINING.md).
+
+## Corner detector
+
+The deployed `corners-s640-v4-ft` is YOLOv8s-pose at 640 px. Its saved training arguments
+record a five-epoch fine tune from `corners-s640-v4/weights/last.pt` on `corners-v4mix`
+(synthetic renderer-v4 scenes plus AI-reviewed real corners), batch 24, seven workers,
+learning rate 0.002, no warm-up, mosaic off. Parent and intermediate checkpoints are
+retired; new fine tunes start from the deployed checkpoint.
+
+```bash
+# on the Mac: scenes and the YOLO dataset
+.env/bin/python scripts/detection/generate_detection_scenes.py --output runs/detection/scenes-v4
+.env/bin/python scripts/detection/build_corner_dataset.py --scenes runs/detection/scenes-v4 \
+  --real datasets/detection/real-corners/train_labels_v1.json --max-tilt 50 \
+  --output runs/detection/corners-v5mix
+# on the PC
+python training/detection/train_detector.py --data runs/detection/corners-v5mix/dataset.yaml \
+  --model models/corner-detector/corners-s640-v4-ft/weights/best.pt --imgsz 640 --batch 24
+```
+
+Encoder and detector training fit on the GPU together (about 11.7 GB). Logs go to
+`~/tcg-train/logs/`.
 
 ## Back on the Mac
 
-Copy the finished run folders back into `runs/`, then evaluate and build the bundle here:
-`scripts/evaluate_corners_real.py`, `scripts/compare_detectors_real.py`,
-`scripts/export_browser_models.py`, int8 quantization, `scripts/build_browser_bundle.py`, and the
-web unit/browser tests. A model only replaces the current one when it wins these checks.
+Copy finished runs into `runs/`, then evaluate and build here:
+`scripts/detection/evaluate_corners_real.py` and `compare_detectors_real.py` for the
+detector, full-catalog val/test for the encoder, then
+`scripts/release/export_browser_models.py`, int8 quantization,
+`scripts/release/build_browser_bundle.py` and the web unit and browser tests. A model
+replaces the deployed one only when it wins these checks; then move it into `models/`,
+`dvc add`, `dvc push` and commit the pointer.

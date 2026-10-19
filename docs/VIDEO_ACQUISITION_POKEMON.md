@@ -1,5 +1,7 @@
 # Pokémon video quality acquisition
 
+> Historical quality pass, kept as a worked example for [VIDEO_MINING.md](VIDEO_MINING.md). Localization here used GroundingDINO proposals; today crops come from the deployed corner detector. Paths were updated to `datasets/sources/videos/` on 2026-10-19.
+
 Updated 2026-10-15. This note records an actual visual pass over the two existing 4K Pokémon excerpts and one new, bounded English-language 4K excerpt. It is separate from the broader source candidate list in `resources/benchmarks/pokemon_video_candidates.json`.
 
 The existing 16 sampled frames contain three distinct full-card close-up views: two English cards from [PokeUnlocked's 1025-card binder tour](https://www.youtube.com/watch?v=ZQ11RKIA7BE) and one Japanese card from [Midnight Rare ASMR's 150-pack opening](https://www.youtube.com/watch?v=BF_gXDPnhCg). The binder excerpt also contains three page-level views with hands, captions, and mixed card/custom inserts; those may help scene detection but do not support exact identity. Its other three frames are editor-inserted card graphics or an outro. The eight pack-opening frames repeat the same Japanese card in the same apparent physical instance: one unique card view and seven near-duplicates. None of these frames received exact catalog or printing labels.
@@ -8,4 +10,4 @@ A third source was acquired for bounded inspection: [No Frills ASMR, “Looking 
 
 The new excerpt shows one English Tyranitar V card close-up. The full card is visually around 1,000×1,300 source pixels and its name/text are legible, but foil glare crosses the face and blue gloves cover portions of the edges. The sampled sequence contains one useful unique view and five near-duplicates of that same card. Cached Grounding DINO proposals on the first and last frames center on the card; these are localization proposals, not ground truth or identity evidence. No exact card ID was assigned, and nothing was promoted to training or locked evaluation.
 
-The machine-readable quality audit, raw public metadata probe, source excerpt, frame hashes, JPEGs, and detector previews are in `runs/video_mining/pokemon-quality-pass/` and `runs/video_mining/pokemon-probes/son-collection-4k.json`. The new excerpt and six frames total less than 11 MB. Reuse rights remain unknown for all sources; public viewing access does not establish a license.
+The machine-readable quality audit, raw public metadata probe, source excerpt, frame hashes, JPEGs, and detector previews are in `datasets/sources/videos/pokemon-quality-pass/` and `datasets/sources/videos/pokemon-probes/son-collection-4k.json`. The new excerpt and six frames total less than 11 MB. Reuse rights remain unknown for all sources; public viewing access does not establish a license.

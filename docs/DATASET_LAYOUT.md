@@ -1,6 +1,8 @@
 # Curated dataset layout
 
-`scripts/curate_datasets.py` copies reviewed inputs into a namespaced layout at
+Where `datasets/curated` sits among the other data folders: [datasets/README.md](../datasets/README.md).
+
+`scripts/curation/curate_datasets.py` copies reviewed inputs into a namespaced layout at
 `datasets/curated/`. It does not assign labels, infer missing identity fields,
 or claim human verification. Run it only after the root reviewer has prepared
 both manifests and inspected the accepted crops. Existing corpora and notebooks
@@ -86,25 +88,27 @@ modify the original. Write transformations to a new artifact instead.
 
 ## Detector data
 
-Detector training data is not curated here. `scripts/generate_detection_scenes.py`
-renders synthetic scenes with exact corners, and `scripts/build_corner_dataset.py`
-converts them, together with AI-reviewed real corners, to a YOLO-pose dataset
-under `runs/card_detector/`. Its YAML records an absolute local dataset root;
-recreate it after moving the dataset. Real unreviewed scenes are not promoted into
-detector ground truth, and partially annotated multi-card scenes are not imported
-as complete labels.
+Detector training data is not curated here. `scripts/detection/generate_detection_scenes.py`
+renders synthetic scenes with exact corners, and `scripts/detection/build_corner_dataset.py`
+converts them, together with the AI-reviewed real corners in
+`datasets/detection/real-corners/`, to a YOLO-pose dataset under `runs/detection/`. Its YAML
+records an absolute dataset root; recreate it after moving the dataset. The dataset behind
+a deployed detector is versioned in `datasets/detection/`. Unreviewed real scenes are not
+detector ground truth, and partially annotated multi-card scenes are not complete labels.
 
 ## Example
 
-From the repository root, after placing the manifests and source images under
-`runs/video_mining/<review-batch>/`:
+Rebuild the current snapshot from its review records (this reproduces `datasets/curated`
+exactly; verified 2026-10-19):
 
 ```bash
-.env/bin/python scripts/curate_datasets.py \
-  --input-root runs/video_mining/<review-batch> \
-  --references-manifest runs/video_mining/<review-batch>/references.json \
-  --review-manifest runs/video_mining/<review-batch>/review.json
+.env/bin/python scripts/curation/curate_datasets.py \
+  --input-root . \
+  --references-manifest datasets/review/pass2/references_v5.json \
+  --review-manifest datasets/review/pass2/sol_review_merged.json \
+  --output datasets/curated-next --copy-mode hardlink
 ```
 
-`datasets/curated/` is ignored because it contains local derived data. The current
-executed snapshot and its limits are recorded in [DATASET_CLEANUP.md](DATASET_CLEANUP.md).
+A new review batch adds its merged manifests under `datasets/review/` and runs the same
+command; then replace `datasets/curated`, `dvc add` it and commit the pointer. History and
+counts of the executed snapshot: [DATASET_CLEANUP.md](DATASET_CLEANUP.md).

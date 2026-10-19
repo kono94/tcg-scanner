@@ -5,7 +5,7 @@ perspective warp → fine-tuned DINOv2/ArcFace retrieval → match/value review.
 Single-card and variable-card-count binder pages, single-page and persisted batch
 workflows, card-back handling and local collection are supported. Evidence and
 limitations are in [the browser README](../web/README.md) and
-[bundle notes](BROWSER_BUNDLE_2026-10-17.md).
+[bundle notes](BROWSER_BUNDLE.md).
 
 Next work:
 
@@ -22,7 +22,7 @@ list below.
    pixels, source/session splits and auditable AI-reviewed corner/identity labels.
    Include single cards, binder pages, >9 cards, negatives, backs and difficult
    variants. No user transcription or manual dataset creation is required.
-   Start with the uploaded phone captures (`runs/captures/`, `runs/feedback/`):
+   Start with the uploaded phone captures (`datasets/sources/phone/captures/`, `datasets/sources/phone/feedback/`):
    AI visual review and exact-reference matching per instance, diagnosis of the
    three reported misses where source evidence permits, and session-grouped
    train/evaluation intake before any further training.
@@ -30,7 +30,7 @@ list below.
    calibration data. Keep locked test captures out of selection; report precision,
    coverage, false accepts and per-scene latency with provenance and denominators.
 4. Improve localization/retrieval only against declared baselines (detector:
-   `scripts/evaluate_corners_real.py` and `scripts/compare_detectors_real.py`). Maintain the
+   `scripts/detection/evaluate_corners_real.py` and `scripts/detection/compare_detectors_real.py`). Maintain the
    shared canonicalization contract and regenerate gallery/export fixtures after
    encoder changes. Similarity is the normal path; OCR is optional and bounded.
 

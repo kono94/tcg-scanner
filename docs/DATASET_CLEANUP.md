@@ -92,7 +92,7 @@ The snapshot no longer contains detector data. Its 200 v1 synthetic OBB scenes
 (One Piece only, superseded by the renderer-v2/v3 scene sets) were removed on
 2026-10-19. The deployed corner detector trains on `generate_detection_scenes.py`
 scenes plus AI-reviewed real corners via `build_corner_dataset.py` (see
-`training/card_detector/README.md`).
+`training/detection/README.md`).
 
 ## Checks and reproduction
 
@@ -110,24 +110,23 @@ Ultralytics loader. These checks do not measure camera recognition accuracy.
 
 Current local source manifests:
 
-- `runs/dataset_cleanup/pass2/references_v5.json`
-- `runs/dataset_cleanup/pass2/sol_review_merged.json` (all accepted queries)
-- `runs/dataset_cleanup/pass2/sol_review_complete.json` (all 519 decisions)
+- `datasets/review/pass2/references_v5.json`
+- `datasets/review/pass2/sol_review_merged.json` (all accepted queries)
+- `datasets/review/pass2/sol_review_complete.json` (all 519 decisions)
 - `datasets/curated/recognition/review_audit.json`
 - `datasets/staging/recognition/manifest.json` (reviewed exclusions only)
 
 Build a new empty snapshot from the approved inputs:
 
 ```bash
-.env/bin/python scripts/curate_datasets.py \
+.env/bin/python scripts/curation/curate_datasets.py \
   --input-root . \
-  --references-manifest runs/dataset_cleanup/pass2/references_v5.json \
-  --review-manifest runs/dataset_cleanup/pass2/sol_review_merged.json \
+  --references-manifest datasets/review/pass2/references_v5.json \
+  --review-manifest datasets/review/pass2/sol_review_merged.json \
   --output datasets/curated-next --copy-mode hardlink
 ```
 
 Historical proposal manifests intentionally retain paths to removed rejected
 files for audit. Consult the rejection audit and current staging manifest for
-file availability. Next recognition work is pretrained-backbone retrieval fine
-tuning with identity/visual-family-aware splits and negatives; frozen-DINO
-comparisons remain stopped.
+file availability. The encoder trained on this snapshot is described in
+[RETRIEVAL_TRAINING.md](RETRIEVAL_TRAINING.md).

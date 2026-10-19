@@ -34,3 +34,18 @@ OBB training/evaluation paths were removed (see Git history before 2026-10-19).
 Legacy classifier/native-app sources and superseded model artifacts were removed
 from the current checkout. Git retains source history; retired DVC artifacts are
 not part of the supported current workflow.
+
+## Repository relayout (2026-10-19)
+
+Versioned inputs moved out of `runs/` (now local scratch only) into `datasets/` and
+`models/`, and the code packages were renamed; `scripts/maintenance/relayout_2026_10.py`
+holds the full mapping and rewrote the paths stored inside moved data. Archived files
+above still use the old paths. Main renames: `training/card_recognizer` →
+`training/recognition`, `training/card_detector` → `training/detection`, flat `scripts/` →
+`scripts/<stage>/`, `runs/video_mining` → `datasets/sources/videos`,
+`runs/dataset_cleanup` → `datasets/review`, `runs/card_recognizer/*_sync` →
+`datasets/sources/catalog/<provider>`, trained/pretrained weights → `models/`. The original
+One Piece scrape left Git LFS for `datasets/sources/catalog/onepiece-en-bandai-2024` (DVC);
+its bytes were verified identical to the curated gallery copies. The isolated
+`transformers`/`yt-dlp` install folders were replaced by `requirements.txt`, and renderer v2
+(sideways cards) was removed.

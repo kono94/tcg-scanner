@@ -43,7 +43,7 @@ Acquisition prefers 2160p/4K with a hard minimum 1440p available source format. 
 
 ## Current implementation boundary
 
-`ocr_identity.py` / `scripts/propose_card_labels.py` implement offline whole-card
+`ocr_identity.py` / `scripts/curation/propose_card_labels.py` implement offline whole-card
 Tesseract regions, bounded PSM 7 retries on observed ID-like regions, catalog lookup
 and 0/180-degree orientation candidates. The retired frozen-MobileNet fallback was
 removed. `identity_evidence.py` separately checks proposed visual/OCR agreement,

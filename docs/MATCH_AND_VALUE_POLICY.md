@@ -1,8 +1,9 @@
 # Match uncertainty, preferred language and value ranges
 
-Status: agreed product direction, 2026-10-16. Candidate-family resolution, range
-pricing and these controls are planned; they are not implemented in the app or
-retrieval yet.
+Status (2026-10-19): implemented in the app. Artwork-family matching and margins
+(`web/src/recognition/policy.ts`), preferred language (EN/DE), plausible-versions value
+ranges and the `Check variant` cue (`web/src/recognition/value.ts`) are live; thresholds
+are uncalibrated. Parts of this page beyond those files remain direction.
 
 ## Language preference and candidate identity
 
@@ -110,7 +111,7 @@ price), so the normal similarity search recognizes them:
 - Best hit is a back with score ≥ 0.65 and a margin ≥ 0.10 to the best real
   card: the instance becomes **Card back** (session state `back`). Uncalibrated
   defaults (`DEFAULT_BACK_THRESHOLDS`, chosen from
-  `scripts/evaluate_card_backs.py`; see `web/README.md`).
+  `scripts/release/evaluate_card_backs.py`; see `web/README.md`).
 - A weaker back hit is never turned into a card match: it stays
   `match-unclear`/`not-found` (needs attention). A back close behind a card hit
   counts as the competitor for the card margin.

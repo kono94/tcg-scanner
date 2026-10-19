@@ -1,7 +1,10 @@
-# Fine-tuned corner detector bundle
+# Current browser bundle
 
-Bundle `270473320b53d5b4` replaces the detector in `535078e65aa8d649` with
-`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt`, exported at 640 px.
+The bundle in `web/public/bundle` (DVC) as deployed. Update this page when a new bundle
+ships and move the superseded text to `archive/docs/`.
+
+Bundle `270473320b53d5b4` (2026-10-17) replaces the detector in `535078e65aa8d649` with
+`models/corner-detector/corners-s640-v4-ft/weights/best.pt`, exported at 640 px.
 The confidence threshold remains 0.6 and NMS IoU remains 0.7. Encoder, int8 encoder,
 gallery, catalog and price files are byte-identical to the previous bundle.
 
@@ -16,7 +19,7 @@ checks that these detections survive the complete decoder.
   `9cf37d1885e7e85ec3b4c3bed7e06f6e2bfe1c62b44760fffdf7803787bd5bf4`.
 - ONNX SHA-256:
   `d38f1ac96320f369a7dd10d3fc49850e97fda26c0a93143522e8d0f52a756a85`.
-- Exported through `scripts.build_browser_bundle.export_detector` (opset 17,
+- Exported through `scripts.release.build_browser_bundle.export_detector` (opset 17,
   static input, float32). Maximum absolute difference against PyTorch CPU was
   0.002228 on the seeded input and 0.001092 across five real frames. These compare
   actual raw outputs with ONNX Runtime CPU, not just tensor shapes.
@@ -27,7 +30,7 @@ checks that these detections survive the complete decoder.
   test-video camera mock, including single-page review and persisted batch review.
 - Export and real-frame parity reports are DVC-versioned alongside the checkpoint
   as `browser_export.json` and `browser_real_parity.json`. Updated Ultralytics
-  decoder fixtures are in `runs/browser_export/pose-fixture` (DVC).
+  decoder fixtures are in `models/browser-export/corner-decoder-fixture` (DVC).
 
 The detector has synthetic pretraining plus AI-reviewed real-corner fine tuning.
 The preceding model comparison used a small video-derived set with AI-reviewed

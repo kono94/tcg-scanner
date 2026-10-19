@@ -1,75 +1,62 @@
 # TCG Scanner
 
-A phone-browser trading-card scanner: capture a steady single card or binder page,
-detect the physical corners, straighten each card, retrieve its identity with a
-fine-tuned DINOv2 encoder, and review results with price estimates.
+A phone-browser trading-card scanner for One Piece and Pokémon: capture a steady single
+card or binder page, detect each card's four corners, straighten it, identify it by
+similarity search with a fine-tuned DINOv2 encoder, and review the results with prices.
 
-The product is [web/](web/README.md). The native iOS app, MobileNet classifier,
-frozen-encoder experiment tools and superseded model runs have been retired.
-The original scraper notebook and previous roadmap are in [archive/](archive/README.md).
+## Repository map
 
-## Current evidence
+| Folder | What it is |
+| --- | --- |
+| [`web/`](web/README.md) | **the product**: Vite + TypeScript scanner, ONNX inference in a worker |
+| [`deploy/`](deploy/README.md) | static hosting on the VPS (Caddy, release scripts, GitHub deploy hook) |
+| [`training/`](training/) | model code: `recognition/` (card encoder, preprocessing contract, OCR helpers) and `detection/` (synthetic scene renderer, corner detector trainer) |
+| [`scripts/`](scripts/README.md) | pipeline tools by stage: `catalog/`, `video/`, `curation/`, `detection/`, `release/` |
+| [`datasets/`](datasets/README.md) | versioned data (DVC): curated dataset, raw sources, review records, detector labels, prices |
+| [`models/`](models/README.md) | versioned weights (DVC): pretrained backbone, deployed encoder and detector, browser exports |
+| `runs/` | local scratch for training and experiments; never versioned, safe to delete |
+| [`docs/`](docs/) | design, policies and procedures (start with [DEVELOPMENT.md](docs/DEVELOPMENT.md)) |
+| `tests/` | Python unit tests (`web/tests`, `web/e2e` hold the web tests) |
+| `resources/` | video-source candidate lists and a video conversion helper |
+| [`archive/`](archive/README.md) | retired code and dated logs, not maintained |
 
-Bundle `270473320b53d5b4` uses YOLOv8s-pose `corners-s640-v4-ft` at 640 px and
-DINOv2-small/ArcFace `dinov2-arcface-gpu-20261017`. It contains 24,038 card-reference
-rows plus six card-back rows. Inference runs in a worker: WebGPU with the fp32
-encoder, falling back to WASM with an int8 encoder.
+## Current state
 
-Desktop Chrome single-page and batch workflows are verified with a test-video
-camera mock. Physical phones, end-to-end real-camera accuracy and operating
-thresholds remain unverified/uncalibrated. Detector training combines synthetic
-scenes with AI-reviewed real corners. Encoder retrieval diagnostics are 20/24
-validation and 85/86 test crops; these few video-derived, AI-reviewed queries are
-not scanner accuracy. See [bundle evidence](docs/BROWSER_BUNDLE_2026-10-17.md).
+Bundle `270473320b53d5b4`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
+DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017`, 24,038 English/German card rows
+plus six card-back rows. Inference runs in a worker: WebGPU with the fp32 encoder, falling
+back to WASM with an int8 encoder. The scanner is in use on phones.
+
+Automated checks run on desktop Chrome with a test-video camera mock. No controlled phone
+benchmark exists, and match thresholds are uncalibrated. Encoder retrieval diagnostics
+(20/24 validation, 85/86 test crops) come from few AI-reviewed videos and are not scanner
+accuracy. Details: [bundle](docs/BROWSER_BUNDLE.md), [encoder training](docs/RETRIEVAL_TRAINING.md),
+[recognition design](docs/RECOGNITION_DESIGN.md).
 
 ## Run and check
 
-Use Python 3.12 and the existing `.env` environment, or install `requirements.txt`.
+Python 3.12: use `.env` or install `requirements.txt`. DVC pulls from the LAN GPU PC.
 
 ```bash
-.env/bin/dvc pull web/public/bundle web/public/media runs/browser_export/gpu-20261017 runs/browser_export/pose-fixture
-cd web
-npm ci
-npm run dev
-# In another terminal under web/:
-npm run typecheck
-npm test
-npm run e2e
+.env/bin/dvc pull web/public/bundle.dvc web/public/media.dvc \
+  models/browser-export/gpu-20261017.dvc models/browser-export/corner-decoder-fixture.dvc
+cd web && npm ci && npm run dev        # phones need HTTPS, see deploy/README.md
+npm run typecheck && npm test && npm run e2e
+cd .. && .env/bin/python -m unittest discover -s tests -v
 ```
-
-Phones require HTTPS. [Deployment](deploy/README.md) describes static hosting.
-Python checks: `.env/bin/python -m unittest discover -s tests -v`.
 
 ## Data and models
 
-DVC stores accepted/candidate data and current artifacts on the LAN GPU PC
-(`.dvc/config`). Git stores the small `.dvc` pointers. Original One Piece catalog
-images remain in Git LFS; they are still used by acquisition/provenance tools.
+Git holds code and small `.dvc` pointers; DVC holds `datasets/`, `models/` and the web
+bundle/media (remote: the LAN GPU PC; the VPS store holds only deploy artifacts). After
+changing a tracked folder: `dvc add <folder>`, `dvc push`, commit the pointer.
 
-| DVC output | Purpose |
-| --- | --- |
-| `datasets/curated`, `datasets/staging` | accepted references/queries and acquisition candidates |
-| `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017` | current encoder checkpoint, gallery and evaluation |
-| `runs/card_recognizer/dinov2_baseline/hf_cache` | pinned pretrained initialization files still required by training/export |
-| `runs/card_detector/pose/corners-s640-v4-ft` | current corner detector and export evidence |
-| `runs/browser_export/gpu-20261017`, `runs/browser_export/pose-fixture` | current model exports and golden parity fixtures |
-| `runs/prices/prices.json` | current multi-market price snapshot |
-| `web/public/bundle`, `web/public/media` | browser bundle and local test videos |
+Detector datasets are Ultralytics YOLO pose (`kpt_shape: [4, 3]`, four ordered corners);
+recognition uses the JSON manifest in `datasets/curated/recognition/` with source-isolated
+splits. The price snapshot `datasets/prices/prices.json` comes from
+`scripts/release/update_prices.py` and is copied into each bundle.
 
-After changing a tracked artifact: `dvc add <path>`, `dvc push`, then commit its pointer.
-
-Detector datasets use **Ultralytics YOLO pose**: one `.txt` per scene, one row per
-card with class, normalized box and four `(x, y, visibility)` keypoints, plus a
-`dataset.yaml` with `kpt_shape: [4, 3]`. Exact source-pixel corners remain in JSON.
-Recognition uses a separate JSON manifest of individual reference/query crops and
-isolated splits; it is not a Hugging Face dataset. Hugging Face supplies the pinned
-pretrained DINOv2 weights. See [data layout](docs/DATASET_LAYOUT.md) and
-[GPU training](docs/GPU_TRAINING.md).
-
-Prices: `scripts/update_prices.py` writes the USD/EUR snapshot `runs/prices/prices.json`
-(DVC); `scripts/build_browser_bundle.py` requires it and copies it into the bundle.
-
-Read [AGENTS.md](AGENTS.md), [development priorities](docs/DEVELOPMENT.md),
-[scanner UX](docs/SCANNER_UX.md), [capture cycle](docs/CAPTURE_CYCLE.md),
-[recognition design](docs/RECOGNITION_DESIGN.md) and
-[match/value policy](docs/MATCH_AND_VALUE_POLICY.md) before changing behavior.
+Before changing behavior read [AGENTS.md](AGENTS.md), [development priorities](docs/DEVELOPMENT.md),
+[scanner UX](docs/SCANNER_UX.md), [capture cycle](docs/CAPTURE_CYCLE.md) and the
+[match/value policy](docs/MATCH_AND_VALUE_POLICY.md). To add real data from videos:
+[VIDEO_MINING.md](docs/VIDEO_MINING.md).

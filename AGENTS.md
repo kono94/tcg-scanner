@@ -18,7 +18,7 @@
 
 ## Product Direction
 
-Build a scanner that is easy to share through a phone-browser URL: camera capture, card localization, perspective correction, exact-card retrieval, local metadata, and a replaceable price service. The browser scanner in `web/` is the product (bundle `270473320b53d5b4`, 2026-10-17: YOLOv8s-pose four-corner detector `runs/card_detector/pose/corners-s640-v4-ft`, GPU-trained DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017` with an int8 copy for the WASM path, 24,038 EN/DE card rows plus card-back rows). It is in use on phones; automated checks run on desktop Chrome with a test-video camera mock, and no controlled device benchmark exists yet. Thresholds are uncalibrated; the detector is fine-tuned on AI-reviewed real corners after synthetic pretraining. It deploys as a static site to a VPS (`deploy/`).
+Build a scanner that is easy to share through a phone-browser URL: camera capture, card localization, perspective correction, exact-card retrieval, local metadata, and a replaceable price service. The browser scanner in `web/` is the product (bundle `270473320b53d5b4`, 2026-10-17: YOLOv8s-pose four-corner detector `models/corner-detector/corners-s640-v4-ft`, GPU-trained DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017` with an int8 copy for the WASM path, 24,038 EN/DE card rows plus card-back rows). It is in use on phones; automated checks run on desktop Chrome with a test-video camera mock, and no controlled device benchmark exists yet. Thresholds are uncalibrated; the detector is fine-tuned on AI-reviewed real corners after synthetic pretraining. It deploys as a static site to a VPS (`deploy/`).
 
 Target enrollment-based recognition: adding reference images and metadata should not require expanding a classifier head. This is an architectural capability, not a guarantee of accuracy on unseen cards or games. One Piece and Pokémon are enrolled; additional games require data and explicit evaluation.
 
@@ -41,14 +41,14 @@ Card backs are enrolled as gallery rows (`back:pokemon`, `back:onepiece`). A con
 - The original corpus has 1,399 One Piece reference images. The normalized acquired gallery now contains 4,373 English One Piece, 19,665 physical English Pokémon, 154 Japanese One Piece and five Japanese Pokémon references; provider gaps remain. See `docs/DATASET_CLEANUP.md` and the live manifests.
 - The retired classifier manual-evaluation fixtures duplicated training images; historical metrics from them are not an independent camera benchmark.
 - Do not describe existing validation scores as real-world accuracy or select deployment thresholds from them.
-- The detector (YOLOv8s-pose, four card corners) is `corners-s640-v4-ft` at 640 px, with synthetic pretraining plus AI-reviewed real-corner fine tuning; its ONNX file is 46.0 MB raw / 38.6 MB gzip. Physical-phone performance is unbenchmarked. See `docs/BROWSER_BUNDLE_2026-10-17.md`.
+- The detector (YOLOv8s-pose, four card corners) is `corners-s640-v4-ft` at 640 px, with synthetic pretraining plus AI-reviewed real-corner fine tuning; its ONNX file is 46.0 MB raw / 38.6 MB gzip. Physical-phone performance is unbenchmarked. See `docs/BROWSER_BUNDLE.md`.
 - The deployed encoder `dinov2-arcface-gpu-20261017` (full 24,197-reference catalog, 6,000 classes, 4 trainable blocks, 2,100 steps) ranks the exact ID first for 20/24 validation and 85/86 test crops; earlier runs are in `docs/RETRIEVAL_TRAINING.md`. Validation is Pokémon and test is One Piece, from few videos with repeated views and AI-reviewed labels. These are retrieval diagnostics, not scanner accuracy, and unknown rejection is uncalibrated.
 - Browser parity: encoder ONNX vs torch min cosine 0.9999996; the int8 encoder keeps top-1 on 24/24 validation queries (mean cosine 0.98 to fp32). The manifest marks in-browser runtime parity as unverified.
 
 - Real queries: 298 AI-reviewed, reference-matched single-card crops across 158 catalog-art identities, split 188 train / 24 val / 86 test by source video. Repeated views are not distinct physical cards; these labels are not measured recognition accuracy or independent real-corner ground truth. Counts and the review history are in `docs/DATASET_CLEANUP.md` and `docs/VIDEO_DATA_AUDIT.md`.
 - Catalog syncs are resumable; read their live manifests rather than claiming complete coverage. Pocket digital records stay separate from physical TCG references.
 
-`ocr_identity.py` / `scripts/propose_card_labels.py` provide a Tesseract OCR baseline; PaddleOCR remains a proposed backend. Frozen-encoder and GroundingDINO experiments are historical (`archive/docs/FOUNDATION_MODELS.md`). Prefer the working `.env/bin/python`.
+`ocr_identity.py` / `scripts/curation/propose_card_labels.py` provide a Tesseract OCR baseline; PaddleOCR remains a proposed backend. Frozen-encoder and GroundingDINO experiments are historical (`archive/docs/FOUNDATION_MODELS.md`). Prefer the working `.env/bin/python`.
 
 Distinguish source videos, retained frames, repeated physical views, raw boxes, geometry-eligible crops and exact labeled examples. Similarity is the normal path; do not require high-quality training views to yield OCR codes before they can be assessed for visual retrieval.
 
@@ -56,14 +56,13 @@ Distinguish source videos, retained frames, repeated physical views, raw boxes, 
 
 - `web/`: the browser scanner (Vite + TypeScript, onnxruntime-web worker); see `web/README.md`.
 - `deploy/`: VPS hosting (shared Caddy HTTPS proxy, static scanner stack, `deploy.sh` releases); see `deploy/README.md`.
-- `datasets/curated/`, `datasets/staging/`: accepted and candidate data (DVC); see `docs/DATASET_LAYOUT.md`.
-- `datasets/card_recognizer/`: original One Piece catalog corpus (Git LFS), retained for acquisition/provenance.
-- `training/card_recognizer/`: retrieval trainer (`train_retrieval.py`), shared canonical preprocessing (`canonical.py`) and retrieval model/training helpers.
-- `training/card_detector/`: synthetic scene renderer (`scene_renderer.py`) and the YOLO-pose corner trainer (`train_detector.py`); see its README.
-- `scripts/`: catalog sync and video mining, dataset curation, synthetic scenes and corner datasets, evaluation, browser export/bundle and price snapshots.
+- `training/recognition/`: card encoder trainer (`train_retrieval.py`), pinned backbone loader (`backbone.py`), shared canonical preprocessing (`canonical.py`), OCR/identity-evidence helpers.
+- `training/detection/`: synthetic scene renderer (`scene_renderer.py`) and the YOLO-pose corner trainer (`train_detector.py`); see its README.
+- `scripts/`: CLI tools grouped by stage (`catalog/`, `video/`, `curation/`, `detection/`, `release/`, `maintenance/`); index in `scripts/README.md`.
+- `datasets/` (DVC): `curated/` (accepted gallery + labeled queries), `staging/`, `sources/` (catalog syncs incl. the original 1,399-card One Piece scrape, video excerpts/frames, phone captures), `review/` (AI review records behind `curated/`), `detection/` (real-corner labels, parity scenes), `prices/prices.json`, `reference-thumbnails/`; see `datasets/README.md` and `docs/DATASET_LAYOUT.md`.
+- `models/` (DVC): pinned DINOv2-small weights, the deployed encoder and detector, browser exports and parity fixtures; see `models/README.md`.
+- `runs/`: local scratch for training/experiment output, never versioned. A run is promoted by moving it into `models/` (or its data into `datasets/`), then `dvc add`, `dvc push` and committing the pointer. Do not write versioned inputs into `runs/`.
 - `archive/`: retired scripts/tests, dated work logs and research, the original scraper notebook and the old roadmap; not maintained.
-- `runs/prices/prices.json` (DVC): the USD/EUR price snapshot from `scripts/update_prices.py`, required by the bundle build.
-- `runs/`: ignored local experiment artifacts; do not assume recorded checkpoints still exist. Selected runs, `datasets/curated`, `datasets/staging` and the web bundle are versioned with DVC (`*.dvc` pointers, store on the LAN GPU PC); see README "Data and models (DVC)". After rebuilding a tracked artifact, `dvc add` + `dvc push` and commit the pointer.
 
 ## Implementation Rules
 
@@ -83,7 +82,7 @@ Distinguish source videos, retained frames, repeated physical views, raw boxes, 
 - Confirm snapshot identities with calibrated retrieval/detail evidence and review; repeated inference on identical pixels is not independent confirmation. Tracking modes may additionally use recent independent captures. A highest-ever score must not permanently lock recognition or finalize an unconfirmed card.
 - Name coordinate spaces explicitly: raw sensor pixels, oriented source pixels, detector input/letterbox, normalized detections, crop pixels, preview/view pixels.
 - Carry transforms and orientation with frames. Test aspect-fill/object-fit cropping, mirroring, all supported rotations, and corner ordering outside views.
-- The detector predicts four ordered card corners (YOLOv8-pose) and crops by perspective warp; the OBB (rotated-rectangle) path is retired. Train corners on upright scenes: sideways cards make corner names ambiguous, upside-down cards are fine because corner order is geometric. Replace the detector only when it wins `scripts/evaluate_corners_real.py` and `scripts/compare_detectors_real.py`.
+- The detector predicts four ordered card corners (YOLOv8-pose) and crops by perspective warp; the OBB (rotated-rectangle) path is retired. Train corners on upright scenes: sideways cards make corner names ambiguous, upside-down cards are fine because corner order is geometric. Replace the detector only when it wins `scripts/detection/evaluate_corners_real.py` and `scripts/detection/compare_detectors_real.py`.
 - Preserve true physical-edge annotations; do not turn axis-aligned or rotated boxes into claimed corner ground truth. Keep geometric corner order distinct from upright artwork orientation.
 - Version preprocessing: full-card policy, aspect ratio/padding, RGB order, resize/interpolation, tensor layout, and exact channel normalization. Query and gallery must use the same contract.
 - Use camera-localization and known-gallery-bounds adapters feeding the same canonicalizer/encoder-input stages. Do not force verified digital references through a detector, randomly augment gallery inserts, crop away identity text, or mix trained preprocessing contracts. Validate golden crops/tensors/embeddings across runtimes and rebuild the gallery when its contract changes.
@@ -110,7 +109,7 @@ Distinguish source videos, retained frames, repeated physical views, raw boxes, 
 - Source video acceptance requires actual available format metadata of at least **1440p**, with **2160p/4K preferred**, plus a per-card pixel/detail check. A 4K title, upscaled output or tiny crop in a 4K frame does not establish readable identity evidence. Unknown-resolution sources stay candidates; the inspected 1080p One Piece excerpt is an acquisition-failure example, not eligible training footage under this requirement.
 - Automatic labeling must require no user transcription or screening. OCR/catalog/visual/temporal evidence produce auditable proposals; ambiguous or conflicting cards are automatically quarantined or kept unlabeled. Do not guess a label just to increase coverage, nor equate a pseudo-label with independent ground truth.
 - Treat encoder choice, training objective, and search policy as separate decisions. ArcFace trains angular embeddings; deployment still uses normalized similarity search. Retain historical baseline results and current-model comparisons and measure held-out identity/game performance before selecting a loss or larger model.
-- The retrieval trainer is `training/card_recognizer/train_retrieval.py`; read `docs/RETRIEVAL_TRAINING.md`. `configs/dinov2_arcface_gpu.yaml` (CUDA, LAN GPU machine per `docs/GPU_TRAINING.md`) produced the deployed encoder. The earlier Apple-MPS pilot is historical and its config/artifacts have been retired. Keep sampled-gallery validation scores separate from final full-catalog results. Never include held-out identities' references/aliases in training gradients or read test pixels for checkpoint selection. Training must not silently fall back to CPU operators.
+- The retrieval trainer is `training/recognition/train_retrieval.py`; read `docs/RETRIEVAL_TRAINING.md`. `configs/dinov2_arcface_gpu.yaml` (CUDA, LAN GPU machine per `docs/GPU_TRAINING.md`) produced the deployed encoder (`models/card-encoder/`). The earlier Apple-MPS pilot is historical and retired. Keep sampled-gallery validation scores separate from final full-catalog results. Never include held-out identities' references/aliases in training gradients or read test pixels for checkpoint selection. Training must not silently fall back to CPU operators.
 - Direction: do not repeat frozen-encoder comparisons. Improve recognition by fine-tuning pretrained backbones with a retrieval objective, not by training from scratch. DINOv2-small/ArcFace is the deployed encoder, not a final choice; DINOv3/ConvNeXt/SigLIP-family candidates require their own availability, input, fine-tuning and deployment evidence. Rebuild gallery embeddings and the bundle after any encoder change; acquired references remain useful regardless of backbone.
 - Separate catalog identity, visual family, reference image, derived descriptor, independent labeled query, and physical card instance. Preserve unresolved printing ambiguity; do not force identical visible designs into distinguishable image labels.
 - Curate a bounded number of references per identity. Augmentations primarily belong in training; extra gallery templates need evidence and calibration that accounts for reference-count bias. Reserve expensive local/detail/OCR verification for ambiguous shortlists under the nine-card work budget.
@@ -127,7 +126,7 @@ Distinguish source videos, retained frames, repeated physical views, raw boxes, 
 
 ## Browser Rules
 
-- The scanner lives in `web/`. `scripts/export_browser_models.py` writes ONNX models plus golden fixtures; `scripts/build_browser_bundle.py` assembles the content-versioned bundle (defaults select the current GPU export, corner detector and `runs/prices/prices.json`; pass the int8 encoder explicitly). TypeScript preprocessing must stay bit-exact with `canonical.py` on those fixtures; rerun `npm test` after any contract change. After a new bundle: `dvc add web/public/bundle && dvc push`, commit the pointer, then `deploy/deploy.sh`.
+- The scanner lives in `web/`. `scripts/release/export_browser_models.py` writes ONNX models plus golden fixtures; `scripts/release/build_browser_bundle.py` assembles the content-versioned bundle (defaults select the current GPU export, corner detector and `datasets/prices/prices.json`; pass the int8 encoder explicitly). TypeScript preprocessing must stay bit-exact with `canonical.py` on those fixtures; rerun `npm test` after any contract change. After a new bundle: `dvc add web/public/bundle && dvc push`, commit the pointer, then `deploy/deploy.sh`.
 - The GPU path runs the fp32 encoder; the WASM/CPU path runs the int8 encoder when the bundle has one. Check int8 top-1 parity against fp32 before shipping it.
 - Use HTTPS for physical-phone camera access; a laptop LAN HTTP address is not the phone's localhost.
 - Keep inference off the main UI thread. Feature-detect capabilities, attempt the pinned runtime/model, and fall back from WebGPU to WASM on initialization or inference failure.
@@ -143,9 +142,9 @@ Choose checks appropriate to the change. Documentation changes need link/path an
 ```bash
 .env/bin/python -m unittest discover -s tests -v
 cd web && npm run typecheck && npm test && npm run e2e
-.env/bin/python scripts/generate_detection_scenes.py --output runs/card_detector/smoke-scenes --train 8 --val 4 --workers 2
-.env/bin/python scripts/build_corner_dataset.py --scenes runs/card_detector/smoke-scenes --output runs/card_detector/smoke-corners --train 8 --val 4 --max-tilt 50
-.env/bin/python training/card_detector/train_detector.py --data runs/card_detector/smoke-corners/dataset.yaml --from-scratch --epochs 1 --imgsz 320 --batch 4 --device cpu --name smoke
+.env/bin/python scripts/detection/generate_detection_scenes.py --output runs/detection/smoke-scenes --train 8 --val 4 --workers 2
+.env/bin/python scripts/detection/build_corner_dataset.py --scenes runs/detection/smoke-scenes --output runs/detection/smoke-corners --train 8 --val 4 --max-tilt 50
+.env/bin/python training/detection/train_detector.py --data runs/detection/smoke-corners/dataset.yaml --from-scratch --epochs 1 --imgsz 320 --batch 4 --device cpu --name smoke
 DEPLOY_HOST=user@VPS deploy/deploy.sh --dry-run
 ```
 

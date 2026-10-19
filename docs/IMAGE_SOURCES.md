@@ -1,14 +1,37 @@
-# Card image sources and SAMPLE watermark experiment
+# Card image sources
 
-Checked: 2026-10-15. Source discovery and one AI-restored example are complete; no marketplace photo corpus has been acquired and no recognition improvement has been measured.
+Where reference images come from, how they are acquired, and the SAMPLE watermark
+question. Source discovery was checked 2026-10-15; no marketplace photo corpus has been
+acquired. Folder overview: [datasets/README.md](../datasets/README.md).
+
+## Catalog syncs (current gallery)
+
+The gallery in `datasets/curated` is built from provider syncs under
+`datasets/sources/catalog/`. Each sync discovers the catalog from the provider itself
+(no guessed filenames), writes a manifest with source URLs, image SHA-256, dimensions and
+per-card status (`downloaded`, `present_local`, `unavailable`, `deferred_budget`), and
+resumes from it on the next run.
+
+| Script | Source | Notes |
+| --- | --- | --- |
+| `scripts/catalog/sync_pokemon_gallery.py` | TCGdex English API | physical TCG records only; Pocket digital records stay separate |
+| `scripts/catalog/fill_pokemon_gallery_gaps.py` | pokemontcg.io | only where collector number and name match exactly one card |
+| `scripts/catalog/sync_onepiece_gallery.py` | official English card list (`select#series`, `dl.modalCol`) | `_pN` artwork records stay separate identities (`onepiece:en:OP01-001_p1`); `--sets OP12 OP01` limits a run, `--catalog-only` skips downloads, `--max-download-bytes` caps a pass (1 GiB), at most three workers |
+| `scripts/catalog/sync_onepiece_ja_gallery.py` | official Japanese card list | same parser; Japanese identities never replace English ones |
+
+Then `scripts/curation/build_reference_manifest.py` collects all acquired references with
+hashes, and `scripts/curation/curate_datasets.py` promotes them into the gallery. Read the
+live manifests for coverage; counts are not copied into docs so they cannot go stale.
+Downloaded assets are digital references, not camera captures, and public availability does
+not establish reuse rights.
 
 A later [official-source clean-reference probe](../archive/docs/ONEPIECE_CLEAN_REFERENCES.md) found one watermark-free Japanese-language `OP03-094` asset; two inspected OP01 variants still contained SAMPLE. This is a separate language-specific digital-reference candidate, not a clean English replacement or independent camera image. The probe does not establish broad clean-source coverage.
 
 ## Watermark findings and handling
 
-The local references come from Bandai image URLs recorded in their JSON sidecars. For example, `datasets/card_recognizer/cards/OP03/OP03-094.jpg` has a large white SAMPLE word and drop shadow covering artwork. Removing the overlay can reduce the mismatch with physical cards, but the underlying pixels are missing. Inpainting produces an estimate of them, not an authentic scan.
+The local references come from Bandai image URLs recorded in their JSON sidecars. For example, `datasets/sources/catalog/onepiece-en-bandai-2024/OP03/OP03-094.jpg` has a large white SAMPLE word and drop shadow covering artwork. Removing the overlay can reduce the mismatch with physical cards, but the underlying pixels are missing. Inpainting produces an estimate of them, not an authentic scan.
 
-The built-in image generation tool produced a complete-card cleanup example at `runs/card_recognizer/watermark_experiment/OP03-094__ai-restored.png`. The original corpus, prepared gallery and bundled models are unchanged. The adjacent manifest records source/output hashes, prompt and synthetic status. Visual inspection confirms the word was removed and the readable name/card number remain present; exact authenticity of reconstructed art is unverified. This example is not promoted into the gallery or an independent evaluation split.
+The built-in image generation tool produced a complete-card cleanup example (kept locally at `runs/recognition/watermark_experiment/`, not versioned). The original corpus, prepared gallery and bundled models are unchanged. The adjacent manifest records source/output hashes, prompt and synthetic status. Visual inspection confirms the word was removed and the readable name/card number remain present; exact authenticity of reconstructed art is unverified. This example is not promoted into the gallery or an independent evaluation split.
 
 Preferred reference order:
 
@@ -33,7 +56,7 @@ Tournament broadcasts, binder tours, overhead deck profiles and pack openings ar
 
 ## Card-back references (2026-10-17)
 
-`scripts/acquire_card_backs.py` pins each source by URL and SHA-256, keeps the
+`scripts/catalog/acquire_card_backs.py` pins each source by URL and SHA-256, keeps the
 original bytes under `datasets/curated/recognition/backs/<game>/originals/` and
 writes `datasets/curated/recognition/backs/manifest.json` (provenance, license
 note, geometry, hashes). Nothing in it is synthetic.
@@ -52,10 +75,21 @@ recognition references only.
 
 ## Automatic ingestion policy
 
-Use source adapters to emit a manifest, then validate and stage imports. Catalog references come from the game sync scripts (`sync_pokemon_gallery.py`, `fill_pokemon_gallery_gaps.py`, `sync_onepiece_gallery.py` — see [ONEPIECE_GALLERY_SYNC.md](ONEPIECE_GALLERY_SYNC.md) — and `sync_onepiece_ja_gallery.py`); `build_reference_manifest.py` and `curate_datasets.py` validate and promote them. The classifier-era `import_real_card_images.py` is archived.
+New sources get an adapter that emits a manifest, then go through the same validation and
+curation as the catalog syncs above. For each candidate, retain source URL/item/image ID,
+source identity and confidence, language/variant, image hashes, acquisition/reuse terms and
+actual role. Distinguish clean scan, real capture, watermarked reference and generated
+restoration. Resolve ambiguous listing titles with visible card-number/variant evidence;
+lots, backs, slabs, reprints and reused stock images must not become automatic exact-ID
+labels.
 
-For each candidate, retain source URL/item/image ID, source identity and confidence, language/variant, image hashes, acquisition/reuse terms and actual role. Distinguish clean scan, real capture, watermarked reference and generated restoration. Resolve ambiguous listing titles with visible card-number/variant evidence; lots, backs, slabs, reprints and reused stock images must not become automatic exact-ID labels.
+Deduplicate exact and near-identical images across providers. Keep one listing/session and
+all its derived crops/augmentations in one split. Localize physical cards with the corner
+detector, rectify from source resolution, then use the shared canonicalizer. Real
+photographs can train recognition and detection; source axis-aligned boxes do not become
+corner labels by expanding them, and detector proposals remain proposals until reviewed.
 
-Deduplicate exact and near-identical images across providers. Keep one listing/session and all its derived crops/augmentations in one split. Localize physical cards, rectify from source resolution, then use the shared canonicalizer. Real photographs can train recognition and detection; source AABBs do not become trustworthy OBB/corner labels merely by expanding them. Teacher geometry remains a proposal with confidence/provenance.
-
-Keep originals and staged candidates outside the active gallery until their identity and preprocessing contracts pass. Rebuild compatible embeddings after changing reference pixels. The immediate acquisition priority is auditing the named Roboflow dataset and resolving clean-reference coverage, alongside the OBB-to-cosine baseline.
+Keep originals and staged candidates outside the active gallery until their identity and
+preprocessing contracts pass. Rebuild gallery embeddings after changing reference pixels.
+Open acquisition work: audit the Roboflow dataset above and resolve clean-reference
+coverage for SAMPLE-watermarked One Piece images.

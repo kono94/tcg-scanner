@@ -63,10 +63,10 @@ A pushed tag on this repo deploys **only the scanner**:
 
 The model bundle and thumbnails live in DVC, not git, and the LAN DVC store (`gpu-pc`) can't be
 reached from GitHub or the VPS. **Before tagging a commit that changes `web/public/bundle.dvc` or
-`runs/ref_thumbs.dvc`, push the artifacts to the VPS store from the Mac:**
+`datasets/reference-thumbnails.dvc`, push the artifacts to the VPS store from the Mac:**
 
 ```bash
-dvc push web/public/bundle.dvc runs/ref_thumbs.dvc   # LAN store, as before
+dvc push web/public/bundle.dvc datasets/reference-thumbnails.dvc   # LAN store, as before
 deploy/push-artifacts.sh                             # VPS store for tag deploys (one rsync)
 git tag v1.2.3 && git push origin v1.2.3
 ```
@@ -74,7 +74,7 @@ git tag v1.2.3 && git push origin v1.2.3
 `dvc push -r vps ...` gives the same result, but takes hours for 24k thumbnails over SFTP.
 
 If they're missing, the deploy stops before building and the live release stays unchanged. Thumbnails
-are rebuilt with `scripts/build_ref_thumbnails.py` and tracked with `dvc add runs/ref_thumbs`. The store
+are rebuilt with `scripts/release/build_ref_thumbnails.py` and tracked with `dvc add datasets/reference-thumbnails`. The store
 uses DVC's cache layout, so it is also the `vps` DVC remote. Checkout, store and `www/` share one parent
 so the hard links work inside one container mount.
 GitHub secrets: `SERVER_IP` (173.249.10.6) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
@@ -91,7 +91,7 @@ DEPLOY_HOST=user@VPS deploy/deploy.sh --dry-run # build and show what would be u
 ```
 
 `deploy.sh` runs `npm ci && npm run build`, builds missing thumbnails
-(`scripts/build_ref_thumbnails.py`), uploads a new release next to the live one, then
+(`scripts/release/build_ref_thumbnails.py`), uploads a new release next to the live one, then
 switches the `current` symlink in one step. Files that did not change (usually the whole
 model bundle) are hard-linked from the previous release instead of uploaded again. The
 last three releases are kept (`DEPLOY_KEEP`). Test videos (`web/public/media`) are not
@@ -100,8 +100,8 @@ deployed.
 **Rollback:** on the VPS, `cd /opt/stacks/scanner/www && ls releases` and
 `ln -sfn releases/<older> current.new && mv -Tf current.new current`.
 
-**New prices or models:** rebuild the bundle (`scripts/update_prices.py`,
-`scripts/build_browser_bundle.py`), check it locally, `dvc add web/public/bundle && dvc push`,
+**New prices or models:** rebuild the bundle (`scripts/release/update_prices.py`,
+`scripts/release/build_browser_bundle.py`), check it locally, `dvc add web/public/bundle && dvc push`,
 commit the `.dvc` file, deploy. Visitors get the new bundle on their next visit; the app
 checks `bundle/manifest.json` on every start.
 
@@ -140,7 +140,7 @@ checks `bundle/manifest.json` on every start.
   no sync between devices, and clearing site data deletes them.
 - Thresholds are uncalibrated; the detector combines synthetic pretraining with
   AI-reviewed real-corner fine tuning. Physical-phone performance remains unverified
-  (see [browser evidence](../docs/BROWSER_BUNDLE_2026-10-17.md)); show these limits on the site.
+  (see [browser evidence](../docs/BROWSER_BUNDLE.md)); show these limits on the site.
 
 ## This VPS (CentOS 7)
 
