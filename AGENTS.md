@@ -61,9 +61,8 @@ Read `docs/VIDEO_DATA_AUDIT.md` for actual acquisition yield and the six-worker 
 - `training/card_detector/`: synthetic camera effects and the Ultralytics trainer (`train_obb.py`, OBB and pose models).
 - `scripts/`: acquisition, dataset curation, synthetic scenes, evaluation, browser export/bundle and price snapshots.
 - `archive/`: original scraper notebook/source HTML and the dated historical roadmap.
-- `resources/prices/`: price-index and snapshot inputs shared by browser bundle tooling.
+- `runs/prices/prices.json` (DVC): the USD/EUR price snapshot from `scripts/update_prices.py`, required by the bundle build.
 - `runs/`: ignored local experiment artifacts; do not assume recorded checkpoints still exist. Selected runs, `datasets/curated`, `datasets/staging` and the web bundle are versioned with DVC (`*.dvc` pointers, store on the LAN GPU PC); see README "Data and models (DVC)". After rebuilding a tracked artifact, `dvc add` + `dvc push` and commit the pointer.
-- `resources/processed/inference_example.mp4`: rendered demo with burned-in predictions, not clean accuracy-test input. `resources/benchmarks/manifest.json` records its provenance/limitations; raw replay sources and independent annotations still need to be supplied/collected.
 
 ## Implementation Rules
 

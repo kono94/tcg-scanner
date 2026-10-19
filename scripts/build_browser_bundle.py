@@ -17,9 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from training.card_recognizer.foundation_retrieval import sha256_file
 
-PRICE_INDEX = ROOT / 'resources/prices/card_index.json'
-PRICE_MANIFEST = ROOT / 'resources/prices/snapshot.json'
-
 
 def family_key(identity: str, aliases: dict[str, str], pokemon_by_id: bool = False) -> str:
     """Catalog-adapter artwork family; a plain base code is not enough on its own."""
@@ -34,16 +31,6 @@ def family_key(identity: str, aliases: dict[str, str], pokemon_by_id: bool = Fal
         return f'pokemon:{card_id}'
     # No verified cross-language mapping for other games yet: each identity is its own family.
     return identity
-
-
-def parse_usd(text: str | None) -> float | None:
-    if not text or not text.startswith('$'):
-        return None
-    try:
-        value = float(text[1:].replace(',', ''))
-    except ValueError:
-        return None
-    return value if value > 0 else None
 
 
 def write_pose_fixture(weights: Path, onnx_path: Path, size: int):
@@ -154,7 +141,8 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / 'web/public/bundle')
     parser.add_argument('--languages', default='en,de', help='catalog languages in the app (gallery rows of other languages are dropped)')
     parser.add_argument('--german-pokemon', type=Path, help='TCGdex /v2/de/cards list: adds German Pokemon versions of enrolled artworks')
-    parser.add_argument('--prices', type=Path, help='prices.json from scripts/update_prices.py (schema 2, USD + EUR markets)')
+    parser.add_argument('--prices', type=Path, default=ROOT / 'runs/prices/prices.json',
+                        help='prices.json from scripts/update_prices.py (schema 2, USD + EUR markets)')
     parser.add_argument('--encoder-int8', type=Path, help='dynamically quantized encoder for the WASM/CPU path (phones)')
     parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics pose/OBB weights')
     parser.add_argument('--detector-size', type=int, default=640)
@@ -164,6 +152,7 @@ def main():
     parser.add_argument('--no-backs', action='store_true', help='build without card-back gallery rows')
     args = parser.parse_args()
     export = args.export.resolve(strict=True)
+    prices_path = args.prices.resolve(strict=True)
     report = json.loads((export / 'export_report.json').read_text())
     gallery = json.loads((export / 'gallery.json').read_text())
     for name in ('encoder', 'detector', 'gallery'):
@@ -181,13 +170,11 @@ def main():
         for key in keys:
             aliases[key] = 'alias:' + row['sha256'][:16]
 
-    prices = {r['id']: r for r in json.loads(PRICE_INDEX.read_text())}
-    snapshot_date = json.loads(PRICE_MANIFEST.read_text())['snapshot_date']
     languages = set(args.languages.split(','))
     german = {c['id']: c['name'] for c in json.loads(args.german_pokemon.read_text())} if args.german_pokemon and 'de' in languages else {}
     keep = [i for i, ident in enumerate(gallery['identities']) if ident.split(':')[1] in languages]
     gallery_ids = [gallery['identities'][i] for i in keep]
-    cards, quotes = [], {}
+    cards = []
     for k in keep:
         identity, ref = gallery['identities'][k], references[k]
         meta = json.loads((args.dataset / (ref['image'] + '.json')).read_text())['source_record']
@@ -202,11 +189,6 @@ def main():
                       'finish': meta.get('finish', 'unknown'), 'printing': meta.get('printing', 'unknown'),
                       # Reference image path under the curated dataset; served locally in dev only.
                       'ref': ref['image']})
-        # The bundled snapshot covers English One Piece only; everything else stays unpriced (unknown, not zero).
-        if game == 'onepiece' and language == 'en' and card_id in prices:
-            amount = parse_usd(prices[card_id].get('displayPrice'))
-            if amount is not None:
-                quotes[identity] = {'amount': amount, 'basis': prices[card_id].get('priceSource', 'snapshot')}
 
     staging = args.output.parent / (args.output.name + '.tmp')
     if staging.exists():
@@ -241,35 +223,30 @@ def main():
                              'bytes': (staging / 'gallery.f16').stat().st_size}
     (staging / 'catalog.json').write_text(json.dumps({'schema_version': 2, 'languages': sorted(languages),
                                                       'gallery_identities': gallery_ids, 'cards': cards}, separators=(',', ':')))
-    if args.prices:
-        fresh = json.loads(args.prices.read_text())
-        if fresh.get('schema_version') != 2:
-            raise ValueError('Expected a schema 2 prices.json from scripts/update_prices.py')
-        known = {c['id'] for c in cards}
-        for name, market in fresh['markets'].items():
-            # Only catalog languages; German Pokemon reuse the Cardmarket quote (one product for all languages).
-            q = {k: v for k, v in market['quotes'].items() if k in known}
-            if name == 'EUR':
-                for c in cards:
-                    en = f"pokemon:en:{c['cardId']}"
-                    if c['language'] == 'de' and en in market['quotes']:
-                        q[c['id']] = {**market['quotes'][en], 'basis': market['quotes'][en]['basis'] + ' (Cardmarket, all languages)'}
-            market['quotes'] = q
-        # A version priced in only one market gets a converted estimate in the other, marked as such.
-        fx = fresh.get('fx')
-        if not fx:
-            raise ValueError('prices.json has no fx rate; rerun scripts/update_prices.py')
-        usd, eur = fresh['markets']['USD']['quotes'], fresh['markets']['EUR']['quotes']
-        for src, dst, src_name, rate in ((usd, eur, 'USD', fx['USD_EUR']), (eur, usd, 'EUR', 1 / fx['USD_EUR'])):
-            for ident, quote in list(src.items()):
-                if ident not in dst and not quote.get('converted'):
-                    dst[ident] = {'amount': round(quote['amount'] * rate, 2), 'basis': quote['basis'],
-                                  'converted': {'from': src_name, 'rate': round(rate, 5), 'date': fx['date'], 'source': fx['source']}}
-        (staging / 'prices.json').write_text(json.dumps(fresh, separators=(',', ':')))
-    else:
-        (staging / 'prices.json').write_text(json.dumps({
-            'schema_version': 1, 'currency': 'USD', 'source': 'Bundled app snapshot (dotgg)', 'snapshot_date': snapshot_date,
-            'coverage': 'English One Piece only', 'quotes': quotes}, separators=(',', ':')))
+    fresh = json.loads(prices_path.read_text())
+    if fresh.get('schema_version') != 2:
+        raise ValueError('Expected a schema 2 prices.json from scripts/update_prices.py')
+    known = {c['id'] for c in cards}
+    for name, market in fresh['markets'].items():
+        # Only catalog languages; German Pokemon reuse the Cardmarket quote (one product for all languages).
+        q = {k: v for k, v in market['quotes'].items() if k in known}
+        if name == 'EUR':
+            for c in cards:
+                en = f"pokemon:en:{c['cardId']}"
+                if c['language'] == 'de' and en in market['quotes']:
+                    q[c['id']] = {**market['quotes'][en], 'basis': market['quotes'][en]['basis'] + ' (Cardmarket, all languages)'}
+        market['quotes'] = q
+    # A version priced in only one market gets a converted estimate in the other, marked as such.
+    fx = fresh.get('fx')
+    if not fx:
+        raise ValueError('prices.json has no fx rate; rerun scripts/update_prices.py')
+    usd, eur = fresh['markets']['USD']['quotes'], fresh['markets']['EUR']['quotes']
+    for src, dst, src_name, rate in ((usd, eur, 'USD', fx['USD_EUR']), (eur, usd, 'EUR', 1 / fx['USD_EUR'])):
+        for ident, quote in list(src.items()):
+            if ident not in dst and not quote.get('converted'):
+                dst[ident] = {'amount': round(quote['amount'] * rate, 2), 'basis': quote['basis'],
+                              'converted': {'from': src_name, 'rate': round(rate, 5), 'date': fx['date'], 'source': fx['source']}}
+    (staging / 'prices.json').write_text(json.dumps(fresh, separators=(',', ':')))
     components = {name: report[name]['sha256'] for name in ('encoder', 'detector', 'gallery')}
     if int8:
         components['encoder_int8'] = int8['sha256']
@@ -300,7 +277,7 @@ def main():
     if args.output.exists():
         shutil.rmtree(args.output)
     staging.rename(args.output)
-    print(json.dumps({'output': str(args.output), 'version': version, 'cards': len(cards), 'priced': len(quotes),
+    print(json.dumps({'output': str(args.output), 'version': version, 'cards': len(cards), 'priced': len({*usd, *eur}),
                       'gallery_rows': len(gallery_ids), 'back_rows': backs['rows'] if backs else 0}))
 
 

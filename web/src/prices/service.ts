@@ -13,15 +13,12 @@ export interface PriceService {
 
 type QuoteTable = Record<string, { amount: number; basis: string; converted?: Conversion }>;
 
-/** Schema 1: one market (legacy bundled snapshot). Schema 2: USD and EUR markets. */
+/** Schema 2 (scripts/update_prices.py): USD and EUR markets. */
 interface SnapshotFile {
-  schema_version?: number;
-  currency?: string;
-  source?: string;
+  schema_version: number;
   snapshot_date: string;
-  coverage?: string | Record<string, unknown>;
-  quotes?: QuoteTable;
-  markets?: Record<string, { currency: string; source: string; quotes: QuoteTable }>;
+  coverage?: Record<string, unknown>;
+  markets: Record<string, { currency: string; source: string; quotes: QuoteTable }>;
   fx?: { USD_EUR: number; date: string; source: string };
 }
 
@@ -33,8 +30,7 @@ export class SnapshotPriceService implements PriceService {
   constructor(private readonly url: string, private readonly market: () => string = () => 'EUR') {}
 
   private table(f: SnapshotFile): { currency: string; source: string; quotes: QuoteTable } {
-    if (f.markets) return f.markets[this.market()] ?? Object.values(f.markets)[0];
-    return { currency: f.currency ?? 'USD', source: f.source ?? 'snapshot', quotes: f.quotes ?? {} };
+    return f.markets[this.market()] ?? Object.values(f.markets)[0];
   }
 
   private load(): Promise<SnapshotFile> {
