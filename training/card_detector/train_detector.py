@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train an Ultralytics YOLO card detector: OBB boxes, or pose (box + 4 corner keypoints)."""
+"""Train the Ultralytics YOLO-pose card-corner detector (box + 4 corner keypoints)."""
 
 from __future__ import annotations
 
@@ -13,15 +13,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=Path("runs/card_detector/synthetic/dataset.yaml"))
-    parser.add_argument("--model", default="yolov8n-obb.pt", help="Pretrained YOLOv8 OBB weights")
+    parser.add_argument("--data", type=Path, required=True, help="YOLO-pose dataset.yaml from scripts/build_corner_dataset.py")
+    parser.add_argument("--model", default="yolov8s-pose.pt", help="Pretrained YOLOv8 pose weights, or a checkpoint to fine-tune")
     parser.add_argument("--from-scratch", action="store_true", help="Use the model YAML without downloading pretrained weights")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--device", default="auto", help="Ultralytics device, or auto (CUDA, then MPS, then CPU)")
-    parser.add_argument("--project", type=Path, default=Path("runs/card_detector/obb"))
+    parser.add_argument("--project", type=Path, default=Path("runs/card_detector/pose"))
     parser.add_argument("--name", default="synthetic-baseline")
     parser.add_argument("--seed", type=int, default=42)
     # Augmentation on top of the renderer's own variation (cards appear at any rotation and mirrored layouts).
@@ -69,13 +69,13 @@ def main() -> None:
     if not isinstance(dataset, dict) or not isinstance(dataset.get("names"), (dict, list)):
         raise SystemExit(f"Invalid dataset YAML (expected names): {data_path}")
     if args.from_scratch:
-        model_source = "yolov8n-obb.yaml"
+        model_source = "yolov8s-pose.yaml"
     else:
         model_source = args.model
     model = YOLO(model_source)
-    # OBB boxes, or pose = box + card-corner keypoints (dataset declares kpt_shape).
-    if model.task not in {"obb", "pose"}:
-        raise SystemExit(f"Model task must be 'obb' or 'pose', got {model.task!r}: {model_source}")
+    # Box + card-corner keypoints; the dataset declares kpt_shape [4, 3].
+    if model.task != "pose":
+        raise SystemExit(f"Model task must be 'pose', got {model.task!r}: {model_source}")
 
     device = args.device
     if device == "auto":

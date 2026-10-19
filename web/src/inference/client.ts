@@ -3,7 +3,7 @@ import { trace } from '../debug';
 import type { RecognitionJob, RecognitionOutput, Recognizer } from '../session/page';
 import type { Hit } from '../recognition/gallery';
 import type { Quad } from '../vision/image';
-import type { OrientedBox } from '../vision/obb';
+import type { OrientedBox } from '../vision/quad';
 import type { BundleManifest, FromWorker, Provider, Quality, RecognitionStep } from './protocol';
 
 export interface ExtractedCrops {
@@ -32,7 +32,7 @@ export interface RuntimeStatus {
 export class WorkerRecognizer implements Recognizer {
   private readonly worker: Worker;
   private ready: Promise<void>;
-  private detects = new Map<number, Pending<{ width: number; height: number; boxes: OrientedBox[]; quads?: Quad[]; ms: number }>>();
+  private detects = new Map<number, Pending<{ width: number; height: number; boxes: OrientedBox[]; quads: Quad[]; ms: number }>>();
   private jobs = new Map<string, Pending<RecognitionOutput> & { onStep: (s: RecognitionStep, crop?: ImageBitmap) => void }>();
   private crops = new Map<number, Pending<ImageBitmap>>();
   private searches = new Map<number, Pending<Hit[]>>();
@@ -149,7 +149,7 @@ export class WorkerRecognizer implements Recognizer {
 
   async detect(captureId: number, bitmap: ImageBitmap) {
     await this.ready;
-    return new Promise<{ width: number; height: number; boxes: OrientedBox[]; quads?: Quad[]; ms: number }>((resolve, reject) => {
+    return new Promise<{ width: number; height: number; boxes: OrientedBox[]; quads: Quad[]; ms: number }>((resolve, reject) => {
       this.detects.set(captureId, { resolve, reject });
       this.worker.postMessage({ type: 'detect', captureId, bitmap }, [bitmap]);
     });

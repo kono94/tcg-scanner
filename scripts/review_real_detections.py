@@ -62,12 +62,8 @@ def propose(args):
         img = cv2.imread(str(f))
         h, w = img.shape[:2]
         r = model.predict(img, imgsz=args.imgsz, conf=args.conf, iou=.7, verbose=False, max_det=300)[0]
-        if model.task == 'pose':  # predicted card corners
-            boxes = r.keypoints.xy.numpy().tolist() if len(r.boxes) else []
-            conf = r.boxes.conf.numpy().round(3).tolist() if len(r.boxes) else []
-        else:
-            boxes = r.obb.xyxyxyxy.numpy().tolist() if len(r.obb) else []
-            conf = r.obb.conf.numpy().round(3).tolist() if len(r.obb) else []
+        boxes = r.keypoints.xy.numpy().tolist() if len(r.boxes) else []  # predicted card corners
+        conf = r.boxes.conf.numpy().round(3).tolist() if len(r.boxes) else []
         name = f'f{i:03d}'
         src = source_of(f)
         records.append({'id': name, 'frame': str(f.relative_to(ROOT)), 'source': src, 'width': w, 'height': h,

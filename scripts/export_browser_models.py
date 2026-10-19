@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export the retrieval encoder, pose/OBB detector and gallery with runtime parity fixtures.
+"""Export the retrieval encoder, card-corner (pose) detector and gallery with runtime parity fixtures.
 
 Parity compares real outputs: PyTorch CPU vs onnxruntime on actual crops/scenes, and the
 stored training-run gallery vectors vs re-encoded references. Fixtures use validation
@@ -97,8 +97,9 @@ def topk(vector: np.ndarray, gallery: np.ndarray, keys: list[str], k: int = 5) -
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', type=Path, default=ROOT / 'runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017')
-    parser.add_argument('--detector', type=Path, default=ROOT / 'runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt')
-    parser.add_argument('--synthetic', type=Path, default=ROOT / 'runs/card_detector/synthetic')
+    parser.add_argument('--detector', type=Path, default=ROOT / 'runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt')
+    parser.add_argument('--synthetic', type=Path, default=ROOT / 'runs/card_detector/scenes-v2',
+                        help='scripts/generate_detection_scenes.py output; validation scenes become detector parity fixtures')
     parser.add_argument('--dataset', type=Path, default=ROOT / 'datasets/curated')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--fixtures', type=int, default=12, help='validation queries written as golden fixtures')
@@ -202,7 +203,7 @@ def main():
     # Detector export and raw-output parity on synthetic validation scenes.
     from ultralytics import YOLO
     yolo = YOLO(str(args.detector))
-    if yolo.task not in {'pose', 'obb'}:
+    if yolo.task != 'pose':
         raise ValueError(f'Unsupported detector task: {yolo.task}')
     exported = Path(yolo.export(format='onnx', imgsz=DETECTOR_SIZE, opset=OPSET, simplify=False, dynamic=False))
     detector_path = out / 'detector.onnx'
@@ -231,14 +232,8 @@ def main():
         det_diff = max(det_diff, float(np.abs(reference - output).max()))
         # Decode this exact square-letterbox output with the matching Ultralytics decoder.
         from ultralytics.utils import ops
-        pred = ops.non_max_suppression(torch.from_numpy(output.copy()), 0.25, 0.7, nc=1, rotated=yolo.task == 'obb')[0]
-        if yolo.task == 'pose':
-            corners = ops.scale_coords((DETECTOR_SIZE, DETECTOR_SIZE), pred[:, 6:].view(len(pred), 4, 3).clone(), rgb.shape)
-            decoded = {'ultralytics_corners': corners[..., :2].numpy().round(3).tolist()}
-        else:
-            rboxes = ops.regularize_rboxes(torch.cat([pred[:, :4], pred[:, -1:]], dim=-1))
-            rboxes[:, :4] = ops.scale_boxes((DETECTOR_SIZE, DETECTOR_SIZE), rboxes[:, :4], rgb.shape, xywh=True)
-            decoded = {'ultralytics_obb_xywhr': rboxes.numpy().round(3).tolist()}
+        pred = ops.non_max_suppression(torch.from_numpy(output.copy()), 0.25, 0.7, nc=1)[0]
+        corners = ops.scale_coords((DETECTOR_SIZE, DETECTOR_SIZE), pred[:, 6:].view(len(pred), 4, 3).clone(), rgb.shape)
         name = f'scene-{n:02d}'
         Image.fromarray(rgb).save(out / 'fixtures' / f'{name}.png')
         tensor.astype('<f4').tofile(out / 'fixtures' / f'{name}-input.f32')
@@ -246,9 +241,9 @@ def main():
         det_fixtures.append({'name': name, 'image': f'{name}.png', 'input_size': DETECTOR_SIZE, 'input': f'{name}-input.f32', 'output': f'{name}-output.f32',
                              'output_shape': list(output.shape), 'letterbox': transform,
                              'true_corners': [i['true_corners'] for i in scene['instances']],
-                             'kind': yolo.task, **decoded,
+                             'kind': yolo.task, 'ultralytics_corners': corners[..., :2].numpy().round(3).tolist(),
                              'ultralytics_conf': pred[:, 4].numpy().round(5).tolist(),
-                             'decode': {'conf': 0.25, 'iou': 0.7, 'nms': 'greedy IoU' if yolo.task == 'pose' else 'fast probiou'},
+                             'decode': {'conf': 0.25, 'iou': 0.7, 'nms': 'greedy IoU'},
                              'source_scene': scene['image'], 'label_origin': scene.get('label_origin', 'renderer-known corners')})
     if det_diff > 0.05:
         raise ValueError(f'Detector export parity failed: max absolute difference {det_diff}')

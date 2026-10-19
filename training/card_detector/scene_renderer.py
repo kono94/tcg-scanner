@@ -1,4 +1,4 @@
-"""Domain-modelled synthetic scenes for the OBB card detector (renderer v2).
+"""Domain-modelled synthetic scenes for the card-corner detector (renderer v2+).
 
 Scenes model what the scanner actually sees: binder pages (dark and light, 2x2 to 4x5
 pockets, single pages and spreads) with clear plastic pockets, loose and overlapping
@@ -7,8 +7,8 @@ over cards, and non-card rectangles (empty pockets, booster packs, phones, notes
 A simulated camera applies true perspective, then sensor/lens/compression effects.
 
 Labels come from the renderer: every *complete* card (all four corners inside the
-frame and at least `min_visible` of its area unoccluded) gets its true quad and a
-derived minimum-area OBB. Cards cut by the frame or mostly hidden stay unlabeled and
+frame and at least `min_visible` of its area unoccluded) gets its true quad.
+Cards cut by the frame or mostly hidden stay unlabeled and
 are recorded as such. These are synthetic pixels; they are not camera evidence.
 """
 from __future__ import annotations

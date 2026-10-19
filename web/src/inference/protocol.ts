@@ -2,7 +2,7 @@
 // Every job carries its capture ID (and instance revision) so obsolete results can be dropped.
 import type { Hit } from '../recognition/gallery';
 import type { Quad } from '../vision/image';
-import type { OrientedBox } from '../vision/obb';
+import type { OrientedBox } from '../vision/quad';
 
 export type Provider = 'webgpu' | 'wasm';
 
@@ -10,8 +10,8 @@ export interface BundleManifest {
   version: string;
   /** `int8`: quantized encoder used on the WASM/CPU path (much smaller; top-1 parity checked offline). */
   encoder: { path: string; input: string; output: string; size: number; dimension: number; preprocessing: { version: string }; int8?: { path: string; sha256: string } };
-  /** kind 'pose': box + 4 card-corner keypoints; 'obb': rotated rectangles (corners derived). */
-  detector: { path: string; size: number; pad_value: number; conf: number; iou: number; weights_origin: string; kind?: 'obb' | 'pose' };
+  /** YOLO-pose card-corner detector: box + 4 corner keypoints. */
+  detector: { path: string; size: number; pad_value: number; conf: number; iou: number; weights_origin: string; kind: 'pose' };
   gallery: { path: string; rows: number; dimension: number; dtype: string };
   catalog: string;
   prices: string;
@@ -46,7 +46,7 @@ export type RecognitionStep = 'rectified' | 'embedded' | 'searched';
 export type FromWorker =
   | { type: 'progress'; stage: string; loaded?: number; total?: number }
   | { type: 'ready'; provider: Provider; fallbackReason?: string; loadMs: number }
-  | { type: 'detected'; captureId: number; width: number; height: number; boxes: OrientedBox[]; quads?: Quad[]; ms: number }
+  | { type: 'detected'; captureId: number; width: number; height: number; boxes: OrientedBox[]; quads: Quad[]; ms: number }
   | { type: 'step'; captureId: number; instanceId: string; revision: number; step: RecognitionStep; crop?: ImageBitmap; at: number }
   | { type: 'recognized'; captureId: number; instanceId: string; revision: number; hits: Hit[]; quality: Quality; ms: { rectify: number; embed: number; search: number } }
   | { type: 'provider-fallback'; provider: Provider; reason: string }

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { letterboxFor } from '../src/vision/obb';
+import { letterboxFor } from '../src/vision/quad';
 import { boxOfQuad, decodePose, plausibleCard } from '../src/vision/pose';
 import { EXPORT_DIR } from './fixtures';
 

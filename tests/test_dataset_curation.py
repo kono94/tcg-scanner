@@ -128,37 +128,6 @@ class DatasetCurationTests(unittest.TestCase):
         self._curate()
         self.assertTrue((self.output / 'recognition/train/one_piece/en/sv03.5-200').is_dir())
 
-    def test_synthetic_detector_import_uses_yolo_split_paths_and_retains_quads(self):
-        runs = self.repo / 'runs/card_detector'
-        source_root = runs / 'fixture' / 'synthetic'
-        for split in ('train', 'val'):
-            for kind in ('images', 'labels', 'annotations'):
-                (source_root / kind / split).mkdir(parents=True, exist_ok=True)
-        image_path = source_root / 'images/train/scene_000001.jpg'
-        Image.new('RGB', (80, 60), (10, 30, 80)).save(image_path)
-        (source_root / 'labels/train/scene_000001.txt').write_text(
-            '0 0.2 0.2 0.8 0.2 0.8 0.8 0.2 0.8\n')
-        annotation = {
-            'label_origin': 'synthetic_renderer', 'real_camera_validation': False,
-            'split': 'train', 'width': 80, 'height': 60, 'count': 1,
-            'image': 'images/train/scene_000001.jpg',
-            'instances': [{'true_corners': [[10, 10], [70, 10], [70, 50], [10, 50]],
-                           'obb_corners': [[16, 12], [68, 16], [64, 48], [12, 44]]}],
-        }
-        (source_root / 'annotations/train/scene_000001.json').write_text(json.dumps(annotation))
-        manifest = curation._copy_synthetic_detector(source_root, self.output, 'copy', self.repo)
-        copied_image = self.output / 'detection/train/images/scene_000001.jpg'
-        copied_annotation = self.output / 'detection/train/annotations/scene_000001.json'
-        yaml_text = (self.output / 'detection/dataset.yaml').read_text()
-        self.assertTrue(copied_image.is_file())
-        self.assertIn('train: train/images', yaml_text)
-        self.assertIn('val: val/images', yaml_text)
-        self.assertIn(str((self.output / 'detection').resolve()), yaml_text)
-        copied = json.loads(copied_annotation.read_text())
-        self.assertTrue((self.output / 'detection' / copied['image']).is_file())
-        self.assertEqual(manifest['real_camera_validation'], False)
-        self.assertIn('true_corners', copied_annotation.read_text())
-
     def test_rejected_deletion_is_limited_to_allowlisted_ignored_crop_root(self):
         allowed = self.repo / 'runs/video_mining/run-a/crops'
         allowed.mkdir(parents=True)

@@ -1,7 +1,7 @@
 # Fine-tuned corner detector bundle
 
 Bundle `270473320b53d5b4` replaces the detector in `535078e65aa8d649` with
-`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt`, exported at 640 px.
+`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt`, exported at 640 px.
 The confidence threshold remains 0.6 and NMS IoU remains 0.7. Encoder, int8 encoder,
 gallery, catalog and price files are byte-identical to the previous bundle.
 

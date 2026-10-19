@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { boxCorners, portraitQuad } from '../src/vision/obb';
+import { boxCorners, portraitQuad } from '../src/vision/quad';
 
 
 describe('box orientation', () => {

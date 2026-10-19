@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Generate renderer-v2 synthetic detection scenes (YOLO OBB) from existing card images.
+"""Generate synthetic detection scenes (images + true-corner JSON) from existing card images.
 
+`scripts/build_corner_dataset.py` converts the JSON annotations to YOLO-pose labels.
 Card faces: curated gallery references (all games) plus real train-split query crops.
 Train and val scenes use disjoint card identities; real test-split crops are never used.
 """
@@ -39,23 +40,11 @@ def card_pools(dataset: Path, val_fraction: float, seed: int) -> dict[str, list[
     return pools
 
 
-def obb(quad: np.ndarray) -> np.ndarray:
-    return cv2.boxPoints(cv2.minAreaRect(quad.astype(np.float32))).astype(np.float64)
-
-
 def work(task):
     index, split, seed, out, w, h, upright, version = task
     pixels, meta = render(seed, _TEXTURES[split], w, h, upright=upright, version=version)
     name = f'scene_{index:06d}'
     Image.fromarray(pixels).save(Path(out) / 'images' / split / f'{name}.jpg', quality=92)
-    lines = []
-    for inst in meta['instances']:
-        box = obb(np.asarray(inst['true_corners']))
-        box[:, 0] = np.clip(box[:, 0], 0, w - 1) / w
-        box[:, 1] = np.clip(box[:, 1], 0, h - 1) / h
-        inst['obb_corners'] = (box * [w, h]).round(2).tolist()
-        lines.append('0 ' + ' '.join(f'{v:.6f}' for v in box.ravel()))
-    (Path(out) / 'labels' / split / f'{name}.txt').write_text('\n'.join(lines) + ('\n' if lines else ''))
     meta.update(split=split, image=f'images/{split}/{name}.jpg')
     (Path(out) / 'annotations' / split / f'{name}.json').write_text(json.dumps(meta))
     return split, meta['kind'], len(meta['instances']), len(meta['unlabeled_cards'])
@@ -108,7 +97,7 @@ def main():
     out = args.output.resolve()
     if out.exists() and any(out.iterdir()):
         parser.error('Output must be new or empty')
-    for kind in ('images', 'labels', 'annotations'):
+    for kind in ('images', 'annotations'):
         for split in ('train', 'val'):
             (out / kind / split).mkdir(parents=True, exist_ok=True)
     pools = card_pools(args.dataset, args.val_fraction, args.seed)
@@ -128,7 +117,6 @@ def main():
             s['kinds'][kind] = s['kinds'].get(kind, 0) + 1
             if n % 500 == 0:
                 print(f'{n}/{len(tasks)}', flush=True)
-    (out / 'dataset.yaml').write_text(f'path: {json.dumps(str(out))}\ntrain: images/train\nval: images/val\nnames:\n  0: card\n')
     renderer = 'v2' if args.legacy_rotations else f'v{args.renderer_version}'
     summary = {'renderer': f'scene_renderer {renderer}', 'label_origin': f'synthetic_renderer_{renderer}', 'real_camera_validation': False,
                'card_sources': {k: len(v) for k, v in pools.items()}, 'identity_split': 'by game + base card number family',

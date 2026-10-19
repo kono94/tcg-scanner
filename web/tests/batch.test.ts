@@ -7,7 +7,7 @@ import type { SavedCrops } from '../src/collection/crops';
 import { Catalog } from '../src/recognition/catalog';
 import type { Hit } from '../src/recognition/gallery';
 import type { PriceService } from '../src/prices/service';
-import type { OrientedBox } from '../src/vision/obb';
+import { boxCorners, type OrientedBox } from '../src/vision/quad';
 import { appearanceFingerprint } from '../src/batch/duplicates';
 
 const ids = ['onepiece:en:OP01-001', 'onepiece:en:OP01-002', 'onepiece:en:OP01-003'];
@@ -58,7 +58,7 @@ function backend(boxes: () => OrientedBox[], hitsFor: (b: Blob) => Hit[] | Promi
   let failure: string | null = null;
   let held: number | null = null;
   const b: BatchBackend = {
-    detect: async (id) => { held = id; return { width: 1000, height: 800, boxes: boxes(), ms: 1 }; },
+    detect: async (id) => { held = id; const b = boxes(); return { width: 1000, height: 800, boxes: b, quads: b.map(boxCorners), ms: 1 }; },
     extract: async (id, quad) => {
       if (held !== id) throw new Error('Capture was released');
       return { canonical: blob(`c${Math.round(quad[0][0])}`), display: blob('d'), thumb: blob('t'), quality: { shortSide: 200, glare: 0 } };

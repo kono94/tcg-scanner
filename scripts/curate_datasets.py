@@ -2,15 +2,14 @@
 """Safely copy root-reviewed image records into a normalized dataset layout.
 
 The tool never assigns identities. Recognition queries are admitted only from a
-root-reviewed manifest with explicit physical-reference evidence. Detector
-imports are restricted to the exact synthetic renderer output contract.
+root-reviewed manifest with explicit physical-reference evidence. Detector training
+data is built separately (scripts/generate_detection_scenes.py, build_corner_dataset.py).
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
@@ -336,117 +335,6 @@ def _copy_recognition(
     return manifest
 
 
-def _validate_obb_text(label_path: Path, expected_instances: int) -> None:
-    try:
-        lines = [line.split() for line in label_path.read_text(encoding='utf-8').splitlines() if line.strip()]
-    except OSError as exc:
-        raise CurationError(f'Cannot read synthetic OBB labels: {label_path}') from exc
-    if len(lines) != expected_instances:
-        raise CurationError(f'OBB instance count disagrees with annotation: {label_path}')
-    for line in lines:
-        if len(line) != 9 or line[0] != '0':
-            raise CurationError(f'Expected class-0 YOLO OBB row with eight coordinates: {label_path}')
-        try:
-            values = [float(x) for x in line[1:]]
-        except ValueError as exc:
-            raise CurationError(f'Non-numeric YOLO OBB row: {label_path}') from exc
-        if not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
-            raise CurationError(f'Invalid normalized YOLO OBB coordinates: {label_path}')
-
-
-def _validate_synthetic_annotation(annotation: dict[str, Any], split: str, image_path: Path, label_path: Path) -> None:
-    if annotation.get('label_origin') != 'synthetic_renderer' or annotation.get('real_camera_validation') is not False:
-        raise CurationError('Only renderer-labeled synthetic scenes may enter the synthetic detector split')
-    if annotation.get('split') != split:
-        raise CurationError(f'Synthetic annotation split mismatch: {image_path}')
-    if not isinstance(annotation.get('instances'), list) or annotation.get('count') != len(annotation['instances']):
-        raise CurationError(f'Synthetic annotation count mismatch: {image_path}')
-    width, height = annotation.get('width'), annotation.get('height')
-    if not isinstance(width, int) or not isinstance(height, int) or min(width, height) < 1:
-        raise CurationError(f'Synthetic annotation has invalid dimensions: {image_path}')
-    actual_width, actual_height, _ = verify_image(image_path)
-    if (actual_width, actual_height) != (width, height):
-        raise CurationError(f'Synthetic image dimensions do not match annotation: {image_path}')
-    for instance in annotation['instances']:
-        for field in ('true_corners', 'obb_corners'):
-            points = instance.get(field)
-            if not isinstance(points, list) or len(points) != 4 or any(not isinstance(p, list) or len(p) != 2 for p in points):
-                raise CurationError(f'Synthetic instance needs four {field}: {image_path}')
-            if any(not isinstance(v, (int, float)) or not math.isfinite(v) for point in points for v in point):
-                raise CurationError(f'Synthetic instance has invalid {field}: {image_path}')
-    _validate_obb_text(label_path, len(annotation['instances']))
-
-
-def _copy_synthetic_detector(source_root: Path, output: Path, mode: str, repo_root: Path = ROOT) -> dict[str, Any]:
-    source_root = source_root.absolute()
-    if source_root.is_symlink():
-        raise CurationError('Synthetic detector root cannot be a symlink')
-    expected_parent = (repo_root / 'runs' / 'card_detector').absolute()
-    _reject_symlink_components(source_root, expected_parent)
-    source_root = source_root.resolve(strict=True)
-    if not _under(source_root, expected_parent.resolve()) or source_root == expected_parent.resolve():
-        raise CurationError('Synthetic detector root must be a run below runs/card_detector')
-    if source_root.name != 'synthetic':
-        raise CurationError('Synthetic detector import currently accepts only a directory named synthetic')
-    records = []
-    for split in ('train', 'val'):
-        annotation_dir = source_root / 'annotations' / split
-        if not annotation_dir.is_dir():
-            raise CurationError(f'Missing synthetic annotations: {annotation_dir}')
-        for annotation_file in sorted(annotation_dir.glob('*.json')):
-            _reject_symlink_components(annotation_file, source_root)
-            annotation = _json_file(annotation_file)
-            source_image_rel = annotation.get('image')
-            expected_prefix = Path('images') / split
-            image_rel = Path(source_image_rel) if isinstance(source_image_rel, str) else Path('..')
-            if image_rel.is_absolute() or image_rel.parts[:2] != expected_prefix.parts or '..' in image_rel.parts:
-                raise CurationError(f'Unexpected synthetic image path in annotation: {source_image_rel!r}')
-            label_rel = Path('labels') / split / f'{annotation_file.stem}.txt'
-            source_image = resolve_input_file(source_image_rel, source_root, image=True)
-            source_label = resolve_input_file(label_rel.as_posix(), source_root)
-            _validate_synthetic_annotation(annotation, split, source_image, source_label)
-            destination_image = output / 'detection' / split / 'images' / source_image.name
-            destination_label = output / 'detection' / split / 'labels' / source_label.name
-            destination_annotation = output / 'detection' / split / 'annotations' / annotation_file.name
-            for path in (destination_image, destination_label, destination_annotation):
-                if path.exists():
-                    raise CurationError(f'Synthetic scene name collision: {path}')
-            _copy_file(source_image, destination_image, mode)
-            _copy_file(source_label, destination_label, mode)
-            # Rebase paths without editing the renderer's original or a hardlink.
-            _write_json(destination_annotation, {
-                **annotation, 'image': f'{split}/images/{source_image.name}',
-                'label': f'{split}/labels/{source_label.name}',
-                'source_annotation': str(annotation_file.relative_to(repo_root.resolve())),
-                'source_annotation_sha256': sha256_file(annotation_file),
-            })
-            records.append({
-                'split': split, 'image': destination_image.relative_to(output).as_posix(),
-                'image_sha256': sha256_file(destination_image), 'label': destination_label.relative_to(output).as_posix(),
-                'label_sha256': sha256_file(destination_label),
-                'annotation': destination_annotation.relative_to(output).as_posix(),
-                'annotation_sha256': sha256_file(destination_annotation),
-                'instance_count': len(annotation['instances']),
-            })
-    for split in sorted(SPLITS):
-        for kind in ('images', 'labels', 'annotations'):
-            (output / 'detection' / split / kind).mkdir(parents=True, exist_ok=True)
-    (output / 'detection' / 'dataset.yaml').write_text(
-        f'path: {json.dumps(str((output / "detection").resolve()))}\n'
-        'train: train/images\nval: val/images\ntest: test/images\nnames:\n  0: card\n', encoding='utf-8')
-    manifest = {
-        'schema_version': 1, 'artifact_type': 'curated_synthetic_detection_dataset',
-        'label_origin': 'synthetic_renderer', 'source_root': str(source_root),
-        'real_camera_validation': False,
-        'geometry': 'true renderer quadrilaterals with separately stored derived minimum-area OBB labels',
-        'dataset_yaml': 'dataset.yaml', 'scene_count': len(records),
-        'split_counts': {split: sum(row['split'] == split for row in records) for split in ('train', 'val')},
-        'scenes': records,
-    }
-    _write_json(output / 'detection' / 'manifest.json', manifest)
-    return manifest
-
-
 def _validate_rejected_crop_root(repo_root: Path, crop_root: Path) -> Path:
     if crop_root.is_symlink():
         raise CurationError('Rejected-crop root cannot be a symlink')
@@ -494,7 +382,7 @@ def _remove_rejected(
 
 def curate_dataset(
     *, repo_root: Path, input_root: Path, references_manifest: Path, review_manifest: Path,
-    output: Path, copy_mode: str = 'copy', synthetic_detector: Path | None = None,
+    output: Path, copy_mode: str = 'copy',
     remove_rejected_derived: bool = False, rejected_crop_root: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.absolute()
@@ -526,12 +414,6 @@ def curate_dataset(
     relevant_sources.extend(row[key] for row in prepared for key in ('_crop', '_source', '_reference'))
     output_path = _prepare_output(output, repo_root, relevant_sources)
     recognition = _copy_recognition(output_path, reference_rows, prepared, review, copy_mode)
-    detection = None
-    if synthetic_detector is not None:
-        source_path = synthetic_detector.resolve(strict=True)
-        if _under(output_path.resolve(), source_path) or _under(source_path, output_path.resolve()):
-            raise CurationError('Output and synthetic detector source cannot overlap')
-        detection = _copy_synthetic_detector(source_path, output_path, copy_mode, repo_root)
     deleted = 0
     if remove_rejected_derived:
         if rejected_crop_root is None:
@@ -543,14 +425,12 @@ def curate_dataset(
         'output': str(output_path), 'recognition_gallery_references': len(reference_rows),
         'recognition_queries': len(prepared), 'recognition_split_counts': {
             split: sum(row['_split'] == split for row in prepared) for split in sorted(SPLITS)},
-        'synthetic_detection_scenes': detection['scene_count'] if detection else 0,
         'rejected_derived_crops_removed': deleted,
         'real_camera_validation': False,
     }
     _write_json(output_path / 'curation_manifest.json', {
         'schema_version': 1, 'artifact_type': 'curated_dataset_root', **summary,
         'recognition_manifest': 'recognition/manifest.json',
-        'detection_manifest': 'detection/manifest.json' if detection else None,
     })
     return summary
 
@@ -563,8 +443,6 @@ def main() -> None:
     parser.add_argument('--review-manifest', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'datasets/curated')
     parser.add_argument('--copy-mode', choices=('copy', 'hardlink'), default='copy')
-    parser.add_argument('--synthetic-detector', type=Path,
-                        help='Optional runs/card_detector/<run>/synthetic-contract source; real scenes are never imported here')
     parser.add_argument('--remove-rejected-derived', action='store_true',
                         help='Explicitly remove only hash-verified rejected crops below an allowlisted ignored runs crop root')
     parser.add_argument('--rejected-crop-root', type=Path,
@@ -574,7 +452,7 @@ def main() -> None:
         summary = curate_dataset(
             repo_root=args.repo_root, input_root=args.input_root,
             references_manifest=args.references_manifest, review_manifest=args.review_manifest,
-            output=args.output, copy_mode=args.copy_mode, synthetic_detector=args.synthetic_detector,
+            output=args.output, copy_mode=args.copy_mode,
             remove_rejected_derived=args.remove_rejected_derived, rejected_crop_root=args.rejected_crop_root,
         )
     except (CurationError, OSError) as exc:

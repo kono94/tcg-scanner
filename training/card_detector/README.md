@@ -1,7 +1,7 @@
 # Card-corner detector
 
 The browser uses YOLOv8s-pose at 640 px from
-`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt` (DVC). The `obb` parent
+`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt` (DVC). The `obb` parent
 name is historical; the deployed model predicts a box and four geometric corners.
 The browser perspective-warps each card from those corners.
 

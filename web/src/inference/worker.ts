@@ -4,7 +4,7 @@ import * as ort from 'onnxruntime-web/webgpu';
 import { Gallery } from '../recognition/gallery';
 import { appearanceFingerprint } from '../batch/duplicates';
 import { rgbFromRGBA, type Quad, type RGBImage } from '../vision/image';
-import { decodeObb, letterboxFor } from '../vision/obb';
+import { letterboxFor } from '../vision/quad';
 import { boxOfQuad, decodePose } from '../vision/pose';
 import { CANONICAL_HEIGHT, CANONICAL_WIDTH, encoderTensor, warpCard } from '../vision/preprocess';
 import type { BundleManifest, FromWorker, Provider, Quality, ToWorker } from './protocol';
@@ -219,15 +219,10 @@ async function detect(msg: Extract<ToWorker, { type: 'detect' }>) {
     return result[m.detector.outputNames[0]];
   });
   const d = manifest!.detector;
-  if (d.kind === 'pose') {
-    // Corner model: the predicted corners are used directly for perspective correction.
-    const found = decodePose(output.data as Float32Array, output.dims[2], lb, d.conf, d.iou);
-    post({ type: 'detected', captureId: msg.captureId, width, height, boxes: found.map((f) => boxOfQuad(f.corners, f.score)),
-      quads: found.map((f) => f.corners), ms: performance.now() - started });
-    return;
-  }
-  const boxes = decodeObb(output.data as Float32Array, output.dims[2], lb, d.conf, d.iou);
-  post({ type: 'detected', captureId: msg.captureId, width, height, boxes, ms: performance.now() - started });
+  // Corner model: the predicted corners are used directly for perspective correction.
+  const found = decodePose(output.data as Float32Array, output.dims[2], lb, d.conf, d.iou);
+  post({ type: 'detected', captureId: msg.captureId, width, height, boxes: found.map((f) => boxOfQuad(f.corners, f.score)),
+    quads: found.map((f) => f.corners), ms: performance.now() - started });
 }
 
 function quality(quad: Quad, crop: RGBImage): Quality {

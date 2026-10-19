@@ -51,13 +51,12 @@ images remain in Git LFS; they are still used by acquisition/provenance tools.
 | `datasets/curated`, `datasets/staging` | accepted references/queries and acquisition candidates |
 | `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017` | current encoder checkpoint, gallery and evaluation |
 | `runs/card_recognizer/dinov2_baseline/hf_cache` | pinned pretrained initialization files still required by training/export |
-| `runs/card_detector/obb/corners-s640-v4-ft` | current corner detector and export evidence |
+| `runs/card_detector/pose/corners-s640-v4-ft` | current corner detector and export evidence |
 | `runs/browser_export/gpu-20261017`, `runs/browser_export/pose-fixture` | current model exports and golden parity fixtures |
 | `runs/prices/prices.json` | current multi-market price snapshot |
 | `web/public/bundle`, `web/public/media` | browser bundle and local test videos |
 
 After changing a tracked artifact: `dvc add <path>`, `dvc push`, then commit its pointer.
-The `obb` parent directory name is historical; the current checkpoint is a pose model.
 
 Detector datasets use **Ultralytics YOLO pose**: one `.txt` per scene, one row per
 card with class, normalized box and four `(x, y, visibility)` keypoints, plus a

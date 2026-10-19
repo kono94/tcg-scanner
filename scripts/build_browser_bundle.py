@@ -114,8 +114,8 @@ def export_detector(weights: Path, size: int, out: Path) -> dict:
     from ultralytics import YOLO
     yolo = YOLO(str(weights))
     kind = yolo.task
-    if kind not in {'obb', 'pose'}:
-        raise ValueError(f'Unsupported detector task {kind}')
+    if kind != 'pose':
+        raise ValueError(f'Detector must be a YOLO-pose corner model, got task {kind}')
     exported = Path(yolo.export(format='onnx', imgsz=size, opset=17, simplify=False, dynamic=False, verbose=False))
     exported.replace(out)
     x = torch.from_numpy(np.random.default_rng(0).random((1, 3, size, size), dtype=np.float32))
@@ -128,8 +128,7 @@ def export_detector(weights: Path, size: int, out: Path) -> dict:
     diff = float(np.abs(ref - got).max())
     if diff > 0.05:
         raise ValueError(f'Detector ONNX parity failed: max abs diff {diff}')
-    if kind == 'pose':
-        write_pose_fixture(weights, out, size)
+    write_pose_fixture(weights, out, size)
     return {'path': 'detector.onnx', 'kind': kind, 'sha256': sha256_file(out), 'bytes': out.stat().st_size, 'input_size': size,
             'max_abs_diff_vs_torch_cpu': diff, 'source_weights': str(weights), 'source_weights_sha256': sha256_file(weights)}
 
@@ -144,7 +143,7 @@ def main():
     parser.add_argument('--prices', type=Path, default=ROOT / 'runs/prices/prices.json',
                         help='prices.json from scripts/update_prices.py (schema 2, USD + EUR markets)')
     parser.add_argument('--encoder-int8', type=Path, help='dynamically quantized encoder for the WASM/CPU path (phones)')
-    parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics pose/OBB weights')
+    parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics pose weights')
     parser.add_argument('--detector-size', type=int, default=640)
     parser.add_argument('--detector-conf', type=float, default=0.6, help='app-side box confidence cut-off')
     parser.add_argument('--detector-origin', default='corners-s640-v4-ft; synthetic pretraining plus AI-reviewed real-corner fine tuning; not device-verified')
@@ -262,7 +261,7 @@ def main():
         'detector': {'path': 'detector.onnx', 'size': report['detector']['input_size'], 'pad_value': 114,
                      'conf': args.detector_conf, 'iou': 0.7, 'weights_origin': report['detector']['weights_origin'],
                      'source_weights_sha256': report['detector'].get('source_weights_sha256'),
-                     'kind': report['detector'].get('kind', 'obb')},
+                     'kind': report['detector'].get('kind', 'pose')},
         'gallery': {'path': 'gallery.f16', 'rows': len(gallery_ids), 'dimension': gallery['dimension'], 'dtype': 'float16-le',
                     'card_rows': len(keep), 'back_rows': backs['rows'] if backs else 0},
         **({'backs': backs} if backs else {}),

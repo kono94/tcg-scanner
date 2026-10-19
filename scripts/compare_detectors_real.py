@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Compare detectors end to end on real frames from held-out (test/val) source videos.
 
-For each detector: detect, straighten each card from its own corners (pose keypoints or the
-rotated box), embed with an ONNX encoder, search the gallery, and count crops the pilot match
-policy accepts (similarity >= 0.45 and margin >= 0.05 to the next different artwork). This is a
+For each corner (YOLO-pose) detector: detect, straighten each card from its predicted corners,
+embed with an ONNX encoder, search the gallery, and count crops the default match policy accepts (similarity >= 0.45 and margin >= 0.05 to the next different artwork). This is a
 proxy for usable crops, not labeled accuracy: frames have no per-card identity labels.
 """
 from __future__ import annotations
@@ -55,7 +54,7 @@ def main():
             img = cv2.imread(str(f))
             rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             r = model.predict(img, imgsz=imgsz, conf=args.conf, iou=0.7, verbose=False)[0]
-            quads = (r.keypoints.xy.numpy() if model.task == 'pose' else r.obb.xyxyxyxy.numpy()) if (len(r.boxes) if model.task == 'pose' else len(r.obb)) else []
+            quads = r.keypoints.xy.numpy() if len(r.boxes) else []
             for q in quads:
                 boxes_total += 1
                 try:

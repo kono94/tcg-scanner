@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as ort from 'onnxruntime-web';
 import { describe, expect, it } from 'vitest';
-import { decodeObb, letterboxFor } from '../src/vision/obb';
+import { letterboxFor } from '../src/vision/quad';
 import { decodePose } from '../src/vision/pose';
 import { encoderTensor } from '../src/vision/preprocess';
 import { EXPORT_DIR, f32, hasFixtures, json, rgb, type DetectorFixture, type EncoderFixture } from './fixtures';
@@ -33,7 +33,7 @@ describe.skipIf(!hasFixtures || process.env.SKIP_RUNTIME === '1')('onnxruntime-w
     for (let i = 0; i < expected.length; i++) worst = Math.max(worst, Math.abs(data[i] - expected[i]));
     expect(worst).toBeLessThan(0.01);
     const lb = letterboxFor(...f.letterbox.source_size, f.input_size ?? 640);
-    const detections = f.kind === 'pose' ? decodePose(data, out.dims[2], lb, 0.25, 0.7, 300, false) : decodeObb(data, out.dims[2], lb);
+    const detections = decodePose(data, out.dims[2], lb, 0.25, 0.7, 300, false);
     expect(detections.length).toBe(f.ultralytics_conf.length);
     await session.release();
   });

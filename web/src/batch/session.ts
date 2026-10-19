@@ -11,7 +11,7 @@ import { summarizeValue, type ValueSettings } from '../recognition/value';
 import type { PriceService } from '../prices/service';
 import type { Quality } from '../inference/protocol';
 import type { Quad } from '../vision/image';
-import { boxCorners, portraitQuad, readingOrder, type OrientedBox } from '../vision/obb';
+import { portraitQuad, readingOrder, type OrientedBox } from '../vision/quad';
 import { attentionReason } from '../session/page';
 import { matchFields, savedNeedsUser, type SavedCard, type SavedPage } from '../collection/store';
 import type { SavedCrops } from '../collection/crops';
@@ -21,7 +21,7 @@ export interface Detected {
   width: number;
   height: number;
   boxes: OrientedBox[];
-  quads?: Quad[];
+  quads: Quad[];
   ms: number;
 }
 
@@ -244,8 +244,8 @@ export class BatchSession {
       delete batch.pendingDuplicate;
       const detected = await this.backend.detect(captureId, bitmap);
       const limit = this.options.maxInstances ?? 48;
-      const ordered = readingOrder(detected.boxes.map((box, i) => ({ box, corners: detected.quads?.[i] })));
-      const quads = ordered.slice(0, limit).map(({ box, corners }) => portraitQuad(corners ?? boxCorners(box)));
+      const ordered = readingOrder(detected.boxes.map((box, i) => ({ box, corners: detected.quads[i] })));
+      const quads = ordered.slice(0, limit).map(({ corners }) => portraitQuad(corners));
       const overLimit = Math.max(0, ordered.length - limit);
       if (onDetected) await onDetected(captureId, detected, quads).catch(() => {});
       if (!quads.length) return { pageNumber: null, cards: 0, overLimit, failed: 0 };

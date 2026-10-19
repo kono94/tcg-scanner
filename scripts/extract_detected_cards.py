@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract bounded, unlabeled per-card crops from mined frames using a local YOLO OBB model."""
+"""Extract bounded, unlabeled per-card crops from mined frames using a local YOLO-pose corner model."""
 from __future__ import annotations
 
 import argparse
@@ -35,35 +35,35 @@ def _signed_area(points: np.ndarray) -> float:
 def portrait_aligned_corners(vertices: np.ndarray) -> np.ndarray:
     """Return a cyclic convex quad ordered TL,TR,BR,BL with its long axis vertical.
 
-    OBB geometry determines portrait alignment only. It cannot determine artwork-up;
+    Corner geometry determines portrait alignment only. It cannot determine artwork-up;
     callers must treat upright orientation as unknown and handle 0/180 separately.
     """
     points = np.asarray(vertices, dtype=np.float64)
     if points.shape != (4, 2) or not np.isfinite(points).all():
-        raise ValueError('OBB corners must be four finite 2-D points')
+        raise ValueError('Card corners must be four finite 2-D points')
     center = points.mean(axis=0)
     order = np.argsort(np.arctan2(points[:, 1] - center[1], points[:, 0] - center[0]))
     cyclic = points[order]
     area = _signed_area(cyclic)
     if abs(area) < 1.0:
-        raise ValueError('OBB area is too small')
+        raise ValueError('Card quad area is too small')
     # Image-coordinate clockwise order gives positive signed area.
     if area < 0:
         cyclic = cyclic[::-1]
     edges = np.roll(cyclic, -1, axis=0) - cyclic
     lengths = np.linalg.norm(edges, axis=1)
     if np.any(lengths < 1.0):
-        raise ValueError('OBB contains a degenerate edge')
+        raise ValueError('Card quad contains a degenerate edge')
     crosses = edges[:, 0] * np.roll(edges, -1, axis=0)[:, 1] - edges[:, 1] * np.roll(edges, -1, axis=0)[:, 0]
     if not (np.all(crosses > 1e-3) or np.all(crosses < -1e-3)):
-        raise ValueError('OBB vertices must form a convex quadrilateral')
+        raise ValueError('Card corners must form a convex quadrilateral')
     # The two short edges are the card's width edges. For nearly square shapes the
     # inferred portrait axis is not meaningful, so reject instead of guessing.
     short_pair = [i for i in range(4) if lengths[i] <= min(lengths) * 1.15]
     if len(short_pair) != 2 or (short_pair[1] - short_pair[0]) % 2 != 0:
-        raise ValueError('OBB does not have a clear pair of opposite short edges')
+        raise ValueError('Card quad does not have a clear pair of opposite short edges')
     if max(lengths) / min(lengths) < 1.15:
-        raise ValueError('OBB aspect ratio is too ambiguous for portrait alignment')
+        raise ValueError('Card quad aspect ratio is too ambiguous for portrait alignment')
     candidates = []
     for i in short_pair:
         midpoint_y = float((cyclic[i, 1] + cyclic[(i + 1) % 4, 1]) / 2)
@@ -87,7 +87,7 @@ def validate_source_quad(vertices: np.ndarray, width: int, height: int,
     corners = portrait_aligned_corners(vertices)
     if np.any(corners[:, 0] < 0) or np.any(corners[:, 1] < 0) or \
             np.any(corners[:, 0] > width - 1) or np.any(corners[:, 1] > height - 1):
-        raise ValueError('OBB extends outside source-frame bounds')
+        raise ValueError('Card quad extends outside source-frame bounds')
     edges = np.roll(corners, -1, axis=0) - corners
     lengths = np.linalg.norm(edges, axis=1)
     card_width = float((lengths[0] + lengths[2]) / 2)
@@ -170,8 +170,8 @@ def extract(args: argparse.Namespace) -> dict:
 
     torch.set_num_threads(args.threads)
     model = YOLO(str(detector_path))
-    if getattr(model, 'task', None) != 'obb':
-        raise ValueError(f'Detector task must be OBB, got {getattr(model, "task", None)!r}')
+    if getattr(model, 'task', None) != 'pose':
+        raise ValueError(f'Detector task must be pose (card corners), got {getattr(model, "task", None)!r}')
     weight_hash = sha256_file(detector_path)
     output.mkdir(parents=True, exist_ok=True)
     (output / 'queries').mkdir(exist_ok=True)
@@ -186,11 +186,11 @@ def extract(args: argparse.Namespace) -> dict:
         if len(prediction) != 1:
             rejected.append({'source_frame': info['source_frame'], 'reason': 'unexpected_prediction_count'})
             continue
-        obb = getattr(prediction[0], 'obb', None)
-        if obb is None or len(obb) == 0:
+        result = prediction[0]
+        if result.keypoints is None or len(result.boxes) == 0:
             continue
-        polys = obb.xyxyxyxy.detach().cpu().numpy()
-        confidences = obb.conf.detach().cpu().numpy()
+        polys = result.keypoints.xy.detach().cpu().numpy()
+        confidences = result.boxes.conf.detach().cpu().numpy()
         for det_index, (poly, score) in enumerate(zip(polys, confidences)):
             try:
                 corners, edge_w, edge_h = validate_source_quad(
@@ -220,18 +220,18 @@ def extract(args: argparse.Namespace) -> dict:
                 'source_frame_sha256': info['sha256'],
                 'source_video_sha256': source.get('sha256'),
                 'time_seconds': info['time_seconds'],
-                'geometry_label_status': 'predicted_obb',
+                'geometry_label_status': 'predicted_pose_corners',
                 'identity_label_status': 'unlabeled',
                 'prediction_confidence': float(score),
                 'detector_weights_sha256': weight_hash,
-                'obb_corners_oriented_source_pixels_tl_tr_br_bl': corners.tolist(),
+                'corners_oriented_source_pixels_tl_tr_br_bl': corners.tolist(),
                 'source_frame_width': width,
                 'source_frame_height': height,
                 'effective_source_pixels': {'short_edge': edge_w, 'long_edge': edge_h},
                 'crop_pixels': {'width': crop_w, 'height': crop_h},
                 'crop_resize': resize_mode,
                 'warp_interpolation': 'opencv_INTER_LINEAR',
-                'artwork_upright': 'unknown; OBB geometry cannot distinguish 0 from 180 degrees',
+                'artwork_upright': 'unknown; corner geometry cannot distinguish 0 from 180 degrees',
                 'automatic_training_promotion': False,
             })
     report = {
@@ -242,7 +242,7 @@ def extract(args: argparse.Namespace) -> dict:
         'source_group': source.get('source_group'),
         'source_video_sha256': source.get('sha256'),
         'detector_weights_sha256': weight_hash,
-        'detector_task': 'obb',
+        'detector_task': 'pose',
         'settings': {'imgsz': args.imgsz, 'confidence': args.confidence,
                      'max_frames': args.max_frames, 'min_card_short_edge': args.min_card_short_edge,
                      'max_crop_edge': MAX_CROP_EDGE},
@@ -258,7 +258,7 @@ def extract(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--frames-manifest', required=True, type=Path)
-    parser.add_argument('--detector', required=True, type=Path, help='Existing local YOLO OBB .pt weights; no download')
+    parser.add_argument('--detector', required=True, type=Path, help='Existing local YOLO-pose corner .pt weights; no download')
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--imgsz', type=int, default=1280)
     parser.add_argument('--confidence', type=float, default=.25)

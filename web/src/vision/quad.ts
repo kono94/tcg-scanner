@@ -1,8 +1,9 @@
-// YOLO OBB output decoding, a port of the Ultralytics rotated NMS/post-processing used by the
-// exported detector. Coordinates: detector input (letterboxed square) -> capture source pixels.
+// Card quad geometry shared by detection, sessions and overlays. Coordinates: detector input
+// (letterboxed square) -> capture source pixels.
 import type { Point, Quad } from './image';
 
-/** Rotated box in capture source pixels: centre, long side, short side, angle in [0, pi). */
+/** Rotated-rectangle summary of a detected card in capture source pixels (see pose.ts boxOfQuad):
+ * centre, long side, short side, angle in [0, pi). Used for reading order and overlays. */
 export interface OrientedBox {
   cx: number;
   cy: number;
@@ -26,62 +27,6 @@ export function letterboxFor(sourceWidth: number, sourceHeight: number, size: nu
   const padX = Math.round((size - sourceWidth * scale) / 2 - 0.1) || 0;
   const padY = Math.round((size - sourceHeight * scale) / 2 - 0.1) || 0;
   return { size, scale, padX, padY };
-}
-
-function covariance(w: number, h: number, r: number): [number, number, number] {
-  const a = (w * w) / 12, b = (h * h) / 12;
-  const c = Math.cos(r), s = Math.sin(r);
-  return [a * c * c + b * s * s, a * s * s + b * c * c, (a - b) * c * s];
-}
-
-/** Probabilistic IoU between two rotated boxes (Ultralytics batch_probiou). */
-export function probiou(p: OrientedBox, q: OrientedBox, eps = 1e-7): number {
-  const [a1, b1, c1] = covariance(p.w, p.h, p.angle);
-  const [a2, b2, c2] = covariance(q.w, q.h, q.angle);
-  const A = a1 + a2, B = b1 + b2, C = c1 + c2;
-  const den = A * B - C * C + eps;
-  const t1 = ((A * (p.cy - q.cy) ** 2 + B * (p.cx - q.cx) ** 2) / den) * 0.25;
-  const t2 = ((C * (q.cx - p.cx) * (p.cy - q.cy)) / den) * 0.5;
-  const t3 = Math.log((A * B - C * C) / (4 * Math.sqrt(Math.max(0, a1 * b1 - c1 * c1) * Math.max(0, a2 * b2 - c2 * c2)) + eps) + eps) * 0.5;
-  const bd = Math.min(100, Math.max(eps, t1 + t2 + t3));
-  return 1 - Math.sqrt(1 - Math.exp(-bd) + eps);
-}
-
-/**
- * Decode a (1, 4 + classes + 1, N) OBB tensor for a single-class detector.
- * Returns boxes in capture source pixels, highest score first.
- */
-export function decodeObb(output: Float32Array, anchors: number, lb: Letterbox, conf = 0.25, iou = 0.7, maxDet = 300): OrientedBox[] {
-  const rows = output.length / anchors;
-  if (rows !== 6) throw new Error(`Expected single-class OBB output with 6 rows, got ${rows}`);
-  const candidates: OrientedBox[] = [];
-  for (let i = 0; i < anchors; i++) {
-    const score = output[4 * anchors + i];
-    if (score > conf) {
-      candidates.push({ cx: output[i], cy: output[anchors + i], w: output[2 * anchors + i], h: output[3 * anchors + i], angle: output[5 * anchors + i], score });
-    }
-  }
-  candidates.sort((a, b) => b.score - a.score);
-  // Fast-NMS as in Ultralytics nms_rotated: a box survives if no higher-scored box overlaps it.
-  const kept: OrientedBox[] = [];
-  for (let j = 0; j < candidates.length; j++) {
-    let suppressed = false;
-    for (let i = 0; i < j && !suppressed; i++) suppressed = probiou(candidates[i], candidates[j]) >= iou;
-    if (!suppressed) kept.push(candidates[j]);
-    if (kept.length >= maxDet) break;
-  }
-  return kept.map((b) => {
-    const longFirst = b.w > b.h;
-    const angle = (((longFirst ? b.angle : b.angle + Math.PI / 2) % Math.PI) + Math.PI) % Math.PI;
-    return {
-      cx: (b.cx - lb.padX) / lb.scale,
-      cy: (b.cy - lb.padY) / lb.scale,
-      w: (longFirst ? b.w : b.h) / lb.scale,
-      h: (longFirst ? b.h : b.w) / lb.scale,
-      angle,
-      score: b.score,
-    };
-  });
 }
 
 /** Rotated-rectangle corners (Ultralytics xywhr2xyxyxyxy order). */

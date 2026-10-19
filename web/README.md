@@ -10,7 +10,7 @@ real-corner fine tuning; phone performance remains unverified.
 
 Current bundle `27047332` (`web/public/bundle/manifest.json` records the full provenance):
 encoder from `runs/card_recognizer/retrieval/dinov2-arcface-gpu-20261017`, detector
-`runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt` at 640 px (box confidence 0.6), 24,038
+`runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt` at 640 px (box confidence 0.6), 24,038
 English/German card rows plus 6 card-back rows.
 
 ## Setup
@@ -33,7 +33,7 @@ To build them yourself (defaults select the current GPU run and fine-tuned corne
 .env/bin/python scripts/build_browser_bundle.py \
   --export runs/browser_export/gpu-20261017 \
   --encoder-int8 runs/browser_export/gpu-20261017/encoder.int8.onnx \
-  --detector-weights runs/card_detector/obb/corners-s640-v4-ft/weights/best.pt --detector-conf 0.6 \
+  --detector-weights runs/card_detector/pose/corners-s640-v4-ft/weights/best.pt --detector-conf 0.6 \
   --prices runs/prices/prices.json --detector-origin "<what the weights were trained on>" \
   --german-pokemon <TCGdex /v2/de/cards list>   # German Pokémon versions of enrolled art
 # 3. Optional: local test videos for the camera mock (web/public/media, gitignored)

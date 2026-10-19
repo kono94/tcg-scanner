@@ -2,7 +2,7 @@
 // (TL, TR, BR, BL, upright portrait order). Port of Ultralytics non_max_suppression (greedy IoU)
 // and scale_coords. Coordinates: detector input (letterboxed square) -> capture source pixels.
 import type { Point, Quad } from './image';
-import type { Letterbox, OrientedBox } from './obb';
+import type { Letterbox, OrientedBox } from './quad';
 
 export interface CornerDetection {
   score: number;

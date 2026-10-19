@@ -3,7 +3,7 @@ import { Catalog } from '../src/recognition/catalog';
 import { loadPages, savePage, totals } from '../src/collection/store';
 import type { PriceService } from '../src/prices/service';
 import { PageSession, pageCounts, type RecognitionJob, type RecognitionOutput, type Recognizer } from '../src/session/page';
-import type { OrientedBox } from '../src/vision/obb';
+import { boxCorners, type OrientedBox } from '../src/vision/quad';
 
 const ids = ['onepiece:en:OP01-001', 'onepiece:en:OP01-002', 'onepiece:en:OP01-003', 'onepiece:en:OP01-004'];
 const catalog = new Catalog(ids.map((id) => ({ id, game: 'onepiece', language: 'en', cardId: id.split(':')[2], name: id, family: id, finish: 'unknown', printing: 'unknown' })));
@@ -18,7 +18,7 @@ function fake(boxes: OrientedBox[], plan: Plan) {
   const calls: RecognitionJob[] = [];
   const released: number[] = [];
   const recognizer: Recognizer = {
-    detect: async () => ({ width: 1000, height: 800, boxes, ms: 5 }),
+    detect: async () => ({ width: 1000, height: 800, boxes, quads: boxes.map(boxCorners), ms: 5 }),
     recognize: (job, onStep) => {
       calls.push(job);
       onStep('rectified');

@@ -7,7 +7,7 @@ import { summarizeValue, type ValueSettings, type ValueSummary } from '../recogn
 import type { PriceService } from '../prices/service';
 import type { Quality, RecognitionStep } from '../inference/protocol';
 import type { Quad } from '../vision/image';
-import { boxCorners, portraitQuad, readingOrder, type OrientedBox } from '../vision/obb';
+import { portraitQuad, readingOrder, type OrientedBox } from '../vision/quad';
 
 /**
  * 'back': the crop shows a card back. Terminal like 'confirmed', but not a card: never priced,
@@ -80,8 +80,8 @@ export interface RecognitionOutput {
 
 /** Inference backend (worker client in the app, fakes in tests). */
 export interface Recognizer {
-  /** `quads` (same order as boxes) are predicted card corners when the detector provides them. */
-  detect(captureId: number, bitmap: ImageBitmap): Promise<{ width: number; height: number; boxes: OrientedBox[]; quads?: Quad[]; ms: number }>;
+  /** `quads` (same order as boxes) are the predicted card corners. */
+  detect(captureId: number, bitmap: ImageBitmap): Promise<{ width: number; height: number; boxes: OrientedBox[]; quads: Quad[]; ms: number }>;
   recognize(job: RecognitionJob, onStep: (step: RecognitionStep, crop?: ImageBitmap) => void): Promise<RecognitionOutput>;
   release(captureId: number): void;
 }
@@ -173,10 +173,10 @@ export class PageSession {
     }
     if (this.page.generation !== generation || this.page.captureId !== captureId) return;
     const limit = this.options.maxInstances ?? 48;
-    const ordered = readingOrder(detected.boxes.map((box, i) => ({ box, corners: detected.quads?.[i] })));
+    const ordered = readingOrder(detected.boxes.map((box, i) => ({ box, corners: detected.quads[i] })));
     const t = this.now();
     const instances = ordered.slice(0, limit).map(({ box, corners }, i): CardInstance => ({
-      id: `${captureId}:${i + 1}`, number: i + 1, box, quad: portraitQuad(corners ?? boxCorners(box)),
+      id: `${captureId}:${i + 1}`, number: i + 1, box, quad: portraitQuad(corners),
       state: 'queued', step: null, revision: 0, queuedAt: t, startedAt: null, settledAt: null, crop: null,
       decision: null, quality: null, reason: null, value: null, valueState: 'idle', ms: null, hits: null, userChoice: null,
     }));

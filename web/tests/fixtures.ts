@@ -38,7 +38,7 @@ export interface EncoderFixture {
 }
 
 export interface DetectorFixture {
-  kind: 'pose' | 'obb';
+  kind: 'pose';
   name: string;
   input_size?: number;
   input: string;
@@ -46,7 +46,6 @@ export interface DetectorFixture {
   output_shape: number[];
   letterbox: { scale: number; pad_x: number; pad_y: number; source_size: [number, number] };
   true_corners: [number, number][][];
-  ultralytics_obb_xywhr?: number[][];
   ultralytics_corners?: [number, number][][];
   ultralytics_conf: number[];
 }
