@@ -24,7 +24,7 @@ echo "== artifacts"
 # Hard-link the bundle and thumbnails named by the .dvc pointers out of the store (no DVC needed).
 ROOT="$(dirname "$REPO")"   # one mount holding both the checkout and the store
 docker run --rm "${USER_ARGS[@]}" -v "$ROOT:$ROOT" -w "$REPO" "$PY_IMAGE" \
-  python deploy/checkout-artifacts.py "$STORE" web/public/bundle.dvc runs/ref_thumbs.dvc
+  python deploy/checkout-artifacts.py "$STORE" web/public/bundle.dvc datasets/reference-thumbnails.dvc
 BUNDLE=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' web/public/bundle/manifest.json | head -n 1)
 RELEASE="$(date -u +%Y%m%d-%H%M%S)-$TAG-${BUNDLE:0:8}"
 
@@ -36,5 +36,5 @@ echo "== publish"
 at() { sh -c "$1"; }
 DEST=""
 source "$REPO/deploy/release.sh"
-publish_release web/dist runs/ref_thumbs "$RELEASE"
+publish_release web/dist datasets/reference-thumbnails "$RELEASE"
 echo "live: $RELEASE (bundle $BUNDLE)"

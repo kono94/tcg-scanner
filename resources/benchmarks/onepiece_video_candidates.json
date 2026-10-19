@@ -62,8 +62,8 @@
       "reuse_basis": "inspection_only; reuse not established; not promoted to training",
       "ground_truth_verified": false,
       "training_promotion": "not_promoted",
-      "local_excerpt": "runs/video_mining/onepiece-quality-pass/ridHY4Kt8CE-120-132.webm",
-      "saved_frame_manifest": "runs/video_mining/onepiece-quality-pass/ridHY4Kt8CE-120-132/manifest.json",
+      "local_excerpt": "datasets/sources/videos/onepiece-quality-pass/ridHY4Kt8CE-120-132.webm",
+      "saved_frame_manifest": "datasets/sources/videos/onepiece-quality-pass/ridHY4Kt8CE-120-132/manifest.json",
       "saved_frames": 6
     },
     {
@@ -278,7 +278,7 @@
       "video_id": "igoDuKsMfJo",
       "source_url": "https://www.youtube.com/watch?v=igoDuKsMfJo",
       "sampled_frames": 8,
-      "artifact": "runs/video_mining/luna-onepiece/igoDuKsMfJo-clip-local/manifest.json",
+      "artifact": "datasets/sources/videos/luna-onepiece/igoDuKsMfJo-clip-local/manifest.json",
       "actual_footage": "physical sleeved cards in binder pages; cards remain in physical pockets and some are handled. No permanent overlay in every frame, but visible SAMPLE card graphic overlays occlude binder regions in several sampled frames.",
       "per_frame_observation": "At least two binder spreads are visible across the eight selected frames; adjacent frames repeat the same physical page/card instances, so frame count is not physical-instance count. Full spread has roughly a dozen-to-high-teens pocket cards, but exact instance count is not asserted due partial edges and overlay occlusion. Several card names/art are legible; set numbers are too small to treat as identity evidence.",
       "quality": "4K source 3840x2160; cards in page views occupy roughly 400-500px short edge, adequate for localization candidates. Sleeve glare/reflections moderate; one early view is strongly hand-occluded. More than one burned-in SAMPLE graphic is not a physical card.",
@@ -291,8 +291,8 @@
         120,
         132
       ],
-      "local_excerpt": "runs/video_mining/onepiece-quality-pass/ridHY4Kt8CE-120-132.webm",
-      "frame_manifest": "runs/video_mining/onepiece-quality-pass/ridHY4Kt8CE-120-132/manifest.json",
+      "local_excerpt": "datasets/sources/videos/onepiece-quality-pass/ridHY4Kt8CE-120-132.webm",
+      "frame_manifest": "datasets/sources/videos/onepiece-quality-pass/ridHY4Kt8CE-120-132/manifest.json",
       "requested_format_id": "313",
       "observed_format": "3840x2160, 30fps VP9; extracted via public unauthenticated yt-dlp section download; section cut is keyframe/container based and requested times are provenance, not frame-accurate timestamp verification.",
       "saved_frames": 6,
@@ -304,7 +304,7 @@
       "ground_truth_verified": false,
       "training_promotion": "not_promoted",
       "detector_audit": {
-        "artifact": "runs/video_mining/onepiece-quality-pass/detector_audit/manifest.json",
+        "artifact": "datasets/sources/videos/onepiece-quality-pass/detector_audit/manifest.json",
         "model": "IDEA-Research/grounding-dino-tiny",
         "revision": "a2bb814dd30d776dcf7e30523b00659f4f141c71",
         "prompt": "trading card.",

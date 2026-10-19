@@ -10,7 +10,7 @@
     "Wv8WJmU3xQc",
     "xFEyeGtsIS0"
   ],
-  "probe_method": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --js-runtimes node:/opt/homebrew/bin/node --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
+  "probe_method": "PYTHONPATH=datasets/sources/videos/tools .env/bin/python -m yt_dlp --js-runtimes node:/opt/homebrew/bin/node --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
   "format_note": "Only positively listed 3840x2160 formats count. A listing establishes platform format availability, not original capture resolution. Public reuse permission remains unknown.",
   "candidates": [
     {
@@ -28,7 +28,7 @@
         {"format_id": "315", "width": 3840, "height": 2160, "fps": 60, "codec": "vp9"},
         {"format_id": "401", "width": 3840, "height": 2160, "fps": 60, "codec": "av01.0.13M.08"}
       ],
-      "probe_json": "runs/video_mining/binder-search-pokemon-mastersets/lZOg6TUQI9s-probe-refreshed.json",
+      "probe_json": "datasets/sources/videos/binder-search-pokemon-mastersets/lZOg6TUQI9s-probe-refreshed.json",
       "candidate_sections": ["476-488 seconds (chapter Masterset #2 begins at 476 s)"],
       "download_status": "failed",
       "failure": "ffmpeg received HTTP 403 for the YouTube media URL for both AV1 and VP9 extraction attempts; no playable clip or frames retained.",
@@ -49,17 +49,17 @@
         {"format_id": "315", "width": 3840, "height": 2160, "fps": 60, "codec": "vp9"}
       ],
       "selected_format_id": "315",
-      "probe_json": "runs/video_mining/binder-search-pokemon-mastersets/zjoawf6wEgc-probe.json",
+      "probe_json": "datasets/sources/videos/binder-search-pokemon-mastersets/zjoawf6wEgc-probe.json",
       "verified_clip": {
         "source_window_requested_seconds": [300, 312],
-        "clip_path": "runs/video_mining/binder-search-pokemon-mastersets/pokeduell-zJOawf6wEgc-300-312.webm",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-mastersets/pokeduell-zJOawf6wEgc-300-312.webm",
         "dimensions": [3840, 2160],
         "fps": 60,
         "codec": "vp9",
         "duration_seconds": 14.999,
         "size_bytes": 32760404,
         "sha256": "20fcf714069a1933a8975cb048f2bc54c8bd39f863770477d3b09c12dae4cc81",
-        "frame_manifest": "runs/video_mining/binder-search-pokemon-mastersets/zjoawf6wEgc-frames/manifest.json",
+        "frame_manifest": "datasets/sources/videos/binder-search-pokemon-mastersets/zjoawf6wEgc-frames/manifest.json",
         "selected_jpegs": 6,
         "visual_result": "One unique physical English card closeup is visible in six adjacent samples. The card fills a substantial part of frame, but the host inset occupies the left side, the presenter's fingers cover an edge, sleeve glare crosses the face and a custom playmat dominates the background. No binder page appears in this window. The six frames are one held-card view, not six examples."
       },
@@ -81,17 +81,17 @@
         {"format_id": "401", "width": 3840, "height": 2160, "fps": 30, "codec": "av01.0.12M.08"}
       ],
       "selected_format_id": "313",
-      "probe_json": "runs/video_mining/binder-search-pokemon-mastersets/6uXaVLcBo5I-probe.json",
+      "probe_json": "datasets/sources/videos/binder-search-pokemon-mastersets/6uXaVLcBo5I-probe.json",
       "verified_clip": {
         "source_window_requested_seconds": [300, 312],
-        "clip_path": "runs/video_mining/binder-search-pokemon-mastersets/deeppocket-6uXaVLcBo5I-300-312.webm",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-mastersets/deeppocket-6uXaVLcBo5I-300-312.webm",
         "dimensions": [3840, 2160],
         "fps": 29.97,
         "codec": "vp9",
         "duration_seconds": 12.78,
         "size_bytes": 23444914,
         "sha256": "088510c1929e2cb3f5b7c34f8e95b663b150ca5ee10b91dc6bbf24e22dca90c0",
-        "frame_manifest": "runs/video_mining/binder-search-pokemon-mastersets/6uXaVLcBo5I-frames/manifest.json",
+        "frame_manifest": "datasets/sources/videos/binder-search-pokemon-mastersets/6uXaVLcBo5I-frames/manifest.json",
         "selected_jpegs": 6,
         "visual_result": "Sampled frames show host/interstitial imagery and bold challenge text; no physical card face or binder page. Not useful recognition imagery."
       },
@@ -128,8 +128,8 @@
     "dedup_summary": "Six adjacent frames from the Poké Duell clip are one estimated unique held-card view; the Deep Pocket Monster clip contains zero observed card views. Thus one distinct physical card view, zero binder-page views and 11 duplicate/non-card selected images across the retained two clips.",
     "identity_status": "All retained frames remain unlabeled. Similarity retrieval remains the normal identity path; OCR is only a bounded optional fast pass for exceptionally clear crops.",
     "discarded_incomplete_partial_outputs": [
-      "runs/video_mining/binder-search-pokemon-mastersets/pokeunlocked-lZOg6TUQI9s-476-491.mp4.part",
-      "runs/video_mining/binder-search-pokemon-mastersets/pokeduell-zJOawf6wEgc-300-315.webm.part"
+      "datasets/sources/videos/binder-search-pokemon-mastersets/pokeunlocked-lZOg6TUQI9s-476-491.mp4.part",
+      "datasets/sources/videos/binder-search-pokemon-mastersets/pokeduell-zJOawf6wEgc-300-315.webm.part"
     ]
   }
 }

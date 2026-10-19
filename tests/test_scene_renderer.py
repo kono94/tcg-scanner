@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from training.card_detector.scene_renderer import render
+from training.detection.scene_renderer import render
 
 
 class SceneRendererTest(unittest.TestCase):
@@ -26,7 +26,7 @@ class SceneRendererTest(unittest.TestCase):
     def test_labels_are_complete_cards_inside_the_frame(self):
         kinds = set()
         for seed in range(24):
-            pixels, meta = render(seed, self.textures, 512, 384)
+            pixels, meta = render(seed, self.textures, 512, 384, version=3)
             kinds.add(meta['kind'])
             self.assertEqual(pixels.shape, (384, 512, 3))
             for inst in meta['instances']:

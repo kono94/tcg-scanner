@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / 'scripts' / 'extract_detected_cards.py'
+MODULE_PATH = Path(__file__).resolve().parents[1] / 'scripts' / 'video' / 'extract_detected_cards.py'
 SPEC = importlib.util.spec_from_file_location('extract_detected_cards', MODULE_PATH)
 module = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

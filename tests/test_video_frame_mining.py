@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 
-spec = importlib.util.spec_from_file_location('mine_video_frames', Path(__file__).resolve().parents[1] / 'scripts/mine_video_frames.py')
+spec = importlib.util.spec_from_file_location('mine_video_frames', Path(__file__).resolve().parents[1] / 'scripts/video/mine_video_frames.py')
 miner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(miner)
 

@@ -3,7 +3,7 @@ import unittest
 import cv2
 import numpy as np
 
-from scripts.verify_card_geometry import source_resolution_crop, verify_homography
+from scripts.curation.verify_card_geometry import source_resolution_crop, verify_homography
 
 
 def textured_card(seed=4):

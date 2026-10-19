@@ -19,7 +19,7 @@
 	@hashed path /assets/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
 
-	# Catalog reference thumbnails, shared across releases (scripts/build_ref_thumbnails.py).
+	# Catalog reference thumbnails, shared across releases (scripts/release/build_ref_thumbnails.py).
 	handle_path /refs/* {
 		root * /srv/refs
 		header Cache-Control "public, max-age=604800"

@@ -5,19 +5,19 @@ import unittest
 from pathlib import Path
 
 from PIL import Image
-from scripts.build_reference_manifest import collect
+from scripts.curation.build_reference_manifest import collect
 
 
 class ReferenceManifestTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        legacy = self.root / 'datasets/card_recognizer/cards/OP01'
+        legacy = self.root / 'datasets/sources/catalog/onepiece-en-bandai-2024/OP01'
         legacy.mkdir(parents=True)
         image = legacy / 'OP01-001_p1.jpg'
         Image.new('RGB', (20, 28), 'red').save(image)
         image.with_suffix('.json').write_text(json.dumps({'id': image.stem, 'name': 'Luffy'}))
-        poke = self.root / 'runs/card_recognizer/pokemon_catalog_sync'
+        poke = self.root / 'datasets/sources/catalog/pokemon-en-tcgdex'
         poke.mkdir(parents=True)
         image = poke / 'card.webp'
         Image.new('RGB', (20, 28), 'blue').save(image)
@@ -26,7 +26,7 @@ class ReferenceManifestTests(unittest.TestCase):
                            image_sha256=hashlib.sha256(image.read_bytes()).hexdigest())
         self.catalog = poke / 'catalog.json'
         self.catalog.write_text(json.dumps([self.record]))
-        op = self.root / 'runs/card_recognizer/onepiece_catalog_sync'
+        op = self.root / 'datasets/sources/catalog/onepiece-en-bandai'
         op.mkdir(parents=True)
         (op / 'manifest.json').write_text(json.dumps({'cards': []}))
 
@@ -52,7 +52,7 @@ class ReferenceManifestTests(unittest.TestCase):
         self.catalog.write_text(json.dumps([self.record, self.record]))
         result = collect(self.root)
         self.assertEqual(result['counts_by_game']['pokemon'], 1)
-        self.assertEqual(result['references'][-1]['aliases'], ['runs/card_recognizer/pokemon_catalog_sync/card.webp'])
+        self.assertEqual(result['references'][-1]['aliases'], ['datasets/sources/catalog/pokemon-en-tcgdex/card.webp'])
 
 
 if __name__ == '__main__':

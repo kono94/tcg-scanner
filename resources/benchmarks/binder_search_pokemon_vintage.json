@@ -7,7 +7,7 @@
     "QIY0LGl_JAA"
   ],
   "metadata_probe": {
-    "command": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
+    "command": "PYTHONPATH=datasets/sources/videos/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
     "verification_date": "2026-10-15",
     "caveat": "yt-dlp warned that format listings may be incomplete without a JavaScript runtime. Positive 2160p entries are verified; missing entries are inconclusive. Platform format dimensions do not establish original camera resolution."
   },
@@ -50,7 +50,7 @@
           600,
           612
         ],
-        "clip_path": "runs/video_mining/binder-search-pokemon-vintage/kreesky-600-612.mp4",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-vintage/kreesky-600-612.mp4",
         "dimensions": [
           3840,
           2160
@@ -59,12 +59,12 @@
         "codec": "av1",
         "sha256": "17d8ea4d1779071b4d5af3e1f3a69d8e20cec1955b7917ec108f198f143e42f9",
         "frame_paths": [
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-01.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-02.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-03.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-04.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-05.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/kreesky-06.jpg"
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-01.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-02.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-03.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-04.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-05.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/kreesky-06.jpg"
         ],
         "approx_unique_card_views": 6,
         "quality_observations": "Overhead open binder and two facing pages; page turn reveals additional old card faces. Large stable faces support crop proposals. Hands/forearm obscure some areas; clear sleeves reflect light; center binder hardware divides the page.",
@@ -80,7 +80,7 @@
       },
       "why_selected": "Strongest page-scene candidate: multiple distinct vintage English card faces in a stable, close overhead binder view.",
       "source_group": "fG9cnN5AH6Q",
-      "frame_manifest": "runs/video_mining/binder-search-pokemon-vintage/fG9cnN5AH6Q-frames/manifest.json"
+      "frame_manifest": "datasets/sources/videos/binder-search-pokemon-vintage/fG9cnN5AH6Q-frames/manifest.json"
     },
     {
       "url": "https://www.youtube.com/watch?v=W43vmn9zkRE",
@@ -120,7 +120,7 @@
           300,
           312
         ],
-        "clip_path": "runs/video_mining/binder-search-pokemon-vintage/deep-pocket-300-312.mp4",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-vintage/deep-pocket-300-312.mp4",
         "dimensions": [
           3840,
           2160
@@ -129,12 +129,12 @@
         "codec": "av1",
         "sha256": "3d603b3ff0cad4f2b36e7be6387119f10eb755ba2a0f951033c65bf7f1dda465",
         "frame_paths": [
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-01.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-02.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-03.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-04.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-05.jpg",
-          "runs/video_mining/binder-search-pokemon-vintage/frames/deep-pocket-06.jpg"
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-01.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-02.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-03.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-04.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-05.jpg",
+          "datasets/sources/videos/binder-search-pokemon-vintage/frames/deep-pocket-06.jpg"
         ],
         "approx_unique_card_views": 4,
         "quality_observations": "Varied older English cards; several are individually held near a small binder. Fingers cover portions of faces, reflections cross sleeves, and movement or close framing makes some views soft; store stock is distracting.",
@@ -143,7 +143,7 @@
       },
       "why_selected": "Independent channel and distinct physical card views add variation to the stable binder-page footage, although it is a weaker binder-page example.",
       "source_group": "W43vmn9zkRE",
-      "frame_manifest": "runs/video_mining/binder-search-pokemon-vintage/W43vmn9zkRE-frames/manifest.json"
+      "frame_manifest": "datasets/sources/videos/binder-search-pokemon-vintage/W43vmn9zkRE-frames/manifest.json"
     },
     {
       "url": "https://www.youtube.com/watch?v=xFEyeGtsIS0",

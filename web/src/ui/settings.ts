@@ -19,7 +19,7 @@ export interface Settings {
   priceMarket: 'EUR' | 'USD';
   /** 'page': review each page before the next; 'batch': scan page after page, check in the background, review at the end. */
   workflow: 'page' | 'batch';
-  /** Dev server only: upload every full capture with its detections for training (runs/captures/). */
+  /** Dev server only: upload every full capture with its detections for training (datasets/sources/phone/captures/). */
   saveCaptures: boolean;
   /** Capture confirmation besides the flash: a short vibration (a click sound where vibration is unsupported). */
   captureFeedback: 'vibrate' | 'off';

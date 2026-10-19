@@ -7,13 +7,13 @@
     "QIY0LGl_JAA"
   ],
   "metadata_probe": {
-    "command": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
+    "command": "PYTHONPATH=datasets/sources/videos/tools .env/bin/python -m yt_dlp --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 URL",
     "verification_date": "2026-10-15",
-    "format_evidence_file": "runs/video_mining/binder-search-pokemon-modern/public-metadata.json",
+    "format_evidence_file": "datasets/sources/videos/binder-search-pokemon-modern/public-metadata.json",
     "caveat": "yt-dlp warned that available formats may be incomplete without a JavaScript runtime. Positive 2160p entries were observed; missing entries are inconclusive. A listed 3840x2160 stream does not prove original camera resolution. The selected 2160p VP9 stream was clipped and ffprobe confirmed 3840x2160 output."
   },
   "acquisition": {
-    "clip_command_shape": "PYTHONPATH=runs/video_mining/tools .env/bin/python -m yt_dlp --format 'bestvideo[height=2160][vcodec^=vp09]' --download-sections '*START-END' --force-keyframes-at-cuts --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 --output 'runs/video_mining/binder-search-pokemon-modern/%(id)s-%(section_start)s.%(ext)s' URL",
+    "clip_command_shape": "PYTHONPATH=datasets/sources/videos/tools .env/bin/python -m yt_dlp --format 'bestvideo[height=2160][vcodec^=vp09]' --download-sections '*START-END' --force-keyframes-at-cuts --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0 --output 'datasets/sources/videos/binder-search-pokemon-modern/%(id)s-%(section_start)s.%(ext)s' URL",
     "raw_clip_total_bytes": 59750875,
     "selected_frame_count": 3,
     "selected_frame_total_bytes": 5289017,
@@ -38,16 +38,16 @@
       "selected_format_id": "625",
       "verified_clip": {
         "source_window_seconds": [35, 50],
-        "clip_path": "runs/video_mining/binder-search-pokemon-modern/Wv8WJmU3xQc-35.mp4",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-modern/Wv8WJmU3xQc-35.mp4",
         "clip_dimensions": [3840, 2160],
         "fps": 30,
         "codec": "h264 (clip re-encode)",
         "sha256": "6c907863f7b71b6a20d3c151dec6b2291881fa244803f4990e4c02c513a95a9d",
-        "frame_manifest": "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/manifest.json",
+        "frame_manifest": "datasets/sources/videos/binder-search-pokemon-modern/Wv8-mined/manifest.json",
         "quality_observations": "Two different open binder-page views are visible in the retained frames. Roughly 18 card faces are visible on the first page spread and about 10 on the second; these are visual counts, not verified unique identities. Cards occupy large source areas (roughly 450–650 px wide by 600–850 px high per pocket by visual estimate). Page views are stable and nearly top-down. Sleeve glare crosses some cards; the second page is tilted. Some cards are Japanese, and the source edits between host shots and viewer-submitted page footage. No persistent graphic covers the retained card pages.",
         "retained_frame_paths": [
-          "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000150.jpg",
-          "runs/video_mining/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000330.jpg"
+          "datasets/sources/videos/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000150.jpg",
+          "datasets/sources/videos/binder-search-pokemon-modern/Wv8-mined/frames/frame_000000330.jpg"
         ],
         "approx_unique_page_views": 2,
         "reuse_basis": "unknown",
@@ -73,15 +73,15 @@
       "selected_format_id": "625",
       "verified_clip": {
         "source_window_seconds": [155, 175],
-        "clip_path": "runs/video_mining/binder-search-pokemon-modern/xFEyeGtsIS0-155.mp4",
+        "clip_path": "datasets/sources/videos/binder-search-pokemon-modern/xFEyeGtsIS0-155.mp4",
         "clip_dimensions": [3840, 2160],
         "fps": 30,
         "codec": "h264 (clip re-encode)",
         "sha256": "58e7687bd36aeeaac097db30d5ede41025efe637f2e6f728321e079be6804f7d",
-        "frame_manifest": "runs/video_mining/binder-search-pokemon-modern/xFE-mined/manifest.json",
+        "frame_manifest": "datasets/sources/videos/binder-search-pokemon-modern/xFE-mined/manifest.json",
         "quality_observations": "A real open 6-by-5 pocket page is visible on a table at a trade show, with about 30 card faces in one view. This is a broad scene/localization example; individual cards are only about 250–320 px wide by visual estimate and look softer than the Wv8 page views. Sleeve reflections, perspective, a hand near the page edge, surrounding display cases, channel watermark and in-video captions reduce crop quality. The sampled sequence mostly repeats this same physical page; count one useful unique page view.",
         "retained_frame_paths": [
-          "runs/video_mining/binder-search-pokemon-modern/xFE-mined/frames/frame_000000480.jpg"
+          "datasets/sources/videos/binder-search-pokemon-modern/xFE-mined/frames/frame_000000480.jpg"
         ],
         "approx_unique_page_views": 1,
         "reuse_basis": "unknown",

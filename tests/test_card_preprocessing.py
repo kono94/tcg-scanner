@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from training.card_recognizer.canonical import (
+from training.recognition.canonical import (
     canonicalize_card, prepare_encoder_input, preprocessing_contract_hash,
 )
 

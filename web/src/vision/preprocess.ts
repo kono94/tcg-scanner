@@ -1,4 +1,4 @@
-// TypeScript port of training/card_recognizer/canonical.py (contract tcg-full-card-v1).
+// TypeScript port of training/recognition/canonical.py (contract tcg-full-card-v1).
 // The perspective warp and INTER_AREA resize follow OpenCV's arithmetic closely so that
 // query tensors match the gallery; parity is measured against Python golden fixtures.
 import type { Quad, RGBImage } from './image';

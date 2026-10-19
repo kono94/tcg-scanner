@@ -8,8 +8,8 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
-from training.card_recognizer.retrieval_training import ArcFace, CardEmbedding, augment_card, build_training_plan, identity_key
-from training.card_recognizer.train_retrieval import retrieval_metrics
+from training.recognition.retrieval_training import ArcFace, CardEmbedding, augment_card, build_training_plan, identity_key
+from training.recognition.train_retrieval import retrieval_metrics
 
 
 def record(card, digest, game='onepiece', language='en', source=None):

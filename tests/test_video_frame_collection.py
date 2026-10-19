@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from PIL import Image
 
-import scripts.collect_video_frames as collector
-from training.card_recognizer.foundation_retrieval import sha256_file as file_sha256
+import scripts.video.collect_video_frames as collector
+from training.recognition.backbone import sha256_file as file_sha256
 
 
 class VideoFrameCollectionTests(unittest.TestCase):

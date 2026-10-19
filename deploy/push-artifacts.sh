@@ -10,7 +10,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 HOST="${DEPLOY_HOST:-jan@lwenstrom.net}"
 STORE="${DVC_STORE:-/opt/stacks/scanner/dvc-store}"
-POINTERS=(web/public/bundle.dvc runs/ref_thumbs.dvc)
+POINTERS=(web/public/bundle.dvc datasets/reference-thumbnails.dvc)
 PY="$REPO/.env/bin/python"
 [[ -x "$PY" ]] || PY=python3
 

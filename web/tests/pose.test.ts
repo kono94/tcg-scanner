@@ -5,7 +5,7 @@ import { letterboxFor } from '../src/vision/quad';
 import { boxOfQuad, decodePose, plausibleCard } from '../src/vision/pose';
 import { EXPORT_DIR } from './fixtures';
 
-const dir = join(EXPORT_DIR, '../pose-fixture');
+const dir = join(EXPORT_DIR, '../corner-decoder-fixture');
 const has = existsSync(join(dir, 'pose.json'));
 
 describe.skipIf(!has)('corner (pose) decoding parity with Ultralytics', () => {

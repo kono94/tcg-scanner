@@ -1,6 +1,0 @@
-outs:
-- md5: cd653349dd3b42f8d53add00e1e7c4fe.dir
-  size: 576513
-  nfiles: 2
-  hash: md5
-  path: pose-fixture

@@ -24,7 +24,7 @@ export interface BackThresholds {
 }
 
 /**
- * Uncalibrated defaults for card backs (scripts/evaluate_card_backs.py, 2026-10-17): the 298
+ * Uncalibrated defaults for card backs (scripts/release/evaluate_card_backs.py, 2026-10-17): the 298
  * real front crops scored at most 0.34 against a back row and the closest card references (Poké
  * Ball trainers) 0.57, while held-out real back scans and synthetic photo-like back views scored
  * at least 0.77 with a margin of at least 0.35 to the best card. Few, partly synthetic positives

@@ -1,0 +1,6 @@
+outs:
+- md5: c237de154dffe4782dc6dcf3121b29e6.dir
+  size: 7731046
+  nfiles: 98
+  hash: md5
+  path: parity-scenes-v4

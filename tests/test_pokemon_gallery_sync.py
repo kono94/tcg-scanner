@@ -11,7 +11,7 @@ from unittest import mock
 from PIL import Image
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts/sync_pokemon_gallery.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/catalog/sync_pokemon_gallery.py"
 SPEC = importlib.util.spec_from_file_location("sync_pokemon_gallery", SCRIPT)
 syncer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(syncer)

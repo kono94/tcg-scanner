@@ -69,9 +69,12 @@ function clientLog(): Plugin {
   };
 }
 
-/** Dev only: user decisions (crop + labels) for retraining, stored under runs/feedback/<date>/. */
+/** Dev only: user decisions (crop + labels) for retraining, stored under datasets/sources/phone/feedback/<date>/
+ * (automated test runs: runs/feedback-tests/). */
 function feedback(): Plugin {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '../runs/feedback');
+  const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const root = resolve(repo, 'datasets/sources/phone/feedback');
+  const testRoot = resolve(repo, 'runs/feedback-tests');
   const handler: Connect.NextHandleFunction = (req, res, next) => {
     if (req.url !== '/__feedback' || req.method !== 'POST') return next();
     let body = '';
@@ -81,7 +84,7 @@ function feedback(): Plugin {
         const data = JSON.parse(body) as Record<string, unknown> & { crop_jpeg_base64: string; page: number; card_number: number; test_run?: boolean };
         const day = new Date().toISOString().slice(0, 10);
         // Automated test runs pick arbitrarily: keep them out of the training folder.
-        const dir = resolve(data.test_run ? `${root}-tests` : root, day);
+        const dir = resolve(data.test_run ? testRoot : root, day);
         mkdirSync(dir, { recursive: true });
         const name = `${Date.now()}_p${Number(data.page) || 0}_c${Number(data.card_number) || 0}`;
         writeFileSync(resolve(dir, `${name}.jpg`), Buffer.from(data.crop_jpeg_base64, 'base64'));
@@ -100,11 +103,13 @@ function feedback(): Plugin {
 
 /**
  * Dev only: full captures (JPEG) with their detections, for detector/recognizer training, when the
- * "Save captures for training" setting is on. Stored under runs/captures/<date>/ (test runs under
- * runs/captures-tests/). Body: the JPEG; metadata JSON in the `meta` query parameter.
+ * "Save captures for training" setting is on. Stored under datasets/sources/phone/captures/<date>/ (DVC: run
+ * `dvc add datasets/sources/phone` afterwards); automated test runs go to runs/captures-tests/. Body: the JPEG; metadata JSON in the `meta` query parameter.
  */
 function captures(): Plugin {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '../runs/captures');
+  const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const root = resolve(repo, 'datasets/sources/phone/captures');
+  const testRoot = resolve(repo, 'runs/captures-tests');
   const handler: Connect.NextHandleFunction = (req, res, next) => {
     if (!req.url?.startsWith('/__capture') || req.method !== 'POST') return next();
     const chunks: Buffer[] = [];
@@ -116,7 +121,7 @@ function captures(): Plugin {
         const jpeg = Buffer.concat(chunks);
         if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error('not a JPEG');
         const day = new Date().toISOString().slice(0, 10);
-        const dir = resolve(meta.test_run ? `${root}-tests` : root, day);
+        const dir = resolve(meta.test_run ? testRoot : root, day);
         mkdirSync(dir, { recursive: true });
         const name = `${Date.now()}_p${Number(meta.page) || 0}`;
         writeFileSync(resolve(dir, `${name}.jpg`), jpeg);

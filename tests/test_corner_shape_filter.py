@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from scripts.evaluate_corners_real import plausible_card
+from scripts.detection.evaluate_corners_real import plausible_card
 
 
 class CornerShapeFilterTests(unittest.TestCase):

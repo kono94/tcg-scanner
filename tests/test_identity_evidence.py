@@ -1,6 +1,6 @@
 import unittest
 
-from training.card_recognizer.identity_evidence import assess_identity_evidence, extract_printed_codes
+from training.recognition.identity_evidence import assess_identity_evidence, extract_printed_codes
 
 
 def token(game, kind, value):

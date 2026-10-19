@@ -3,7 +3,7 @@ import unittest
 import cv2
 import numpy as np
 
-from scripts.propose_crop_review_batch import (
+from scripts.curation.propose_crop_review_batch import (
     map_crop_quad_to_source,
     match_features,
     rectification_eligibility,

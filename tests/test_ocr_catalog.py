@@ -4,7 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import subprocess
 
-from training.card_recognizer.ocr_identity import _parse_tsv, refine_id_regions, resolve_ocr_catalog
+from training.recognition.ocr_identity import _parse_tsv, refine_id_regions, resolve_ocr_catalog
 
 
 def record(token):
@@ -49,8 +49,8 @@ class OCRCatalogTests(unittest.TestCase):
         tsv = ('level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n'
                '5\t1\t1\t1\t1\t1\t20\t10\t80\t20\t92.0\tOP03-094\n')
         result = subprocess.CompletedProcess(['tesseract'], 0, tsv.encode(), b'')
-        with patch('training.card_recognizer.ocr_identity.shutil.which', return_value='/usr/bin/tesseract'), \
-             patch('training.card_recognizer.ocr_identity.subprocess.run', return_value=result) as run:
+        with patch('training.recognition.ocr_identity.shutil.which', return_value='/usr/bin/tesseract'), \
+             patch('training.recognition.ocr_identity.subprocess.run', return_value=result) as run:
             retries = refine_id_regions(image, regions, scales=(2,), padding_fraction=0.25)
         self.assertEqual(run.call_count, 1)
         self.assertEqual(retries[0]['trigger_text'], 'opos-oo4mm @')
@@ -67,8 +67,8 @@ class OCRCatalogTests(unittest.TestCase):
                     'bbox_xyxy': [i * 10, 20, i * 10 + 8, 30], 'words': []} for i in range(1, 20)]
         empty_tsv = ('level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n')
         result = subprocess.CompletedProcess(['tesseract'], 0, empty_tsv.encode(), b'')
-        with patch('training.card_recognizer.ocr_identity.shutil.which', return_value='/usr/bin/tesseract'), \
-             patch('training.card_recognizer.ocr_identity.subprocess.run', return_value=result) as run:
+        with patch('training.recognition.ocr_identity.shutil.which', return_value='/usr/bin/tesseract'), \
+             patch('training.recognition.ocr_identity.subprocess.run', return_value=result) as run:
             retries = refine_id_regions(image, regions)
         self.assertEqual(len(retries), 12 * 2)
         self.assertEqual(run.call_count, 12 * 2)

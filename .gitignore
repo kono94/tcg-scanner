@@ -7,19 +7,13 @@
 *.onnx
 **/weights/*.bin
 
-# Experiment outputs stay local; selected results are versioned with DVC (*.dvc pointers below).
-runs/**
-!runs/**/
-!runs/**/*.dvc
-!runs/**/.gitignore
-datasets/curated/
-datasets/staging/
+# runs/ is local scratch (training/experiment output). Versioned data lives in datasets/,
+# versioned weights in models/; both through DVC pointers whose .gitignore files DVC writes.
+runs/
 *.npy
 *.index
-cards/*
 htmls/*
 *.zip
-!cards/.gitkeep
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

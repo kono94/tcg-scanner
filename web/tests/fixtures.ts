@@ -1,11 +1,11 @@
-// Loads golden fixtures written by scripts/export_browser_models.py.
+// Loads golden fixtures written by scripts/release/export_browser_models.py.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RGBImage } from '../src/vision/image';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const EXPORT_DIR = process.env.TCG_EXPORT_DIR ?? join(here, '../../runs/browser_export/gpu-20261017');
+export const EXPORT_DIR = process.env.TCG_EXPORT_DIR ?? join(here, '../../models/browser-export/gpu-20261017');
 export const BUNDLE_DIR = join(here, '../public/bundle');
 export const FIXTURES = join(EXPORT_DIR, 'fixtures');
 export const hasFixtures = existsSync(join(FIXTURES, 'encoder.json'));

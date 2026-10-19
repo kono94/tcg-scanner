@@ -1,0 +1,6 @@
+outs:
+- md5: 5f73ad9c0e58382136db930b7ccee793.dir
+  size: 88250507
+  nfiles: 2
+  hash: md5
+  path: dinov2-small

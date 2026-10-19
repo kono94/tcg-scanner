@@ -1138,7 +1138,7 @@ export class View {
     select(adv, 'Motion tolerance', 'tolerance', [['sensitive', 'Sensitive'], ['normal', 'Normal'], ['relaxed', 'Relaxed']]);
     select(adv, 'GPU inference (reload to apply)', 'preferWebGPU', [[true, 'WebGPU if available'], [false, 'WASM only']]);
     select(adv, 'Diagnostics', 'diagnostics', [[false, 'Off'], [true, 'On']]);
-    // Dev server only: full captures with detections go to runs/captures/ for training.
+    // Dev server only: full captures with detections go to datasets/sources/phone/captures/ for training.
     if (import.meta.env.DEV) select(adv, 'Save captures for training (dev)', 'saveCaptures', [[false, 'Off'], [true, 'On']]);
     adv.append(el('div', 'k', `Runtime: ${s.runtime.provider ?? s.runtime.detail}${s.runtime.fallbackReason ? ` (${s.runtime.fallbackReason})` : ''} · bundle ${s.manifest.version}`));
     sheet.append(adv);

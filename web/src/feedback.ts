@@ -1,5 +1,5 @@
 // User decisions as labeled training examples. In dev they go to the dev server (/__feedback),
-// which stores the crop and metadata under runs/feedback/. A deployed app needs a real endpoint.
+// which stores the crop and metadata under datasets/sources/phone/feedback/. A deployed app needs a real endpoint.
 import type { CardInstance } from './session/page';
 
 export interface FeedbackContext {
@@ -82,7 +82,7 @@ export async function sendCollectionFeedback(saved: { identity: string | null; n
 
 /**
  * Dev only ("Save captures for training"): a full capture as JPEG plus its detections, POSTed to the
- * dev server (/__capture), which stores them under runs/captures/<date>/. Never in production builds.
+ * dev server (/__capture), which stores them under datasets/sources/phone/captures/<date>/. Never in production builds.
  */
 export async function uploadCapture(jpeg: Blob, meta: {
   captureSize: { width: number; height: number }; quads: number[][][]; scores: number[]; bundleVersion: string;

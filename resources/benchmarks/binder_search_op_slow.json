@@ -29,7 +29,7 @@
             300,
             312
           ],
-          "path": "runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-300-312.webm",
+          "path": "datasets/sources/videos/binder-search-op-slow/raw/4QxpRG4E6d0-300-312.webm",
           "sha256": "38c9e094c5a6686e378e2cd7c0686cc8f9005f5cf309cfe22e662e8fddf57290",
           "bytes": 36114094,
           "container": "WebM",
@@ -41,7 +41,7 @@
             312,
             324
           ],
-          "path": "runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-312-324.webm",
+          "path": "datasets/sources/videos/binder-search-op-slow/raw/4QxpRG4E6d0-312-324.webm",
           "sha256": "578555c5558981d02ed08ae976fc9f4a5119cad032c9191057374142462d9aa3",
           "bytes": 49092511,
           "container": "WebM",
@@ -50,8 +50,8 @@
         }
       ],
       "frame_manifests": [
-        "runs/video_mining/binder-search-op-slow/4QxpRG4E6d0-300-312/manifest.json",
-        "runs/video_mining/binder-search-op-slow/4QxpRG4E6d0-312-324/manifest.json"
+        "datasets/sources/videos/binder-search-op-slow/4QxpRG4E6d0-300-312/manifest.json",
+        "datasets/sources/videos/binder-search-op-slow/4QxpRG4E6d0-312-324/manifest.json"
       ],
       "saved_frames": 12,
       "frame_hashes_in_manifests": true,
@@ -84,14 +84,14 @@
           90,
           102
         ],
-        "path": "runs/video_mining/binder-search-op-slow/raw/ho7IFpPXI-A-90-102.webm",
+        "path": "datasets/sources/videos/binder-search-op-slow/raw/ho7IFpPXI-A-90-102.webm",
         "sha256": "f06c134d7f1c8ccd0ec13a51c9fdda43a7eff323e2667123303effcb0f2857ac",
         "bytes": 34125976,
         "container": "WebM",
         "decoded_format": "3840x2160, 30 fps VP9",
         "timestamp_caveat": "requested yt-dlp section; keyframe/container preroll can shift the exact source-time alignment"
       },
-      "frame_manifest": "runs/video_mining/binder-search-op-slow/ho7IFpPXI-A-90-102/manifest.json",
+      "frame_manifest": "datasets/sources/videos/binder-search-op-slow/ho7IFpPXI-A-90-102/manifest.json",
       "saved_frames": 5,
       "discarded_corrupt_frame": "The last of six sampled frames showed severe vertical color corruption and was removed after visual inspection.",
       "identity_labels": 0,

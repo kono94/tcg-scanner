@@ -25,12 +25,12 @@ RELEASE="$(date -u +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)$(git diff --qui
 
 echo "== build $RELEASE"
 (cd web && npm ci --no-audit --no-fund && npm run build)
-"$PY" scripts/build_ref_thumbnails.py
+"$PY" scripts/release/build_ref_thumbnails.py
 
 echo "== upload"
 at() { ssh "$HOST" "$1"; }
 DEST="$HOST:"
 source "$REPO/deploy/release.sh"
-publish_release web/dist runs/ref_thumbs "$RELEASE"
+publish_release web/dist datasets/reference-thumbnails "$RELEASE"
 [[ -n "$DRY" ]] && exit 0
 echo "live: $RELEASE (bundle $BUNDLE)"

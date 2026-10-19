@@ -4,7 +4,7 @@ The store (filled by deploy/push-artifacts.sh) uses DVC's cache layout: files/md
 one `.dir` JSON listing per tracked directory. Each file is hard-linked into place, so a checkout
 costs no space and takes seconds even for the 24k catalog thumbnails.
 
-    python checkout-artifacts.py <store> web/public/bundle.dvc runs/ref_thumbs.dvc
+    python checkout-artifacts.py <store> web/public/bundle.dvc datasets/reference-thumbnails.dvc
 """
 import json
 import os

@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'scripts'))
+sys.path.insert(0, str(ROOT / 'scripts' / 'curation'))
 import curate_datasets as curation  # noqa: E402
 
 
@@ -129,7 +129,7 @@ class DatasetCurationTests(unittest.TestCase):
         self.assertTrue((self.output / 'recognition/train/one_piece/en/sv03.5-200').is_dir())
 
     def test_rejected_deletion_is_limited_to_allowlisted_ignored_crop_root(self):
-        allowed = self.repo / 'runs/video_mining/run-a/crops'
+        allowed = self.repo / 'datasets/sources/videos/run-a/crops'
         allowed.mkdir(parents=True)
         crop = allowed / 'rejected.jpg'
         Image.new('RGB', (20, 30), (1, 2, 3)).save(crop)

@@ -46,7 +46,7 @@ async function boot() {
     // Search rows: cards with a reference image. Other language versions (e.g. German) are catalog-only.
     identities = cat.gallery_identities ?? cat.cards.map((c) => c.id);
   } catch (err) {
-    view.renderBoot(`Model bundle not found. Run scripts/build_browser_bundle.py first. (${(err as Error).message})`, true);
+    view.renderBoot(`Model bundle not found. Run scripts/release/build_browser_bundle.py first. (${(err as Error).message})`, true);
     return;
   }
   const recognizer = new WorkerRecognizer(BUNDLE, manifest, identities, settings.preferWebGPU);

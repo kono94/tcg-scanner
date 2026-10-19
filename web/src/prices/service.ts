@@ -13,7 +13,7 @@ export interface PriceService {
 
 type QuoteTable = Record<string, { amount: number; basis: string; converted?: Conversion }>;
 
-/** Schema 2 (scripts/update_prices.py): USD and EUR markets. */
+/** Schema 2 (scripts/release/update_prices.py): USD and EUR markets. */
 interface SnapshotFile {
   schema_version: number;
   snapshot_date: string;

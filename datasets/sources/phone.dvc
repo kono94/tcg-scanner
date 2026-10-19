@@ -1,0 +1,6 @@
+outs:
+- md5: 83fb04b944f8c99f96c5d5b36e4a122c.dir
+  size: 88622546
+  nfiles: 375
+  hash: md5
+  path: phone

@@ -1,11 +1,17 @@
-# Python 3.12; current detector/retrieval, export and data tooling.
--r training/card_detector/requirements.txt
+# Python 3.12: detector/retrieval training, export, data tooling and catalog sync.
+-r training/detection/requirements.txt
+# DINOv2 backbone for the retrieval encoder (pinned Transformers stack).
+transformers==4.46.3
+huggingface-hub==0.26.2
+tokenizers==0.20.3
+safetensors==0.4.5
+regex==2024.11.6
 onnx==1.16.2
 onnxruntime==1.19.0
 scipy==1.14.0
 tqdm==4.66.5
 requests==2.32.3
 beautifulsoup4==4.12.3
+# Video acquisition (docs/VIDEO_MINING.md); upgrade when YouTube extraction breaks.
+yt-dlp==2026.8.19
 dvc[ssh]==3.67.1
-# Pinned Transformers backbone/teacher packages; also usable in the isolated runtime.
--r training/card_detector/requirements-foundation.txt

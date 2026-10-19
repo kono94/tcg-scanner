@@ -160,14 +160,14 @@
       "fps": 30,
       "metadata_verified": true,
       "min1440_qualified": true,
-      "metadata_evidence": "Saved probe runs/video_mining/pokemon-probes/son-collection-4k.json lists AV1 and VP9 3840×2160 formats at 30fps. Missing JavaScript runtime may omit other formats.",
+      "metadata_evidence": "Saved probe datasets/sources/videos/pokemon-probes/son-collection-4k.json lists AV1 and VP9 3840×2160 formats at 30fps. Missing JavaScript runtime may omit other formats.",
       "frame_content_inspected": true,
       "quality_pass": "One unique English physical-card view in a six-frame excerpt; five near-duplicates of same held card. Name/text legible, glare/finger occlusion present; exact printing not labeled.",
       "reuse_basis": "unknown; public watch page is not a reuse license",
       "duplicate_source_group": "no-frills-asmr-son-pokemon-binder-2024"
     }
   ],
-  "metadata_probe_method": "yt-dlp 2026.08.19 --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0; raw probe JSON is in ignored runs/video_mining/pokemon-probes/",
+  "metadata_probe_method": "yt-dlp 2026.08.19 --skip-download --dump-single-json --no-playlist --socket-timeout 15 --retries 0 --extractor-retries 0; raw probe JSON is in ignored datasets/sources/videos/pokemon-probes/",
   "resolution_qualified_count": 3,
   "resolution_unverified_count": 6
 }

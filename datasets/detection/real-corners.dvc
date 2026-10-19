@@ -1,0 +1,6 @@
+outs:
+- md5: 8cd79e64a9aebea17e7661eb9ffc1d20.dir
+  size: 66502172
+  nfiles: 217
+  hash: md5
+  path: real-corners
