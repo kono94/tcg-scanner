@@ -55,7 +55,7 @@ It is bounded by sample/frame limits, preserves the input and refuses nonempty o
 
 Split long recordings into distributed match/time chunks, with quotas for different scenes. The frame cap stops extraction early; one capped run over an eight-hour VOD would not provide balanced coverage. Keep all chunks and crops from the same source group together in dataset splitting.
 
-Smoke verification on `runs/card_detector/synthetic/synthetic_replay.mp4` sampled 32 frames and retained four diverse candidates, rejecting four duplicate window candidates. The output is `runs/card_recognizer/mined-synthetic-replay/manifest.json`; this is a tool check, not newly acquired real data. Two dedicated tests cover source/provenance retention, temporal selection/deduplication and overwrite/range safety.
+Smoke verification on the (since replaced) v1 synthetic replay video sampled 32 frames and retained four diverse candidates, rejecting four duplicate window candidates. The output is `runs/card_recognizer/mined-synthetic-replay/manifest.json`; this is a tool check, not newly acquired real data. Two dedicated tests cover source/provenance retention, temporal selection/deduplication and overwrite/range safety.
 
 ## Automatic labeling and useful experiments next
 

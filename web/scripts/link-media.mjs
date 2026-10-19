@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const out = join(repo, 'web/public/media');
 const candidates = [
-  { path: 'runs/card_detector/synthetic/synthetic_replay.mp4', name: 'Synthetic replay', note: 'Synthetic scenes with known identities; not a camera test' },
+  { path: 'runs/card_detector/replay-v3/synthetic_replay.mp4', name: 'Synthetic replay', note: 'Synthetic renderer-v3 scenes (scripts/make_scene_replay.py); not a camera test' },
   { path: 'runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-300-312.webm', name: 'One Piece binder (test split)', note: 'Real 4K excerpt from a held-out test-split source; labels are AI-reviewed' },
   { path: 'runs/video_mining/binder-search-op-slow/raw/4QxpRG4E6d0-312-324.webm', name: 'One Piece binder 2 (test split)', note: 'Real 4K excerpt from a held-out test-split source; labels are AI-reviewed' },
 ];

@@ -24,6 +24,9 @@ geometric TL, TR, BR, BL portrait order; artwork orientation is separate.
 
 `scripts/generate_detection_scenes.py` and `scene_renderer.py` generate synthetic
 scenes while retaining exact source-pixel corners in JSON.
+`scripts/make_scene_replay.py` encodes a few validation scenes as the camera-mock
+test video `synthetic_replay.mp4` (copied into `web/public/media` by
+`web/scripts/link-media.mjs`).
 `scripts/build_corner_dataset.py --max-tilt 50` converts them and reviewed real
 corners to YOLO pose labels. Sideways scenes are excluded to avoid ambiguous
 corner names; upside-down artwork is valid. `real_corner_labels.py` produces

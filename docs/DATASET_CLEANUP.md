@@ -12,7 +12,6 @@ rectifications. No candidate in this review pool remains unreviewed.
 | Japanese One Piece references | 154 | `recognition/gallery/onepiece/ja/` |
 | Japanese Pokémon references | 5 | `recognition/gallery/pokemon/ja/` |
 | Accepted real single-card queries | **298 / 158 catalog-art identities** | `recognition/{train,val,test}/` |
-| Synthetic OBB scenes (v1, unused; see below) | 200 / 1,321 card instances | `detection/{train,val}/` |
 | Bad derived crops removed, both passes | **304** | `rejected_crops.json` |
 | Identity reviewed; usable full-card geometry unavailable | 45 | `datasets/staging/recognition/` |
 | Exact identity/printing unresolved after review | 69 | `datasets/staging/recognition/` |
@@ -89,12 +88,11 @@ a visual family when constructing negatives.
 
 ## Detector data
 
-The organized detector set retains **160 train / 40 validation scenes** from the
-archived v1 OBB generator. Nothing trains on it any more and `curate_datasets.py`
-no longer imports detector data: the deployed corner detector trains on
-`generate_detection_scenes.py` scenes plus AI-reviewed real corners via
-`build_corner_dataset.py` (see `training/card_detector/README.md`). Remove
-`detection/` with the next `datasets/curated` DVC snapshot.
+The snapshot no longer contains detector data. Its 200 v1 synthetic OBB scenes
+(One Piece only, superseded by the renderer-v2/v3 scene sets) were removed on
+2026-10-19. The deployed corner detector trains on `generate_detection_scenes.py`
+scenes plus AI-reviewed real corners via `build_corner_dataset.py` (see
+`training/card_detector/README.md`).
 
 ## Checks and reproduction
 

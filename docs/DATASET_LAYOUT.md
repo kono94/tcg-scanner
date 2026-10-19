@@ -63,10 +63,6 @@ datasets/curated/
     exact_reference_aliases.json
     gallery/{game}/{language}/{card_id}/reference-{sha12}.{ext}[.json]
     {train,val,test}/{game}/{language}/{card_id}/query-{sha16}.{ext}[.json]
-  detection/                         # legacy v1 synthetic OBB scenes; unused, not rebuilt
-    dataset.yaml
-    manifest.json
-    {train,val,test}/{images,labels,annotations}/
 
 datasets/staging/recognition/         # excluded from training
   manifest.json

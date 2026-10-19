@@ -1,6 +1,6 @@
 outs:
-- md5: fe01fb1e99186c6b6af035826dfea46e.dir
-  size: 3103141929
-  nfiles: 49621
+- md5: 1ede4b7e1096f6509e378bcae475c87c.dir
+  size: 3082594130
+  nfiles: 49019
   hash: md5
   path: curated
