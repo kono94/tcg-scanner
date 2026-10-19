@@ -57,7 +57,7 @@ A pushed tag on this repo deploys **only the scanner**:
 
 1. `.github/workflows/deploy.yml` runs `npm ci`, `npm run typecheck` and `npm test` (bundle parity
    tests skip without the DVC bundle).
-2. It SSHes to `github-deployer@VPS -p 2222`. That user's key is pinned in `authorized_keys` to
+2. It SSHes to `github-deployer@VPS`. That user's key is pinned in `authorized_keys` to
    `command="/usr/local/bin/deploy-trigger scanner",restrict`, so it can only choose the tag.
 3. `deploy-trigger` fetches, checks out the tag in `/opt/stacks/scanner/src` and runs `deploy/server-deploy.sh`.
    That script hard-links the bundle and thumbnails named by the `.dvc` pointers out of the store
@@ -81,7 +81,7 @@ are rebuilt with `scripts/release/build_ref_thumbnails.py` and tracked with `dvc
 uses DVC's cache layout, so it is also the `vps` DVC remote. Checkout, store and `www/` share one parent
 so the hard links work inside one container mount.
 GitHub secrets: `SERVER_IP` (173.249.10.6) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
-Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy -p 2222 github-deployer@lwenstrom.net trigger-deploy <tag>`.
+Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy github-deployer@lwenstrom.net trigger-deploy <tag>`.
 
 ## Deploying the scanner manually
 

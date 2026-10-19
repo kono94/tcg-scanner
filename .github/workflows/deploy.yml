@@ -35,7 +35,6 @@ jobs:
       - uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
-          port: 2222
           username: github-deployer
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           command_timeout: 30m
