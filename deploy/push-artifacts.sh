@@ -3,12 +3,11 @@
 # store, where a tag deploy hard-links them into place (deploy/checkout-artifacts.py). Same result as
 # `dvc push -r vps <pointers>`, but one rsync instead of 24k SFTP uploads (minutes instead of hours).
 #
-#   deploy/push-artifacts.sh                  # before pushing a tag that changed a .dvc pointer
-#   DEPLOY_HOST=user@host deploy/push-artifacts.sh
+#   DEPLOY_HOST=user@host deploy/push-artifacts.sh   # before pushing a tag that changed a .dvc pointer
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-HOST="${DEPLOY_HOST:-jan@lwenstrom.net}"
+HOST="${DEPLOY_HOST:?set DEPLOY_HOST=user@host}"
 STORE="${DVC_STORE:-/opt/stacks/scanner/dvc-store}"
 POINTERS=(web/public/bundle.dvc datasets/reference-thumbnails.dvc)
 PY="$REPO/.env/bin/python"
@@ -34,5 +33,6 @@ if missing:
 print('\n'.join(sorted(out)))
 EOF
 echo "== $(wc -l < "$LIST" | tr -d ' ') objects -> $HOST:$STORE"
+ssh "$HOST" "mkdir -p '$STORE/files/md5'"
 # Group-writable so the deploy user may hard-link the objects (fs.protected_hardlinks).
 rsync -a --chmod=Dg+rwxs,Fg+rw --stats --files-from="$LIST" .dvc/cache/files/md5/ "$HOST:$STORE/files/md5/"

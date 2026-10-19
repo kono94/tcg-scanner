@@ -70,7 +70,7 @@ reached from GitHub or the VPS. **Before tagging a commit that changes `web/publ
 
 ```bash
 dvc push web/public/bundle.dvc datasets/reference-thumbnails.dvc   # LAN store, as before
-deploy/push-artifacts.sh                             # VPS store for tag deploys (one rsync)
+DEPLOY_HOST=user@VPS deploy/push-artifacts.sh       # VPS store for tag deploys (one rsync)
 git tag v1.2.3 && git push origin v1.2.3
 ```
 
@@ -78,10 +78,11 @@ git tag v1.2.3 && git push origin v1.2.3
 
 If they're missing, the deploy stops before building and the live release stays unchanged. Thumbnails
 are rebuilt with `scripts/release/build_ref_thumbnails.py` and tracked with `dvc add datasets/reference-thumbnails`. The store
-uses DVC's cache layout, so it is also the `vps` DVC remote. Checkout, store and `www/` share one parent
+uses DVC's cache layout, so it can also serve as a DVC remote, configured per machine
+(`dvc remote add --local vps ssh://user@VPS/opt/stacks/scanner/dvc-store`). Checkout, store and `www/` share one parent
 so the hard links work inside one container mount.
-GitHub secrets: `SERVER_IP` (173.249.10.6) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
-Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy github-deployer@lwenstrom.net trigger-deploy <tag>`.
+GitHub secrets: `SERVER_IP` (the VPS address) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
+Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy github-deployer@VPS trigger-deploy <tag>`.
 
 ## Deploying the scanner manually
 
@@ -179,25 +180,12 @@ step 5).
   AI-reviewed real-corner fine tuning. Physical-phone performance remains unverified
   (see [browser evidence](../docs/BROWSER_BUNDLE.md)); show these limits on the site.
 
-## This VPS (CentOS 7)
-
-The host is CentOS 7 (EOL) with SELinux enforcing, set up 2026-10-18: docker-ce 26.1.4 and the
-compose plugin 2.27.1 from the docker-ce `centos/7` repo. Docker's SELinux integration stays on, so:
-`/opt/stacks` carries `container_file_t` (`semanage fcontext`) and the
-compose bind mounts use `:z`. `jan` is SELinux `staff_u`: admin commands need
-`sudo -r sysadm_r -t sysadm_t`. firewalld opens 80/tcp, 443/tcp+udp and 2222/tcp; Docker-published
-ports bypass firewalld. sshd listens on 22 and 2222; `github-deployer` is in `AllowUsers` with a
-`Match` block that disables forwarding and TTYs. Git on the host is 1.8, so `deploy-trigger` avoids newer flags.
-
 ## Tested
 
-2026-10-18, on the real VPS: Caddy got Let's Encrypt certificates for `scanner.lwenstrom.net` and
-`tft.lwenstrom.net`. Tag `v1.2.2` deployed through GitHub Actions → `deploy-trigger scanner` →
-`server-deploy.sh`: artifact checkout, container build and release switch together took under a
-minute; 24,040 thumbnails were copied on the first run. Checked over HTTPS: COOP/COEP, `no-cache` HTML,
-immutable `/assets/`, `application/wasm` for `/ort/`, bundle `270473320b53d5b4`, a `/refs/` WebP with
-week-long caching, HTTP→HTTPS redirect. Not yet checked there: the page in a browser (cross-origin
-isolation, model load) and any physical phone.
+2026-10-19, on the production host: Caddy got Let's Encrypt certificates for both domains. Tag
+`v1.2.3` deployed through GitHub Actions → `deploy-trigger scanner` → `server-deploy.sh`. Checked over
+HTTPS: COOP/COEP, `no-cache` HTML, bundle `270473320b53d5b4`, `/api/health` 204, HTTP→HTTPS redirect.
+Not yet checked there: the page in a browser (cross-origin isolation, model load) and any physical phone.
 
 Earlier:
 

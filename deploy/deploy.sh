@@ -10,7 +10,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-HOST="${DEPLOY_HOST:?set DEPLOY_HOST, e.g. jan@scanner.lwenstrom.net}"
+HOST="${DEPLOY_HOST:?set DEPLOY_HOST, e.g. user@host}"
 DIR="${DEPLOY_DIR:-/opt/stacks/scanner/www}"
 KEEP="${DEPLOY_KEEP:-3}"
 DRY=""
