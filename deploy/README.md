@@ -78,8 +78,7 @@ git tag v1.2.3 && git push origin v1.2.3
 
 If they're missing, the deploy stops before building and the live release stays unchanged. Thumbnails
 are rebuilt with `scripts/release/build_ref_thumbnails.py` and tracked with `dvc add datasets/reference-thumbnails`. The store
-uses DVC's cache layout, so it can also serve as a DVC remote, configured per machine
-(`dvc remote add --local vps ssh://user@VPS/opt/stacks/scanner/dvc-store`). Checkout, store and `www/` share one parent
+uses DVC's cache layout, so it is also the `vps` DVC remote. Checkout, store and `www/` share one parent
 so the hard links work inside one container mount.
 GitHub secrets: `SERVER_IP` (the VPS address) and `SSH_PRIVATE_KEY` (`~/.ssh/id_scanner_deploy` on the Mac).
 Manual trigger: `ssh -i ~/.ssh/id_scanner_deploy github-deployer@VPS trigger-deploy <tag>`.
