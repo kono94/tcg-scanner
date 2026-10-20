@@ -80,6 +80,12 @@ test('installed app: bottom tabs instead of the Home link, Back returns Home', a
   await page.goBack();
   await expect(home(page)).toBeVisible();
   await expect(tabs.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+
+  // A short window (large Android display size, split screen): the page never scrolls, the tabs stay on screen.
+  await page.setViewportSize({ width: 360, height: 480 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+  const short = await tabs.boundingBox();
+  expect(short!.y + short!.height).toBeLessThanOrEqual(480);
 });
 
 test('Home offers the browser install prompt and can hide the offer', async ({ page }) => {

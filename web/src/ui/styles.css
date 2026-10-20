@@ -408,6 +408,10 @@ dialog.modal input { box-sizing: border-box; width: 100%; min-height: 44px; marg
 /* Installed app (opened from the home screen): bottom tabs replace the Home link. Browser tabs never match. */
 .tabbar { display: none; }
 :root.standalone { --tabh: calc(56px + env(safe-area-inset-bottom)); }
+/* No browser toolbars: the window is the viewport. Fill it exactly and never scroll the page, so
+   the tabs stay at the bottom (Android's edge-to-edge apps can report 100dvh differently). */
+:root.standalone, :root.standalone body { overflow: hidden; }
+:root.standalone #app { height: 100%; min-height: 0; }
 :root.standalone .tabbar { flex: none; display: flex; position: relative; z-index: 34; height: var(--tabh); padding: 0 8px env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: var(--bg); }
 .tab { flex: 1 1 0; min-width: 0; border: 0; background: none; color: var(--faint); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font: 500 11px var(--sans); cursor: pointer; padding: 0; }
 .tab svg { width: 22px; height: 22px; }
