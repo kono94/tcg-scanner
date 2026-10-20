@@ -85,19 +85,49 @@ browser: pages already present are skipped (re-importing never doubles cards), e
 their names, imported cards cannot be re-checked from a crop, and cards still queued in the exporting
 browser arrive as needing a check. There is no server sync and no account.
 
+## Navigation, Back and installing as an app
+
+Screens map to history routes below Home (`scan`, `scan/card`, `scan/review`, `scan/batch`,
+`collection`, `collection/page`, `collection/page/card`, `settings`; `src/ui/history.ts`,
+`App.route()`). Opening a deeper screen pushes a history entry, closing it with its own
+control goes back to that entry, and switching to another tab goes back to Home first,
+so the browser's Back/Forward and Android's Back gesture step out one screen at a time and
+Back from any tab returns Home. The URL never changes. After a reload the app opens on Home
+and walks the old entries back. Forward can reopen a tab, not a closed card or page.
+
+The app is installable (`public/manifest.json`, icons in `public/icons/` rendered from
+`icon.svg` by `node scripts/render-icons.mjs`). In a browser tab nothing changes except a
+dismissible **Install as app** box on Home: an **Install** button where the browser offers a
+prompt (Chromium, `beforeinstallprompt`; Chrome's own install bar is suppressed, its menu entry
+stays), or *Share → Add to Home Screen* on iOS. Opened from the home screen
+(`display-mode: standalone`, or `navigator.standalone` on older iOS; `src/ui/install.ts` sets
+`html.standalone`), the app runs without browser toolbars: a bottom tab bar
+(Home · Scan · Collection · Settings) replaces the Home link and Home's own Collection and
+Settings buttons, the page review, card viewer and
+full-screen photo cover it, and `theme-color` follows the app theme. No service worker: the
+app needs the network to load as before. Checked in desktop Chrome only (installability via
+DevTools, standalone layout by emulating the media query); the iOS status-bar style
+(`default`), safe-area spacing and Android's Back gesture still need a phone.
+
 ## Camera lifecycle and responsiveness
 
-One stream is reused during foreground scanning and short Home/Settings/Collection/
-review visits. When camera pixels are unnecessary (including snapshot processing,
-ordinary review and batch extraction), tracks are disabled, video playback/frame callbacks and
-stability sampling stop. Returning to acquisition requires fresh nonblank pixels
-and resets the stability dwell. Finishing a session, hiding or leaving the browser
-page ends tracks and detaches the video. Model sessions remain independent.
+Inside the scanner the camera stays held: while processing, reviewing a capture or
+viewing a card its tracks are only disabled (instant resume, no new permission request), in
+both workflows. Leaving the scanner (Home, Settings, Collection, the batch review) stops the
+tracks, so the camera hardware and the phone's camera indicator turn off; returning to the
+scanner acquires it again (`CameraHandle.suspend()/reopen()`, about a second, and possibly a
+new permission prompt where the browser does not remember the grant, notably iOS). A failed
+reopen releases the camera and returns Home with the error (no automatic retry). Returning to
+acquisition requires fresh nonblank pixels and resets the stability dwell. Finishing a session,
+hiding or leaving the browser page ends tracks and detaches the video. Test videos have no hardware and are only paused. Model
+sessions remain independent. Changed on 2026-10-20 from keeping one disabled stream across
+Home/Settings/Collection visits. User-reported on an iPhone (Chrome on iOS, dev server): repeated
+single scans keep the camera without a new permission notice; reopening after Home/Collection
+shows the system's camera notice once. No controlled multi-device check.
 
 Concurrent camera opens are coalesced; obsolete permission results are closed.
 No automatic permission retry loop runs. Browser permission persistence is outside
-the app's control: reuse avoids repeat requests during short navigation, but one
-prompt across all reloads/restarts cannot be guaranteed. Physical Safari camera
+the app's control: one prompt across reopens, reloads and restarts cannot be guaranteed. Physical Safari camera
 indicator, power consumption, focus/restart timing and sustained performance still
 need controlled checks. The iPhone 13 mini feedback is recorded in
 [the archived work log](../archive/docs/PHONE_FEEDBACK_2026-10-17.md).
@@ -229,5 +259,5 @@ Unit tests read fixtures from `models/browser-export/gpu-20261017` and the sibli
 - `src/session/page.ts`: page instances, one bounded recognizer, retries, timeouts, generation guards.
 - `src/batch/`: batch workflow (capture → stored crops → background recognition queue persisted in the Collection).
 - `src/inference/`: worker protocol, worker, client.
-- `src/ui/`: Darkroom view, crop-flight presenter, settings.
+- `src/ui/`: Darkroom view, crop-flight presenter, settings, screen history, install/standalone support.
 - `src/prices/`: replaceable price service (bundled snapshot).

@@ -25,7 +25,9 @@ similarity search with a fine-tuned DINOv2 encoder, and review the results with 
 Bundle `270473320b53d5b4`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
 DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017`, 24,038 English/German card rows
 plus six card-back rows. Inference runs in a worker: WebGPU with the fp32 encoder, falling
-back to WASM with an int8 encoder. The scanner is in use on phones.
+back to WASM with an int8 encoder. The scanner is in use on phones. It can be installed
+from the browser as a home-screen app (web app manifest, no app store, no offline mode): opened
+that way it runs full screen with a bottom tab bar ([details](web/README.md#navigation-back-and-installing-as-an-app)).
 
 Automated checks run on desktop Chrome with a test-video camera mock. No controlled phone
 benchmark exists, and match thresholds are uncalibrated. Encoder retrieval diagnostics

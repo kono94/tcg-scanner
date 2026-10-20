@@ -17,6 +17,7 @@ import type { Settings } from './settings';
 import { languageMatters, savedNeedsUser, scanAmountIn, totals, type SavedCard, type SavedPage, type ScanSession, type Totals } from '../collection/store';
 import type { BatchStatus } from '../batch/session';
 import { confirmDialog, promptDialog } from './dialog';
+import type { InstallHint } from './install';
 
 export interface AppSnapshot {
   scanSession: ScanSession | null;
@@ -70,6 +71,10 @@ export interface AppSnapshot {
   error: string | null;
   manifest: BundleManifest;
   priceDescription: string;
+  /** Home's offer to install the app (null: installed, dismissed, or the browser cannot). */
+  install: InstallHint;
+  /** Opened as an installed app: bottom tabs replace the Home link. */
+  standalone: boolean;
   now: number;
 }
 
@@ -149,6 +154,8 @@ export interface Handlers {
   changeSetting(patch: Partial<Settings>): void;
   collectionView(view: CollectionState['view'], filter?: CollectionState['filter']): void;
   viewerSearch(query: string): void;
+  install(): void;
+  dismissInstall(): void;
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -185,6 +192,8 @@ const ICONS = {
   sun: icon('<circle cx="9" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 1.8v1.8M9 14.4v1.8M1.8 9h1.8M14.4 9h1.8M3.9 3.9l1.3 1.3M12.8 12.8l1.3 1.3M3.9 14.1l1.3-1.3M12.8 5.2l1.3-1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
   moon: icon('<path d="M14.5 11.2A6 6 0 0 1 6.8 3.5a6 6 0 1 0 7.7 7.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
   list: icon('<path d="M6 5h9M6 9h9M6 13h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="9" r="1" fill="currentColor"/><circle cx="3" cy="13" r="1" fill="currentColor"/>'),
+  home: icon('<path d="M2.8 8.3 9 3l6.2 5.3v6.4a1 1 0 0 1-1 1H11.2v-4.4H6.8v4.4H3.8a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
+  share: icon('<path d="M9 1.8v9.4M5.9 4.7 9 1.8l3.1 2.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.3 7.3H4.6a1 1 0 0 0-1 1v6.9a1 1 0 0 0 1 1h8.8a1 1 0 0 0 1-1V8.3a1 1 0 0 0-1-1h-1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>', 16),
   scan: icon('<path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M12 2.5h2.5a1 1 0 0 1 1 1V6M15.5 12v2.5a1 1 0 0 1-1 1H12M6 15.5H3.5a1 1 0 0 1-1-1V12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="6" y="5" width="6" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>'),
   stack: icon('<rect x="3" y="5" width="9" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 2.5h7.5a1 1 0 0 1 1 1V13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
   shutter: icon('<circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="9" r="3.6" fill="currentColor"/>'),
@@ -323,6 +332,9 @@ export class View {
   private readonly expandBtn = el('button', 'expand');
   private camLayout = '';
   private readonly homeBtn = el('button', 'homebtn');
+  /** Installed app: bottom tab bar (CSS shows it only in standalone mode). */
+  private readonly tabbar = el('nav', 'tabbar');
+  private readonly tabEls = new Map<'home' | 'scan' | 'collection' | 'settings', HTMLButtonElement>();
   private overlayKey = '';
   private stillZoom = PREVIEW_ZOOM;
   private viewerOpen = false;
@@ -387,7 +399,15 @@ export class View {
     this.homeBtn.innerHTML = ICONS.back + ' Home';
     this.homeBtn.onclick = () => this.handlers.tab('home');
     nav.append(this.homeBtn);
-    root.append(nav, top, this.cam, this.strip, this.batchBar, this.duplicateBar, bot, this.flights, this.layer, this.announce);
+    this.tabbar.setAttribute('aria-label', 'Main');
+    for (const [name, label, svg] of [['home', 'Home', ICONS.home], ['scan', 'Scan', ICONS.scan], ['collection', 'Collection', ICONS.stack], ['settings', 'Settings', ICONS.gear]] as const) {
+      const b = el('button', 'tab');
+      b.innerHTML = `${svg}<span>${label}</span>`;
+      b.onclick = () => this.handlers.tab(name);
+      this.tabEls.set(name, b);
+      this.tabbar.append(b);
+    }
+    root.append(nav, top, this.cam, this.strip, this.batchBar, this.duplicateBar, bot, this.tabbar, this.flights, this.layer, this.announce);
     this.settingsBtn.onclick = () => this.handlers.settings();
     this.rescanBtn.onclick = () => this.handlers.rescan();
     this.themeBtn.onclick = () => this.handlers.theme();
@@ -509,7 +529,19 @@ export class View {
     this.renderFlights(s, presenter, geo);
     this.renderButtons(s, captured);
     this.renderBatch(s);
+    this.renderTabs(s);
     this.renderLayer(s, catalog);
+  }
+
+  /** Installed app: the tab of the screen shown; Scan waits for the models like Home's Scan button. */
+  private renderTabs(s: AppSnapshot) {
+    const on = s.overlay === 'start' ? 'home' : s.overlay === 'settings' || s.overlay === 'collection' ? s.overlay : 'scan';
+    for (const [name, b] of this.tabEls) {
+      b.classList.toggle('on', name === on);
+      if (name === on) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+      b.disabled = name === 'scan' && on !== 'scan' && (s.runtime.stage !== 'ready' || s.sessionChanging || s.cameraOpening);
+    }
   }
 
   /** Batch mode: compact status under the preview and the capture feedback over it. */
@@ -922,7 +954,7 @@ export class View {
       : s.overlay === 'settings' ? `settings|${JSON.stringify(s.settings)}|${s.runtime.provider}|${this.advancedOpen}`
       : s.overlay === 'collection' ? `collection|${s.collection.rev}|${s.collection.open}|${s.collection.view}|${s.collection.filter}|${s.settings.priceMarket}`
       : s.overlay === 'batch' ? `batch|${s.collection.rev}|${JSON.stringify(s.batch)}|${s.settings.priceMarket}`
-        : s.overlay === 'start' ? `start|${s.videos.length}|${s.error}|${s.runtime.stage}|${!!s.camera}|${s.collection.rev}|${s.settings.workflow}|${this.newBinderOpen}`
+        : s.overlay === 'start' ? `start|${s.videos.length}|${s.error}|${s.runtime.stage}|${!!s.camera}|${s.collection.rev}|${s.settings.workflow}|${this.newBinderOpen}|${s.install}`
           : card ? `viewer|${viewerKey}` : '');
     if (key === this.layerKey) {
       this.updateProgress(s);
@@ -1047,13 +1079,14 @@ export class View {
       : 'Check each page right after it is scanned.'));
     const binders = new Set(pages.map((p) => p.sessionId)).size;
     const t = totals(pages);
-    const coll = el('button', 'hbtn');
+    // Installed app: the tab bar has Collection and Settings, so Home hides these (CSS).
+    const coll = el('button', 'hbtn tablink');
     coll.innerHTML = `${ICONS.stack}<span>Collection</span><small></small>`;
     // Value first (today's prices; unknown prices are not counted), then what it is made of.
     const worth = t.confirmed ? formatMoney(t.confirmed, t.currency) : null;
     coll.querySelector('small')!.textContent = t.cards ? [worth, plural(t.cards, 'card'), plural(binders, 'binder')].filter(Boolean).join(' · ') : 'Nothing saved yet';
     coll.onclick = () => this.handlers.tab('collection');
-    const set = el('button', 'hbtn');
+    const set = el('button', 'hbtn tablink');
     set.innerHTML = `${ICONS.gear}<span>Settings</span><small>Language, prices, trigger</small>`;
     set.onclick = () => this.handlers.tab('settings');
     wrap.append(coll, set);
@@ -1087,6 +1120,7 @@ export class View {
       }
     }
     wrap.append(binder);
+    if (s.install) wrap.append(this.installHint(s.install));
     if (s.error) wrap.append(el('div', 'err', s.error));
     if (s.videos.length && s.runtime.stage === 'ready') {
       const dev = el('div', 'devlinks');
@@ -1100,6 +1134,29 @@ export class View {
     }
     wrap.append(el('p', 'appversion', `Version ${__APP_VERSION__} · bundle ${s.manifest.version.slice(0, 8)}`));
     return wrap;
+  }
+
+  /** Home: install as an app (full screen from the home screen). Hidden once installed or dismissed. */
+  private installHint(hint: NonNullable<InstallHint>): HTMLElement {
+    const box = el('div', 'install');
+    const text = el('div', 'itext');
+    text.append(el('b', '', 'Install as app'));
+    const how = el('span');
+    if (hint === 'ios') how.innerHTML = `Tap Share ${ICONS.share} then <b>Add to Home Screen</b> to open it full screen.`;
+    else how.textContent = 'Opens full screen from your home screen.';
+    text.append(how);
+    box.append(text);
+    if (hint === 'prompt') {
+      const install = el('button', 'ghost', 'Install');
+      install.onclick = () => this.handlers.install();
+      box.append(install);
+    }
+    const close = el('button', 'iclose');
+    close.innerHTML = ICONS.close;
+    close.setAttribute('aria-label', 'Hide install hint');
+    close.onclick = () => this.handlers.dismissInstall();
+    box.append(close);
+    return box;
   }
 
   private settingsScreen(s: AppSnapshot): HTMLElement {

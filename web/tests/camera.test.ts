@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CameraLifecycle, needsCameraFrames, type CameraUse } from '../src/camera/lifecycle';
 import type { CameraHandle } from '../src/camera/source';
 
-const camera = () => ({ stream: {} as MediaStream, label: 'camera', mock: false, stop: vi.fn(), setActive: vi.fn() });
+const camera = () => ({ stream: {} as MediaStream, label: 'camera', mock: false, stop: vi.fn(), setActive: vi.fn(), suspended: false, suspend: vi.fn(), reopen: vi.fn(async () => {}) });
 const deferred = () => {
   let resolve!: (v: CameraHandle) => void;
   const promise = new Promise<CameraHandle>((r) => { resolve = r; });

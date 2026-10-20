@@ -20,6 +20,8 @@ import { displayCard, dominantGame, userChoiceMatch } from './recognition/policy
 import { PageSession } from './session/page';
 import { visibleRegion } from './ui/geometry';
 import { captureFeedback, primeCaptureFeedback } from './ui/haptics';
+import { isWithin, RouteHistory } from './ui/history';
+import { InstallOffer, isIOS } from './ui/install';
 import { Presenter } from './ui/presenter';
 import { loadSettings, saveSettings, type Settings } from './ui/settings';
 import { needsReview, View, type AppSnapshot, type CollectionState, type ViewerMode } from './ui/view';
@@ -30,6 +32,7 @@ const BATCH_HOLD_MS = 1500;
 
 async function boot() {
   installCrashTrace();
+  const install = new InstallOffer();
   const root = document.getElementById('app')!;
   const settings = loadSettings();
   // ?wasm forces CPU inference (diagnosing GPU-related crashes on phones).
@@ -68,7 +71,7 @@ async function boot() {
     canRun: () => !session.busy && recognizer.status.stage === 'ready',
   });
   primeCaptureFeedback();
-  const app = new App(view, session, recognizer, settings, catalog, manifest, prices, batch);
+  const app = new App(view, session, recognizer, settings, catalog, manifest, prices, batch, install);
   let lastStage = '';
   recognizer.onStatus = () => {
     const st = recognizer.status;
@@ -99,11 +102,6 @@ async function boot() {
   }
 }
 
-/** iPhone/iPad (every browser there is WebKit with a tight per-tab memory limit). */
-export function isIOS(): boolean {
-  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-}
-
 function applyTheme(theme: Settings['theme']) {
   if (theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
@@ -114,6 +112,8 @@ export class App {
   get camera(): CameraHandle | null { return this.cameraLifecycle.current; }
   private sourceRequest = 0;
   private cameraOpening = false;
+  /** A suspended camera is being acquired again. */
+  private reopening = false;
   private cameraReady = false;
   private cameraStartedAt = 0;
   private previewHash: number | null = null;
@@ -173,6 +173,7 @@ export class App {
   private videos: MockVideo[] = [];
   private sourceFactory: (() => Promise<CameraHandle>) | null = null;
   private error: string | null = null;
+  private readonly history: RouteHistory;
 
   constructor(
     private readonly view: View,
@@ -183,6 +184,7 @@ export class App {
     private readonly manifest: BundleManifest,
     private readonly prices: SnapshotPriceService,
     private readonly batch: BatchSession,
+    private readonly install: InstallOffer,
   ) {
     this.monitor = new StabilityMonitor(settings.tolerance);
     this.cycle = new CaptureCycle(this.cycleSettings());
@@ -203,6 +205,10 @@ export class App {
     });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { this.view.themeChanged(); this.render(); });
     window.addEventListener('resize', () => { this.view.redrawStill(); this.render(); });
+    // Back/Forward (and Android's Back gesture) move between the app's screens.
+    this.history = new RouteHistory(window.history, () => this.route(), (route) => this.goTo(route));
+    window.addEventListener('popstate', (e) => this.history.onPopState(e.state));
+    install.onChange = () => this.render();
     view.handlers = {
       primary: () => this.primary(),
       rescan: () => { if (!this.sessionChanging && !this.saving) this.rescan(); },
@@ -322,7 +328,38 @@ export class App {
       },
       discardDuplicate: () => { void this.batch.discardDuplicate().then(() => { this.error = null; this.render(); }); },
       changeSetting: (patch) => this.changeSetting(patch),
+      install: () => { void this.install.install(); },
+      dismissInstall: () => this.install.dismiss(),
     };
+  }
+
+  /** The screen shown, as a history route (ui/history.ts): tab, then the screens opened inside it. */
+  private route(): string {
+    const o = this.overlay;
+    let route = o === 'start' ? 'home' : o === 'settings' || o === 'collection' ? o : o === 'none' ? 'scan' : `scan/${o}`;
+    if (o === 'collection' && this.collection.open) route += '/page';
+    if ((o === 'collection' || o === 'batch') && this.collection.card) route += '/card';
+    if ((o === 'none' || o === 'review') && this.selected) route += '/card';
+    return route;
+  }
+
+  /** Back/Forward: leave screens until the target (or its ancestor) shows; a tab can be opened again from Home. */
+  private goTo(target: string) {
+    for (let step = 0; step < 4 && !isWithin(this.route(), target); step++) if (!this.leaveScreen()) return;
+    const tab = target.split('/')[0];
+    if (this.route() === 'home' && (tab === 'scan' || tab === 'collection' || tab === 'settings')) this.view.handlers.tab(tab);
+  }
+
+  /** One screen up, as that screen's own back control; false when it did not move (yet). */
+  private leaveScreen(): boolean {
+    const h = this.view.handlers, before = this.route();
+    if (this.collection.card) h.openSavedCard(this.collection.card.pageKey, null);
+    else if (this.selected) h.select(null);
+    else if (this.overlay === 'collection' && this.collection.open) h.openSaved(null);
+    else if (this.overlay === 'review') h.closeOverlay();
+    else if (this.overlay === 'batch') h.scanMore();
+    else if (this.overlay !== 'start') h.tab('home');
+    return this.route() !== before;
   }
 
   /** Catalog search for manual picks, cards of the expected game first. */
@@ -647,6 +684,30 @@ export class App {
     this.countdownMs = null;
     this.cameraReady = false;
     this.monitor.reset();
+  }
+
+  /** Acquire a suspended camera again for the same handle; render() then resumes frames. */
+  private async reopenCamera(camera: CameraHandle) {
+    if (this.reopening) return;
+    this.reopening = true;
+    this.cameraReady = false;
+    const started = performance.now();
+    try {
+      await camera.reopen();
+      if (camera !== this.camera || camera.suspended) return;
+      await this.view.attachStream(camera.stream, (n) => { this.frameId = n; });
+      trace('camera-reopen', { openMs: Math.round(performance.now() - started) });
+    } catch (err) {
+      // No automatic retry (no permission prompt loop): back to Home, like a failed first open.
+      if (camera === this.camera) {
+        this.releaseCamera();
+        this.error = (err as Error).message;
+        this.overlay = 'start';
+      }
+    } finally {
+      this.reopening = false;
+      this.render();
+    }
   }
 
   private async resumeSource() {
@@ -1006,9 +1067,20 @@ export class App {
     else this.nextScan();
   }
 
-  /** Camera frames flow only while acquiring (live, or review in repeat mode). */
-  private setCameraActive(active: boolean) {
-    if (!this.cameraLifecycle.setActive(active)) return;
+  /**
+   * Camera frames flow only while acquiring (live, or review in repeat mode). Otherwise the camera
+   * hardware is released (camera light off), except with `hold`: only paused while inside the scanner.
+   * Only render() releases (it knows the screen); direct calls (capture, navigation) only pause.
+   */
+  private setCameraActive(active: boolean, hold = true) {
+    const camera = this.camera;
+    if (active && camera?.suspended) { void this.reopenCamera(camera); return; }
+    const changed = this.cameraLifecycle.setActive(active);
+    if (!active && !hold && camera && !camera.suspended) {
+      camera.suspend();
+      trace('camera-suspend', {});
+    }
+    if (!changed) return;
     this.cameraReady = false;
     if (active) { this.cameraStartedAt = performance.now(); this.resumeHash = this.previewHash; }
     this.view.setStreamActive(active);
@@ -1245,7 +1317,10 @@ export class App {
     if (batchIdle) { this.turnLeftMs = null; this.awaitingChange = false; }
     this.cycle.setFrozen(!scannerVisible || this.selected !== null || batchIdle);
     this.setCameraActive(needsCameraFrames({ hidden: document.hidden, scannerVisible, selected: this.selected !== null,
-      phase: this.cycle.current, mode: this.settings.workflow === 'batch' ? 'auto' : this.settings.mode }) || (this.grabbing && scannerVisible && !document.hidden));
+      phase: this.cycle.current, mode: this.settings.workflow === 'batch' ? 'auto' : this.settings.mode }) || (this.grabbing && scannerVisible && !document.hidden),
+    // Inside the scanner (processing, review, card viewer) the camera stays held for the next scan;
+    // leaving it for Home, Collection, Settings or the batch review releases the camera.
+    this.overlay === 'none' || this.overlay === 'review');
     const snapshot: AppSnapshot = {
       scanSession: activeScanSession(),
       scanSessions: loadScanSessions(),
@@ -1284,9 +1359,13 @@ export class App {
       error: this.error,
       manifest: this.manifest,
       priceDescription: this.prices.description,
+      install: this.install.hint,
+      standalone: this.install.standalone,
       now: performance.now(),
     };
     this.view.render(snapshot, this.catalog, this.presenter);
+    this.install.setTheme(this.view.isDark());
+    this.history.sync();
   }
 }
 

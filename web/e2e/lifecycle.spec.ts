@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('camera suspends across navigation, reuses its grant, and releases on finish', async ({ page }, info) => {
+test('camera is held inside the scanner, released on leaving it, and reacquired on return', async ({ page }, info) => {
   await page.addInitScript(() => {
     localStorage.setItem('tcg-test-run', '1');
     localStorage.setItem('tcg-scanner-settings-v1', JSON.stringify({ mode: 'manual' }));
@@ -9,7 +9,11 @@ test('camera suspends across navigation, reuses its grant, and releases on finis
       calls++;
       const canvas = document.createElement('canvas');
       canvas.width = 640; canvas.height = 480;
-      canvas.getContext('2d')!.fillRect(0, 0, 640, 480);
+      const g = canvas.getContext('2d')!;
+      g.fillStyle = '#777';
+      g.fillRect(0, 0, 640, 480);
+      // Keep drawing so the stream delivers frames.
+      setInterval(() => g.fillRect(0, 0, 1, 1), 100);
       return canvas.captureStream(10);
     } });
     Object.defineProperty(window, 'cameraRequests', { get: () => calls });
@@ -20,19 +24,37 @@ test('camera suspends across navigation, reuses its grant, and releases on finis
   await page.getByRole('textbox', { name: 'New binder name (optional)' }).fill('Red Binder');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   const video = page.locator('.cam video');
-  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && (v.srcObject as MediaStream)?.getVideoTracks()[0]?.enabled)).toBe(true);
-  const track = await video.evaluateHandle((v: HTMLVideoElement) => (v.srcObject as MediaStream).getVideoTracks()[0]);
+  const live = () => video.evaluate((v: HTMLVideoElement) => {
+    const t = (v.srcObject as MediaStream | null)?.getVideoTracks()[0];
+    return !v.paused && t?.readyState === 'live' && t.enabled;
+  });
+  const requests = () => page.evaluate(() => (window as unknown as { cameraRequests: number }).cameraRequests);
+  await expect.poll(live).toBe(true);
+  let track = await video.evaluateHandle((v: HTMLVideoElement) => (v.srcObject as MediaStream).getVideoTracks()[0]);
+  // Leaving the scanner releases the camera (the camera light goes off).
   await page.locator('.homebtn').click();
-  await expect.poll(() => track.evaluate((t: MediaStreamTrack) => t.enabled)).toBe(false);
+  await expect.poll(() => track.evaluate((t: MediaStreamTrack) => t.readyState)).toBe('ended');
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
   await page.getByRole('button', { name: /Settings.*Language/ }).click();
-  await expect.poll(() => track.evaluate((t: MediaStreamTrack) => t.enabled)).toBe(false);
   await page.locator('.homebtn').click();
   await page.screenshot({ path: info.outputPath('home-320.png'), animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: /Continue Red Binder/ }).click();
-  await expect.poll(() => track.evaluate((t: MediaStreamTrack) => t.enabled)).toBe(true);
-  expect(await page.evaluate(() => (window as unknown as { cameraRequests: number }).cameraRequests)).toBe(1);
+  await expect.poll(live).toBe(true);
+  expect(await requests()).toBe(2);
+
+  // Inside the scanner the camera stays held: a capture under review only pauses it, Scan again resumes it.
+  await expect(page.getByRole('button', { name: 'Scan now' })).toBeEnabled({ timeout: 60000 });
+  track = await video.evaluateHandle((v: HTMLVideoElement) => (v.srcObject as MediaStream).getVideoTracks()[0]);
+  await page.getByRole('button', { name: 'Scan now' }).click();
+  await expect(page.locator('.bot .primary', { hasText: 'Scan again' })).toBeVisible({ timeout: 60000 });
+  expect(await track.evaluate((t: MediaStreamTrack) => [t.readyState, t.enabled])).toEqual(['live', false]);
+  await page.locator('.bot .primary', { hasText: 'Scan again' }).click();
+  await expect.poll(live).toBe(true);
+  expect(await track.evaluate((t: MediaStreamTrack) => t.readyState)).toBe('live');
+  expect(await requests()).toBe(2);
+
+  track = await video.evaluateHandle((v: HTMLVideoElement) => (v.srcObject as MediaStream).getVideoTracks()[0]);
   await page.locator('.homebtn').click();
   await page.getByRole('button', { name: 'Finish Red Binder', exact: true }).click();
   await expect.poll(() => track.evaluate((t: MediaStreamTrack) => t.readyState)).toBe('ended');

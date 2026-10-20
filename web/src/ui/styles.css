@@ -395,3 +395,28 @@ dialog.modal p { margin: 0 0 4px; color: var(--muted); font-size: 14px; line-hei
 dialog.modal input { box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--well); color: var(--ink); font: 16px var(--sans); }
 .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
 .primary.danger { background: var(--att); color: #fff; }
+
+/* Home: offer to install as an app (browser tabs only). */
+.install { display: flex; align-items: center; gap: 12px; padding: 12px 6px 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
+.install .itext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.install .itext > b { font-size: 14px; color: var(--ink); }
+.install .itext svg { vertical-align: -3px; color: var(--ink); }
+.install .itext span b { color: var(--ink2); font-weight: 500; }
+.install .ghost { flex: none; min-height: 44px; font-size: 14px; padding: 0 18px; }
+.iclose { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* Installed app (opened from the home screen): bottom tabs replace the Home link. Browser tabs never match. */
+.tabbar { display: none; }
+:root.standalone { --tabh: calc(56px + env(safe-area-inset-bottom)); }
+:root.standalone .tabbar { flex: none; display: flex; position: relative; z-index: 34; height: var(--tabh); padding: 0 8px env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: var(--bg); }
+.tab { flex: 1 1 0; min-width: 0; border: 0; background: none; color: var(--faint); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font: 500 11px var(--sans); cursor: pointer; padding: 0; }
+.tab svg { width: 22px; height: 22px; }
+.tab.on { color: var(--ink); }
+.tab:disabled { opacity: .4; cursor: default; }
+/* No Home link, so the top bar only clears the status bar; screens end above the tabs.
+   The page review, card viewer and full-screen photo cover the tabs (their own back and actions). */
+:root.standalone .homebtn, :root.standalone .hbtn.tablink { display: none; }
+:root.standalone .nav { min-height: 0; }
+:root.standalone .screen { top: max(4px, env(safe-area-inset-top)); bottom: var(--tabh); }
+:root.standalone .start { bottom: var(--tabh); }
+:root.standalone .bot { padding-bottom: 12px; }
