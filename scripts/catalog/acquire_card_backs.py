@@ -10,7 +10,7 @@ outline of an opaque card in an official illustration with transparency (corners
 alpha edges). Nothing here is synthetic; photo-like variants for evaluation are generated in
 ``scripts/release/evaluate_card_backs.py`` and labelled synthetic there.
 
-Image rights: the images are copyrighted card designs (The Pokémon Company / Bandai) used here as
+Image rights: the images are copyrighted card designs (The Pokémon Company / Bandai / Konami) used here as
 local recognition references only. They are not redistributed by this repository (datasets/ is
 DVC-tracked, not committed).
 """
@@ -90,6 +90,15 @@ SOURCES = [
         'license': 'Official Bandai website asset (© Eiichiro Oda/Shueisha, Toei Animation; Bandai). No reuse license '
                    'stated; used locally as a recognition reference only; not redistributed.',
         'attribution': 'Bandai, ONE PIECE CARD GAME official English website',
+    },
+    {
+        'game': 'yugioh', 'label': 'Yu-Gi-Oh! TCG back (brown vortex, KONAMI and TCG logo)',
+        'url': 'https://upload.wikimedia.org/wikipedia/en/2/2b/Yugioh_Card_Back.jpg',
+        'page': 'https://en.wikipedia.org/wiki/File:Yugioh_Card_Back.jpg',
+        'sha256': 'ff754fd1eb88893fa1270889f2357d11217e31248c0ab5798b70748a7397cd98',
+        'role': 'flat-digital', 'geometry': 'full-image',
+        'license': WIKI_FAIR_USE,
+        'attribution': 'Konami; Wikipedia credits Yugioh Trading Card Game',
     },
 ]
 
@@ -283,6 +292,7 @@ def main():
             'back:pokemon': 'Pokémon TCG international back (English, German and other non-Asian prints). '
                             'The Japanese/Asian back differs and has no reference yet.',
             'back:onepiece': 'One Piece Card Game blue main-deck back. DON!! card backs differ and have no reference.',
+            'back:yugioh': 'Yu-Gi-Oh! TCG back. The Japanese/Asian OCG back has a different logo and has no reference yet.',
         },
         'notes': 'No real camera views of backs were found in the local video mining frames; references are flat '
                  'scans/digital images and official illustrations only. Synthetic photo-like variants for evaluation '

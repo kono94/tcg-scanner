@@ -66,6 +66,8 @@ export interface SavedPage {
   cards: SavedCard[];
   /** Pages scanned in batch mode belong to one batch (review at the end). */
   batchId?: string;
+  /** Games the scan was limited to (absent: all games). */
+  games?: string[];
 }
 
 /** Unique per page load: page generations restart at 1 after a reload and must not overwrite older saves. */

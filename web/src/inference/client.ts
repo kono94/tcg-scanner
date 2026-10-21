@@ -172,12 +172,12 @@ export class WorkerRecognizer implements Recognizer {
   }
 
   /** Embed and search a saved canonical crop (collection re-check). The bitmap is transferred. */
-  async search(bitmap: ImageBitmap): Promise<Hit[]> {
+  async search(bitmap: ImageBitmap, games: string[] | null = null): Promise<Hit[]> {
     await this.ready;
     const requestId = this.nextCrop++;
     return new Promise((resolve, reject) => {
       this.searches.set(requestId, { resolve, reject });
-      this.worker.postMessage({ type: 'embed', requestId, bitmap }, [bitmap]);
+      this.worker.postMessage({ type: 'embed', requestId, bitmap, games }, [bitmap]);
     });
   }
 

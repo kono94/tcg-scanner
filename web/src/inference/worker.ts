@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Inference worker: owns the ONNX sessions, the gallery and at most one capture's pixels.
 import * as ort from 'onnxruntime-web/webgpu';
-import { Gallery } from '../recognition/gallery';
+import { Gallery, gameMask } from '../recognition/gallery';
 import { appearanceFingerprint } from '../batch/duplicates';
 import { rgbFromRGBA, type Quad, type RGBImage } from '../vision/image';
 import { letterboxFor } from '../vision/quad';
@@ -19,6 +19,17 @@ interface Models {
 
 let manifest: BundleManifest | null = null;
 let gallery: Gallery | null = null;
+let galleryIdentities: readonly string[] = [];
+/** Row masks per game selection (a handful at most). */
+const masks = new Map<string, Uint8Array>();
+
+function search(embedding: Float32Array, games: string[] | null) {
+  if (!games) return gallery!.search(embedding, 20);
+  const key = [...games].sort().join(',');
+  let mask = masks.get(key);
+  if (!mask) masks.set(key, mask = gameMask(galleryIdentities, games));
+  return gallery!.search(embedding, 20, mask);
+}
 let modelBytes: { encoder: Uint8Array; detector: Uint8Array } | null = null;
 let models: Models | null = null;
 let capture: { id: number; image: RGBImage } | null = null;
@@ -135,6 +146,8 @@ async function init(msg: Extract<ToWorker, { type: 'init' }>) {
   ]);
   modelBytes = { encoder: new Uint8Array(encoder), detector: new Uint8Array(detector) };
   // iOS: int8 gallery rows (~9 MB instead of ~37 MB float32); top-1 parity is unit-tested.
+  galleryIdentities = msg.identities;
+  masks.clear();
   gallery = ios ? Gallery.fromFloat16Int8(vectors, manifest.gallery.dimension, msg.identities)
     : Gallery.fromFloat16(vectors, manifest.gallery.dimension, msg.identities);
   post({ type: 'progress', stage: 'sessions' });
@@ -309,7 +322,7 @@ async function recognize(msg: Extract<ToWorker, { type: 'recognize' }>) {
   });
   const t2 = performance.now();
   post({ type: 'step', ...tag, step: 'embedded', at: t2 });
-  const hits = gallery!.search(embedding, 20);
+  const hits = search(embedding, msg.games);
   const t3 = performance.now();
   post({ type: 'step', ...tag, step: 'searched', at: t3 });
   debug('recognize:done', { card: msg.instanceId, embedMs: Math.round(t2 - t1) });
@@ -335,7 +348,7 @@ async function embedSaved(msg: Extract<ToWorker, { type: 'embed' }>) {
     const out = await m.encoder.run({ [m.encoder.inputNames[0]]: new ort.Tensor('float32', tensor, [1, 3, 224, 224]) });
     return Float32Array.from(out[m.encoder.outputNames[0]].data as Float32Array);
   });
-  post({ type: 'searched', requestId: msg.requestId, hits: gallery!.search(embedding, 20) });
+  post({ type: 'searched', requestId: msg.requestId, hits: search(embedding, msg.games) });
 }
 
 self.onmessage = (event: MessageEvent<ToWorker>) => {

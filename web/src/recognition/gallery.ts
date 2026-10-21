@@ -59,15 +59,17 @@ export class Gallery {
     return new Gallery(new Float32Array(0), dimension, identities, { values, scales });
   }
 
-  /** Top-k distinct identities (best template per identity), highest similarity first. */
-  search(query: Float32Array, k = 20): Hit[] {
+  /** Top-k distinct identities (best template per identity), highest similarity first. `allowed`: rows to search (all when null). */
+  search(query: Float32Array, k = 20, allowed: Uint8Array | null = null): Hit[] {
     validateEmbedding(query, this.dimension);
     const { vectors, dimension: d, rows, q8 } = this;
     // Keep a small candidate pool; multiple templates per identity are collapsed afterwards.
-    const pool = Math.min(rows, k * 4);
+    const pool = Math.min(allowed ? allowed.reduce((n, a) => n + a, 0) : rows, k * 4);
+    if (!pool) return [];
     const top: Hit[] = [];
     let floor = -Infinity;
     for (let r = 0; r < rows; r++) {
+      if (allowed && !allowed[r]) continue;
       let s = 0;
       const o = r * d;
       if (q8) {
@@ -97,4 +99,16 @@ export class Gallery {
     }
     return hits;
   }
+}
+
+/** Game of a gallery identity: `game:language:id`, or `back:game` for card backs. */
+export function identityGame(identity: string): string {
+  const [first, second] = identity.split(':');
+  return first === 'back' ? second : first;
+}
+
+/** Rows whose game is in `games`. */
+export function gameMask(identities: readonly string[], games: readonly string[]): Uint8Array {
+  const wanted = new Set(games);
+  return Uint8Array.from(identities, (id) => (wanted.has(identityGame(id)) ? 1 : 0));
 }

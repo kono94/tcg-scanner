@@ -105,7 +105,7 @@ Check variant · Range incomplete
 ## Card backs (implemented in the browser scanner, 2026-10-17)
 
 Binder pages often show a card face down. Backs are enrolled as special gallery
-rows (`back:pokemon`, `back:onepiece`; catalog `kind: 'back'`, own family, no
+rows (`back:pokemon`, `back:onepiece`, `back:yugioh`; catalog `kind: 'back'`, own family, no
 price), so the normal similarity search recognizes them:
 
 - Best hit is a back with score ≥ 0.65 and a margin ≥ 0.10 to the best real
@@ -122,8 +122,24 @@ price), so the normal similarity search recognizes them:
   e.g. `7 ready · 2 backs`; the overlay badge is a small `Back` pill.
 - Backs are never offered as candidates, manual-search results or user choices.
   The user can still correct a misread back to a card by picking a front.
-- Not covered: Japanese/Asian Pokémon backs, One Piece DON!! backs, empty
+- Not covered: Japanese/Asian Pokémon backs, One Piece DON!! backs, the Japanese Yu-Gi-Oh! OCG back, empty
   pockets and other non-cards (these stay unresolved as before).
+
+## Artwork matches with open printings (Yu-Gi-Oh!, 2026-10-21)
+
+Yu-Gi-Oh! references are one image per artwork, while a card is printed in many sets and
+rarities that look nearly identical. Gallery rows are artworks (catalog `kind: 'artwork'`, no
+price); the card's printings (set code × rarity) are catalog-only entries in the same family.
+
+- A match shows the artwork and lists every printing as a plausible version; `printing` stays
+  unresolved. The preferred estimate is empty (the artwork has no price), so the value is the
+  plausible-versions range and `Check variant` fires for a valuable printing.
+- The printing picker (set code · rarity · set) confirms one printing; that printing is then the
+  exact version and is priced alone.
+- YGOPRODeck does not map alternate artworks to set codes, so a card's printings belong to all of
+  its artworks. Zero or missing set prices are unknown; EUR values are conversions.
+- The game picker limits search to the selected games' rows, so cards of an unselected game never
+  match; with no selected game present, a crop ends as `not-found`/`match-unclear`.
 
 ## Acceptance and evaluation
 

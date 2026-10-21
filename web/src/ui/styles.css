@@ -424,3 +424,25 @@ dialog.modal input { box-sizing: border-box; width: 100%; min-height: 44px; marg
 :root.standalone .screen { top: max(4px, env(safe-area-inset-top)); bottom: var(--tabh); }
 :root.standalone .start { bottom: var(--tabh); }
 :root.standalone .bot { padding-bottom: 12px; }
+
+/* Game picker (Home, Settings): toggle tiles with each game's logo; grayed out when not selected. */
+.games { display: flex; flex-direction: column; gap: 8px; }
+.gameshead { display: flex; justify-content: space-between; align-items: baseline; font: 700 13px var(--sans); color: var(--ink2); padding: 0 2px; }
+.gameshead .k { font-weight: 400; }
+.gamerow { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.game { position: relative; display: flex; align-items: center; justify-content: center; min-height: 72px; padding: 12px 10px; border-radius: 14px; border: 1px dashed var(--line2); background: transparent; color: var(--faint); font: 500 13px var(--sans); cursor: pointer; transition: border-color .15s, background .15s; }
+.game img { display: block; width: 100%; max-width: 104px; height: 34px; object-fit: contain; filter: grayscale(1); opacity: .4; transition: filter .15s, opacity .15s; }
+.game > svg { position: absolute; top: 6px; right: 6px; opacity: 0; color: var(--ink); transition: opacity .15s; }
+.game.on { border: 1px solid var(--ink); color: var(--ink); background: var(--surface); }
+.game.on img { filter: none; opacity: 1; }
+.game.on > svg { opacity: 1; }
+/* Black logo artwork: inverted on the dark theme (on and off). */
+.game img.mono { filter: invert(1); }
+:root[data-theme="light"] .game img.mono { filter: none; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .game img.mono { filter: none; } }
+.game[aria-disabled="true"] { cursor: default; }
+.game:focus-visible { outline: 2px solid var(--cue); outline-offset: 2px; }
+.settings .games { margin: 4px 0 14px; }
+@media (prefers-reduced-motion: reduce) { .game, .game img, .game > svg { transition: none; } }
+.printing { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.printing select { min-height: 40px; max-width: 100%; border: 1px solid var(--line2); border-radius: 10px; background: var(--surface); color: var(--ink); font: 400 14px var(--sans); padding: 0 10px; }

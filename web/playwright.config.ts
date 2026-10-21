@@ -9,6 +9,8 @@ export default defineConfig({
   // scan pages, reload, review at the end), plus collection export/import and screen navigation. Others run by name.
   testMatch: process.env.E2E_ALL ? '**/*.spec.ts' : ['**/check-flow.spec.ts', '**/batch-flow.spec.ts', '**/lifecycle.spec.ts', '**/batch-safety.spec.ts', '**/collection-transfer.spec.ts', '**/navigation.spec.ts'],
   timeout: 90000,
+  // Each worker loads the whole model bundle and runs WASM inference; more in parallel overload a laptop.
+  workers: 2,
   use: { baseURL: `https://localhost:${port}`, ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, channel: 'chrome' },
   webServer: { command: `npx vite --port ${port} --strictPort`, url: `https://localhost:${port}`, ignoreHTTPSErrors: true, reuseExistingServer: true, timeout: 60000 },
 });

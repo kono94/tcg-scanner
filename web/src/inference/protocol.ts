@@ -21,6 +21,10 @@ export interface BundleManifest {
   /** YOLO-pose card-corner detector: box + 4 corner keypoints. `fp16` as for the encoder. */
   detector: { path: string; size: number; pad_value: number; conf: number; iou: number; weights_origin: string; kind: 'pose'; fp16?: ModelVariant };
   gallery: { path: string; rows: number; dimension: number; dtype: string };
+  /** Games with gallery rows in this bundle. */
+  games?: string[];
+  /** Official logo per game for the game picker; `monochromeDark`: black artwork, inverted on dark backgrounds. */
+  logos?: Record<string, { path: string; sha256: string; monochromeDark?: boolean }>;
   catalog: string;
   prices: string;
   thresholds_calibrated: boolean;
@@ -29,13 +33,14 @@ export interface BundleManifest {
 export type ToWorker =
   | { type: 'init'; baseUrl: string; manifest: BundleManifest; identities: string[]; preferWebGPU: boolean }
   | { type: 'detect'; captureId: number; bitmap: ImageBitmap }
-  | { type: 'recognize'; captureId: number; instanceId: string; revision: number; quad: Quad }
+  /** `games`: search only gallery rows of these games (null: all). */
+  | { type: 'recognize'; captureId: number; instanceId: string; revision: number; quad: Quad; games: string[] | null }
   /** `drop`: also free the worker's capture-sized buffer (batch mode keeps nothing between pages). */
   | { type: 'release'; captureId: number; drop?: boolean }
   /** Display-only crop at a larger size from the same full-resolution capture. */
   | { type: 'crop'; requestId: number; captureId: number; quad: Quad; width: number; height: number }
   /** Re-check a saved canonical crop (already straightened, encoder-contract size). */
-  | { type: 'embed'; requestId: number; bitmap: ImageBitmap }
+  | { type: 'embed'; requestId: number; bitmap: ImageBitmap; games: string[] | null }
   | { type: 'fingerprint'; requestId: number; bitmap: ImageBitmap }
   /** Batch mode: straightened crops of one card from the held capture, encoded for storage. */
   | { type: 'extract'; requestId: number; captureId: number; quad: Quad; display: { width: number; height: number }; thumb: { width: number; height: number } }

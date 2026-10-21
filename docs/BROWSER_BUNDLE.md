@@ -2,11 +2,45 @@
 
 The bundle in `web/public/bundle` (DVC). Update this page when a new bundle ships and move
 the superseded text to `archive/docs/` (the previous page is
-[BROWSER_BUNDLE_270473320b53d5b4.md](../archive/docs/BROWSER_BUNDLE_270473320b53d5b4.md)).
+[BROWSER_BUNDLE_c73c459e7a24eaf2.md](../archive/docs/BROWSER_BUNDLE_c73c459e7a24eaf2.md)).
 
-Bundle `c73c459e7a24eaf2` (2026-10-21) carries half-precision copies of the encoder and
-detector. Gallery, catalog, prices and card-back rows are byte-identical to `270473320b53d5b4`;
-the detector weights (`corners-s640-v4-ft`, confidence 0.6, NMS IoU 0.7) are unchanged.
+Bundle `09304b039491978b` (2026-10-21) adds English Yu-Gi-Oh! to `c73c459e7a24eaf2` without
+retraining: 14,777 artwork gallery rows and 44,658 printings (set code × rarity) as catalog-only
+versions, from `scripts/catalog/enroll_yugioh_gallery.py`. The models (fp16 encoder on WebGPU,
+int8 encoder on WASM, fp16 `corners-s640-v4-ft` detector, confidence 0.6, NMS IoU 0.7) and the
+Pokémon/One Piece rows are unchanged. The detector now comes from the export folder instead of a
+per-build re-export, so rebuilding with the same inputs gives the same bundle version.
+
+| Content | Rows / entries |
+| --- | --- |
+| Pokémon + One Piece card rows (EN, with German Pokémon versions) | 24,038 |
+| Yu-Gi-Oh! artwork rows (EN) | 14,777 |
+| Card-back rows | 7 (Pokémon 3, One Piece 3, Yu-Gi-Oh! 1) |
+| Catalog entries | 101,754 (`catalog.json` 27.8 MB) |
+| `gallery.f16` | 38,822 rows, 29.8 MB |
+| Game logos (`logos/`, from `scripts/catalog/acquire_game_logos.py`) | 3 |
+
+## Yu-Gi-Oh!
+
+- Retrieval evidence: [YUGIOH_ZERO_SHOT.md](research/YUGIOH_ZERO_SHOT.md) (163/179 reviewed
+  video crops top-1, 35 distinct cards, heavy-foil Quarter Century Secret Rares weakest). In the
+  browser (WASM, int8 encoder) a Magician of Faith crop scores 0.824 against its artwork (0.827
+  fp32 in Python); scoped to Pokémon + One Piece its best hit is 0.354, below the match threshold.
+- A match is an artwork with the printing open: every printing of the card is a plausible version.
+  Prices are YGOPRODeck set prices in USD for 12,362 of 44,658 printings (zero or missing prices stay
+  unknown); EUR values are converted from them and marked ≈. Many Yu-Gi-Oh! ranges are therefore
+  incomplete.
+- Users choose the games to recognize on Home/Settings (default Pokémon + One Piece), shown with
+  the official logos; search uses only the selected games' rows.
+- Card back `back:yugioh`: one flat TCG back image (Wikipedia, pinned in
+  `scripts/catalog/acquire_card_backs.py`). Four YGOPRODeck entries whose image is a card back
+  (placeholders) are excluded from the gallery (similarity ≥ 0.8 to the back, listed in
+  `enrolled/yugioh.json`). Afterwards Yu-Gi-Oh! references reach at most 0.589 against the back and
+  all 195 video crops at most 0.115 (back threshold 0.65, margin 0.10, uncalibrated). `scripts/release/evaluate_card_backs.py`:
+  24/24 synthetic photo-like views of the Yu-Gi-Oh! back become `back:yugioh` (score ≥ 0.84, margin
+  ≥ 0.27; not independent, the only reference is in the gallery); none of the 298 real Pokémon/One
+  Piece front crops becomes a back. The
+  Japanese OCG back has no reference.
 
 | Path | Encoder | Detector | Model download |
 | --- | --- | --- | --- |

@@ -55,18 +55,24 @@ async function boot() {
   }
   const recognizer = new WorkerRecognizer(BUNDLE, manifest, identities, settings.preferWebGPU);
   const prices = new SnapshotPriceService(`${BUNDLE}${manifest.prices}?v=${manifest.version}`, () => settings.priceMarket);
-  const session = new PageSession(recognizer, { catalog, prices, preferredLanguage: () => settings.preferredLanguage });
+  // Games to recognize: the selection, limited to games this bundle has (never empty).
+  const bundleGames = manifest.games ?? [...new Set(catalog.games())];
+  const games = () => {
+    const chosen = settings.games.filter((g) => bundleGames.includes(g));
+    return chosen.length ? chosen : bundleGames;
+  };
+  const session = new PageSession(recognizer, { catalog, prices, preferredLanguage: () => settings.preferredLanguage, games });
   // Batch workflow: pages saved right away, their cards checked one at a time in the background.
   // Its queue is rebuilt from the saved pages, so it resumes after a reload or a killed tab.
   const batch = new BatchSession({
     detect: (id, bitmap) => recognizer.detect(id, bitmap),
     extract: (id, quad) => recognizer.extract(id, quad),
     release: (id) => recognizer.release(id, true),
-    search: async (blob) => recognizer.search(await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })),
+    search: async (blob, scope) => recognizer.search(await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }), scope),
     fingerprint: (blob) => recognizer.fingerprint(blob),
     failure: () => (recognizer.status.stage === 'failed' ? recognizer.status.detail : null),
   }, browserBatchStore, {
-    catalog, prices, preferredLanguage: () => settings.preferredLanguage, bundleVersion: manifest.version,
+    catalog, prices, preferredLanguage: () => settings.preferredLanguage, games, bundleVersion: manifest.version,
     // Yield to the single-page session; start only once the models are ready.
     canRun: () => !session.busy && recognizer.status.stage === 'ready',
   });
@@ -362,10 +368,11 @@ export class App {
     return this.route() !== before;
   }
 
-  /** Catalog search for manual picks, cards of the expected game first. */
+  /** Catalog search for manual picks: selected games first, then cards of the expected game. */
   private search(query: string, game: string | null): CatalogCard[] {
     const results = this.catalog.search(query, this.settings.preferredLanguage);
-    return game ? [...results].sort((a, b) => Number(b.game === game) - Number(a.game === game)) : results;
+    const rank = (c: CatalogCard) => (this.settings.games.includes(c.game) ? 2 : 0) + (c.game === game ? 1 : 0);
+    return [...results].sort((a, b) => rank(b) - rank(a));
   }
 
   private gameOf(pages: readonly { cards: readonly { identity: string | null }[] }[]): string | null {
@@ -1186,7 +1193,7 @@ export class App {
       c.status = 'checking';
       this.touchCollection();
       const canonical = await createImageBitmap(crops.canonical, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-      const hits = await this.recognizer.search(canonical);
+      const hits = await this.recognizer.search(canonical, loadPages().find((p) => p.key === pageKey)?.games ?? null);
       if (token !== this.cardToken) return;
       c.hits = hits;
       c.status = 'ready';

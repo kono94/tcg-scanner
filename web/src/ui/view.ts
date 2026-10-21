@@ -5,7 +5,7 @@ import type { CyclePhase } from '../capture/cycle';
 import type { StabilityState } from '../capture/stability';
 import type { RuntimeStatus } from '../inference/client';
 import type { BundleManifest } from '../inference/protocol';
-import { Catalog, languageName, type CatalogCard } from '../recognition/catalog';
+import { Catalog, gameName, isArtwork, languageName, versionsOf, type CatalogCard } from '../recognition/catalog';
 import type { Hit } from '../recognition/gallery';
 import { candidates, displayCard, dominantGame, type Candidate, type MatchResult } from '../recognition/policy';
 import { formatMoney, formatQuote, formatRange, type ValueSummary } from '../recognition/value';
@@ -186,6 +186,27 @@ function setText(node: Element, text: string) {
 function icon(path: string, size = 18): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 18 18" aria-hidden="true">${path}</svg>`;
 }
+
+/** Printing choice for an artwork with many printings (set code · rarity · set): a compact select. */
+function printingPicker(printings: readonly CatalogCard[], chosen: string | null, pick: (id: string) => void): HTMLElement {
+  const l = el('label', 'printing');
+  l.append(el('span', 'k', printings.length === 1 ? 'Printing' : `Printing · ${printings.length} known`));
+  const sel = el('select');
+  const none = el('option', '', 'Not chosen');
+  none.value = '';
+  sel.append(none);
+  for (const p of [...printings].sort((a, b) => a.cardId.localeCompare(b.cardId))) {
+    const o = el('option', '', [p.cardId, p.finish, p.printing].filter((t) => t && t !== 'unknown').join(' · '));
+    o.value = p.id;
+    o.selected = p.id === chosen;
+    sel.append(o);
+  }
+  sel.onchange = () => { if (sel.value) pick(sel.value); };
+  l.append(sel);
+  return l;
+}
+
+const GAME_ORDER = ['pokemon', 'onepiece', 'yugioh'];
 
 const ICONS = {
   gear: icon('<path d="M3 5h12M3 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="7" cy="5" r="1.9" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="13" r="1.9" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/>'),
@@ -954,7 +975,7 @@ export class View {
       : s.overlay === 'settings' ? `settings|${JSON.stringify(s.settings)}|${s.runtime.provider}|${this.advancedOpen}`
       : s.overlay === 'collection' ? `collection|${s.collection.rev}|${s.collection.open}|${s.collection.view}|${s.collection.filter}|${s.settings.priceMarket}`
       : s.overlay === 'batch' ? `batch|${s.collection.rev}|${JSON.stringify(s.batch)}|${s.settings.priceMarket}`
-        : s.overlay === 'start' ? `start|${s.videos.length}|${s.error}|${s.runtime.stage}|${!!s.camera}|${s.collection.rev}|${s.settings.workflow}|${this.newBinderOpen}|${s.install}`
+        : s.overlay === 'start' ? `start|${s.videos.length}|${s.error}|${s.runtime.stage}|${!!s.camera}|${s.collection.rev}|${s.settings.workflow}|${s.settings.games.join(",")}|${this.newBinderOpen}|${s.install}`
           : card ? `viewer|${viewerKey}` : '');
     if (key === this.layerKey) {
       this.updateProgress(s);
@@ -1012,8 +1033,9 @@ export class View {
     setText(label, s.runtime.detail);
   }
 
-  /** Home view state: the "New binder" form is open. */
+  /** Home view state: the "New binder" form is open, with the name typed so far (kept across redraws). */
   private newBinderOpen = false;
+  private newBinderName = '';
   /** Settings view state: the Advanced section is open. */
   private advancedOpen = false;
   private last: { s: AppSnapshot; catalog: Catalog; presenter: Presenter } | null = null;
@@ -1077,6 +1099,7 @@ export class View {
     wrap.append(el('p', 'modehint', s.settings.workflow === 'batch'
       ? 'Scan page after page; cards are checked in the background and reviewed at the end.'
       : 'Check each page right after it is scanned.'));
+    wrap.append(this.gamePicker(s));
     const binders = new Set(pages.map((p) => p.sessionId)).size;
     const t = totals(pages);
     // Installed app: the tab bar has Collection and Settings, so Home hides these (CSS).
@@ -1099,13 +1122,15 @@ export class View {
       name.placeholder = 'e.g. Red Binder';
       name.maxLength = 80;
       name.setAttribute('aria-label', 'New binder name (optional)');
+      name.value = this.newBinderName;
+      name.oninput = () => { this.newBinderName = name.value; };
       const create = el('button', 'ghost', 'Start');
       create.type = 'submit';
       create.disabled = s.sessionChanging || s.cameraOpening;
-      form.onsubmit = (e) => { e.preventDefault(); if (create.disabled) return; this.newBinderOpen = false; this.handlers.newSession(name.value); };
+      form.onsubmit = (e) => { e.preventDefault(); if (create.disabled) return; this.newBinderOpen = false; this.newBinderName = ''; this.handlers.newSession(name.value); };
       form.append(name, create);
       binder.append(form);
-      requestAnimationFrame(() => name.focus({ preventScroll: true }));
+      requestAnimationFrame(() => { name.focus({ preventScroll: true }); name.setSelectionRange(name.value.length, name.value.length); });
     } else {
       const open = el('button', 'linkbtn', 'New binder…');
       open.disabled = s.sessionChanging || s.cameraOpening;
@@ -1134,6 +1159,45 @@ export class View {
     }
     wrap.append(el('p', 'appversion', `Version ${__APP_VERSION__} · bundle ${s.manifest.version.slice(0, 8)}`));
     return wrap;
+  }
+
+  /**
+   * Which games to recognize (Home and Settings). Cards are only matched within the selected games;
+   * at least one stays selected. Toggle tiles with the game's logo: in color with a check when on, grayed when off.
+   */
+  private gamePicker(s: AppSnapshot): HTMLElement {
+    const available = GAME_ORDER.filter((g) => (s.manifest.games ?? ['pokemon', 'onepiece']).includes(g));
+    const chosen = s.settings.games.filter((g) => available.includes(g));
+    const box = el('div', 'games');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Games to recognize');
+    const head = el('div', 'gameshead');
+    head.append(el('span', '', 'Games'), el('span', 'k', chosen.length === available.length ? 'All' : `${chosen.length} of ${available.length}`));
+    const row = el('div', 'gamerow');
+    for (const g of available) {
+      const on = chosen.includes(g);
+      const last = on && chosen.length === 1;
+      const b = el('button', `game g-${g}${on ? ' on' : ''}`);
+      const logo = s.manifest.logos?.[g];
+      if (logo) {
+        const img = el('img', logo.monochromeDark ? 'mono' : '');
+        img.src = new URL(`bundle/${logo.path}?v=${s.manifest.version}`, document.baseURI).href;
+        img.alt = '';
+        b.append(img, el('span', 'sr', gameName(g)));
+      } else b.append(el('span', '', gameName(g)));
+      b.insertAdjacentHTML('beforeend', icon('<path d="M4 9.5 7.3 13 14 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', 14));
+      b.setAttribute('aria-pressed', String(on));
+      if (last) b.setAttribute('aria-disabled', 'true');
+      b.title = last ? 'At least one game stays selected' : on ? `Stop recognizing ${gameName(g)} cards` : `Recognize ${gameName(g)} cards`;
+      b.disabled = s.sessionChanging;
+      b.onclick = () => {
+        if (last) return;
+        this.handlers.changeSetting({ games: on ? chosen.filter((x) => x !== g) : [...chosen, g] });
+      };
+      row.append(b);
+    }
+    box.append(head, row, el('p', 'modehint', 'Cards are only matched within the selected games.'));
+    return box;
   }
 
   /** Home: install as an app (full screen from the home screen). Hidden once installed or dismissed. */
@@ -1180,6 +1244,7 @@ export class View {
       l.append(sel);
       parent.append(l);
     };
+    sheet.append(this.gamePicker(s));
     select(sheet, 'Card language', 'preferredLanguage', [['en', 'English'], ['de', 'German']]);
     select(sheet, 'Prices', 'priceMarket', [['EUR', 'Cardmarket (€)'], ['USD', 'TCGplayer ($)']]);
     select(sheet, 'Trigger', 'mode', [['auto', 'Auto when steady'], ['manual', 'Manual']], s.settings.mode === 'repeat' ? 'auto' : s.settings.mode);
@@ -1417,11 +1482,12 @@ export class View {
         saved.languageAssumed ? `${languageName(s.settings.preferredLanguage)} assumed` : ''].filter(Boolean).join(' · ')));
       const v = this.savedValue(saved);
       if (v?.preferred != null) wrap.append(el('div', 'big', formatMoney(v.preferred, v.currency, v.converted)));
-      // Language versions of the current artwork: one tap confirms the exact version.
-      const versions = current ? catalog.family(current.id) : [];
-      if (versions.length > 1) {
+      // Versions of the current artwork: one tap (or pick) confirms the exact version.
+      const family = current ? catalog.family(current.id) : [];
+      if (family.some(isArtwork)) wrap.append(printingPicker(versionsOf(family), saved.identity, (id) => this.handlers.savedChoose(id, true)));
+      else if (family.length > 1) {
         const chips = el('div', 'chips');
-        for (const ver of versions) {
+        for (const ver of family) {
           const on = saved.identity === ver.id && !saved.languageAssumed;
           const b = el('button', on ? 'on' : '', languageName(ver.language));
           b.setAttribute('aria-pressed', String(on));
@@ -1791,9 +1857,12 @@ export class View {
     body.append(name);
     if (!comparing) body.append(el('div', 'k', stateLabel(card) + (s.settings.diagnostics && shown ? ` · ${shown.id}` : '')));
     if (!comparing && m && card.state === 'confirmed') body.append(...this.valueBlock(card, m, catalog));
-    // Language versions of the artwork: one tap confirms the exact version.
+    // Versions of the artwork: one tap (or pick) confirms the exact version.
     const versions = comparing?.versions ?? (shown ? catalog.family(shown.id) : []);
-    if (versions.length > 1) {
+    if (versions.some(isArtwork)) {
+      const chosen = !comparing && m?.languageEvidence === 'user' ? card.userChoice?.identity ?? null : null;
+      body.append(printingPicker(versionsOf(versions), chosen, (id) => this.handlers.choose(card.id, id, true, review && !comparing)));
+    } else if (versions.length > 1) {
       const chips = el('div', 'chips');
       for (const v of versions) {
         const on = !comparing && card.userChoice?.identity === v.id && m?.languageEvidence === 'user';

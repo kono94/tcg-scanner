@@ -28,7 +28,10 @@ Written only by `scripts/curation/curate_datasets.py` from a reference manifest 
 root-reviewed query manifest. `curated/recognition/` holds the gallery
 (`gallery/{game}/{language}/{card_id}/reference-*.{ext}`, 24,197 references), the
 source-isolated real query crops (`train/`, `val/`, `test/`) and the card-back references
-(`backs/`). Every image has a JSON sidecar with its source record and hashes. Layout and
+(`backs/`). Yu-Gi-Oh! references (`gallery/yugioh/en/<artwork_id>/`, 14,777) and their
+artwork/printing manifest (`enrolled/yugioh.json`) are written by
+`scripts/catalog/enroll_yugioh_gallery.py`; they are gallery-only (not in training or the
+curated manifest's splits). Every image has a JSON sidecar with its source record and hashes. Layout and
 manifest schemas: [docs/DATASET_LAYOUT.md](../docs/DATASET_LAYOUT.md).
 
 ## sources/catalog/

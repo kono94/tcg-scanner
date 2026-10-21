@@ -24,6 +24,8 @@ export interface Settings {
   saveCaptures: boolean;
   /** Capture confirmation besides the flash: a short vibration (a click sound where vibration is unsupported). */
   captureFeedback: 'vibrate' | 'off';
+  /** Games to recognize: a card is only ever matched within these (at least one). */
+  games: string[];
   /** Settings revision, for one-time default migrations. */
   rev?: number;
 }
@@ -31,7 +33,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   preferredLanguage: 'en', mode: DEFAULT_CYCLE.mode, dwellMs: DEFAULT_CYCLE.dwellMs, cooldownMs: DEFAULT_CYCLE.cooldownMs,
   tolerance: 'normal', theme: 'system', preferWebGPU: true, diagnostics: false, reviewMode: 'trust', priceMarket: 'EUR',
-  workflow: 'page', saveCaptures: true, batchCooldownMs: 5000, captureFeedback: 'vibrate', rev: 4,
+  workflow: 'page', saveCaptures: true, batchCooldownMs: 5000, captureFeedback: 'vibrate', games: ['pokemon', 'onepiece'], rev: 4,
 };
 
 const KEY = 'tcg-scanner-settings-v1';
@@ -41,6 +43,7 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(KEY);
     const s = raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULT_SETTINGS };
     if (s.preferredLanguage !== 'en' && s.preferredLanguage !== 'de') s.preferredLanguage = 'en'; // only EN/DE supported
+    if (!Array.isArray(s.games) || !s.games.length || !s.games.every((g) => typeof g === 'string')) s.games = [...DEFAULT_SETTINGS.games];
     // rev 2: the batch pause no longer doubles as a page-turn guard (the scene-change gate is), so 3 s became 1.5 s.
     if ((s.rev ?? 1) < 2) { if (s.batchCooldownMs === 3000) s.batchCooldownMs = 1500; s.rev = 2; }
     // rev 3: the pause became an explicit page-turn window; 1.5 s left too little time to turn a page.

@@ -1,6 +1,6 @@
 // Match decision and preferred-language resolution (docs/MATCH_AND_VALUE_POLICY.md).
 // Retrieval identifies an artwork family; language/printing stay unresolved unless observed.
-import { Catalog, isBack, type CatalogCard } from './catalog';
+import { Catalog, isArtwork, isBack, versionsOf, type CatalogCard } from './catalog';
 import type { Hit } from './gallery';
 
 export interface MatchThresholds {
@@ -116,6 +116,16 @@ export function decideMatch(hits: readonly Hit[], catalog: Catalog, options: Mat
 
   const observed = options.observedLanguage ?? null;
   const wanted = observed ?? options.preferredLanguage;
+  if (isArtwork(topCard)) {
+    // The artwork is the match; which printing it is stays open, so every printing is plausible.
+    const printings = versionsOf(family);
+    return {
+      kind: 'matched', top, competitor, margin, plausible: printings,
+      observedLanguage: observed, languageEvidence: observed ? 'observed' : 'not-read', preferredLanguage: options.preferredLanguage,
+      preferred: topCard!, languageFallback: !family.some((c) => c.language === wanted), languageAssumed: false,
+      unresolved: printings.length > 1 ? ['printing'] : [], thresholds,
+    };
+  }
   const inWanted = family.find((c) => c.language === wanted) ?? null;
   const languages = new Set(family.map((c) => c.language));
   const preferred = inWanted ?? catalog.get(top.identity) ?? family[0] ?? null;
@@ -159,8 +169,18 @@ export function userChoiceMatch(catalog: Catalog, identity: string, hits: readon
   const versions = catalog.family(identity);
   const family = new Set(versions.map((c) => c.id));
   const languageOpen = !languageConfirmed && new Set(versions.map((c) => c.language)).size > 1;
-  const top = hits.find((h) => h.identity === identity) ?? { identity, row: -1, score: NaN };
+  // A printing has no gallery row of its own: its artwork's hit is the retrieval evidence.
+  const top = hits.find((h) => h.identity === identity) ?? hits.find((h) => family.has(h.identity)) ?? { identity, row: -1, score: NaN };
   const competitor = hits.find((h) => !family.has(h.identity)) ?? null;
+  if (isArtwork(card)) {
+    const printings = versionsOf(versions);
+    return {
+      kind: 'matched', top, competitor, margin: competitor && Number.isFinite(top.score) ? top.score - competitor.score : NaN,
+      plausible: printings, observedLanguage: null, languageEvidence: 'not-read', preferredLanguage,
+      preferred: card, languageFallback: false, languageAssumed: false,
+      unresolved: printings.length > 1 ? ['printing'] : [], thresholds,
+    };
+  }
   return {
     kind: 'matched', top, competitor, margin: competitor && Number.isFinite(top.score) ? top.score - competitor.score : NaN,
     plausible: languageOpen ? versions : [card],
@@ -188,7 +208,7 @@ export function candidates(hits: readonly Hit[], catalog: Catalog, preferredLang
     if (!card || isBack(card) || seen.has(card.family)) continue;
     seen.add(card.family);
     const versions = catalog.family(h.identity);
-    out.push({ family: card.family, card: versions.find((v) => v.language === preferredLanguage) ?? card, versions, score: h.score });
+    out.push({ family: card.family, card: isArtwork(card) ? card : versions.find((v) => v.language === preferredLanguage) ?? card, versions, score: h.score });
   }
   // Display order only: cards of the expected game first (score order within each group). This
   // never changes the match decision; other games stay available further along.

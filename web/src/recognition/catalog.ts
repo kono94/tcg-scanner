@@ -13,13 +13,26 @@ export interface CatalogCard {
   ref?: string;
   /**
    * 'back': a card-back gallery entry (id `back:<game>`), not a card. It is never matched, priced,
-   * counted or offered as a candidate. Absent means a real card.
+   * counted or offered as a candidate.
+   * 'artwork': a gallery entry for one artwork whose printing is open (Yu-Gi-Oh!); the family's
+   * other entries are its printings (`cardId` set code, `finish` rarity, `printing` set name).
+   * Absent means a real card version.
    */
-  kind?: 'card' | 'back';
+  kind?: 'card' | 'back' | 'artwork';
 }
 
 export function isBack(card: CatalogCard | undefined): boolean {
   return card?.kind === 'back';
+}
+
+export function isArtwork(card: CatalogCard | undefined): boolean {
+  return card?.kind === 'artwork';
+}
+
+/** Sellable versions of an artwork family: its printings when it has any, else the family itself. */
+export function versionsOf(family: readonly CatalogCard[]): CatalogCard[] {
+  const printings = family.filter((c) => !isArtwork(c));
+  return printings.length ? printings : [...family];
 }
 
 export class Catalog {
@@ -33,6 +46,11 @@ export class Catalog {
       if (members) members.push(card);
       else this.byFamily.set(card.family, [card]);
     }
+  }
+
+  /** Games in the catalog, in first-seen order. */
+  games(): string[] {
+    return [...new Set([...this.byId.values()].map((c) => c.game))];
   }
 
   get size(): number {
@@ -79,6 +97,8 @@ export function languageName(code: string): string {
   return LANGUAGE_NAMES[code] ?? code.toUpperCase();
 }
 
+const GAME_NAMES: Record<string, string> = { pokemon: 'Pokémon', onepiece: 'One Piece', yugioh: 'Yu-Gi-Oh!' };
+
 export function gameName(game: string): string {
-  return game === 'onepiece' ? 'One Piece' : game === 'pokemon' ? 'Pokémon' : game;
+  return GAME_NAMES[game] ?? game;
 }

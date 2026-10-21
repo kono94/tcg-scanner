@@ -55,6 +55,7 @@ function memoryStore() {
 function backend(boxes: () => OrientedBox[], hitsFor: (b: Blob) => Hit[] | Promise<Hit[]>) {
   const released: number[] = [];
   const searches: Blob[] = [];
+  const scopes: (string[] | null)[] = [];
   let failure: string | null = null;
   let held: number | null = null;
   const b: BatchBackend = {
@@ -64,10 +65,10 @@ function backend(boxes: () => OrientedBox[], hitsFor: (b: Blob) => Hit[] | Promi
       return { canonical: blob(`c${Math.round(quad[0][0])}`), display: blob('d'), thumb: blob('t'), quality: { shortSide: 200, glare: 0 } };
     },
     release: (id) => { released.push(id); if (held === id) held = null; },
-    search: async (c) => { searches.push(c); return hitsFor(c); },
+    search: async (c, games) => { searches.push(c); scopes.push(games); return hitsFor(c); },
     failure: () => failure,
   };
-  return { b, released, searches, fail: (m: string) => { failure = m; } };
+  return { b, released, searches, scopes, fail: (m: string) => { failure = m; } };
 }
 
 const good = (i: number): Hit[] => [{ identity: ids[i % 3], row: 0, score: 0.8 }, { identity: ids[(i + 1) % 3], row: 1, score: 0.3 }];
@@ -193,6 +194,21 @@ describe('batch session', () => {
     expect(be.searches).toHaveLength(18);
     expect(s.status()).toMatchObject({ pages: 2, cards: 18, waiting: 0, needsUser: 0 });
     expect(pages.every((p) => !p.partial && p.batchId)).toBe(true);
+  });
+
+  it('searches queued cards within the games selected when their page was captured', async () => {
+    const mem = memoryStore();
+    let games = ['onepiece'];
+    const be = backend(() => grid(2), () => good(0));
+    const s = new BatchSession(be.b, mem.store, { ...options, games: () => games });
+    s.setPaused(true);
+    await s.capture(bitmap());
+    games = ['pokemon', 'yugioh'];
+    await s.capture(bitmap());
+    s.setPaused(false);
+    await settle();
+    expect(mem.pages().map((p) => p.games)).toEqual([['onepiece'], ['pokemon', 'yugioh']]);
+    expect(be.scopes).toEqual([['onepiece'], ['onepiece'], ['pokemon', 'yugioh'], ['pokemon', 'yugioh']]);
   });
 
   it('keeps card count variable: zero cards saves no page, many cards are not truncated to nine', async () => {

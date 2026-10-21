@@ -105,6 +105,44 @@ def embed_back_references(manifest_path: Path, dataset: Path, encoder: Path, dim
     return np.stack(rows), identities, list(cards.values()), info
 
 
+def load_enrolled(path: Path, encoder_sha256: str, dimension: int):
+    """Gallery rows, catalog entries and USD quotes of an enrolled game (scripts/catalog/enroll_yugioh_gallery.py).
+
+    Each artwork is a gallery row (`kind: artwork`, the printing left open); its family's printings are
+    catalog-only versions carrying the prices. Embeddings must come from this bundle's fp32 encoder.
+    """
+    import numpy as np
+    meta = json.loads(path.read_text())
+    if meta['encoder_sha256'] != encoder_sha256:
+        raise ValueError(f'{path} was embedded with another encoder; rerun the enrollment')
+    vectors_path = path.with_suffix('.f16')
+    if sha256_file(vectors_path) != meta['vectors_sha256']:
+        raise ValueError(f'{vectors_path} differs from {path.name}')
+    enrollment = ROOT / meta['enrollment']
+    if sha256_file(enrollment) != meta['enrollment_sha256']:
+        raise ValueError(f'{enrollment} changed since the embeddings were made')
+    data = json.loads(enrollment.read_text())
+    if [a['identity'] for a in data['artworks']] != meta['identities']:
+        raise ValueError(f'{enrollment} and {path.name} list different rows')
+    rows = np.fromfile(vectors_path, dtype='<f2').reshape(-1, dimension)
+    game, language = data['game'], data['language']
+    cards = [{'id': a['identity'], 'game': game, 'language': language, 'cardId': a['passcode'], 'name': a['name'],
+              'family': a['family'], 'finish': 'unknown', 'printing': 'unknown', 'kind': 'artwork', 'ref': a['image']}
+             for a in data['artworks']]
+    first_ref = {}
+    for a in data['artworks']:
+        first_ref.setdefault(a['family'], a['image'])
+    quotes = {}
+    for p in data['printings']:
+        cards.append({'id': p['id'], 'game': game, 'language': language, 'cardId': p['set_code'], 'name': p['name'],
+                      'family': p['family'], 'finish': p['rarity'], 'printing': p['set_name'], 'ref': first_ref[p['family']]})
+        if p['price_usd'] is not None:
+            quotes[p['id']] = {'amount': p['price_usd'], 'basis': f"ygoprodeck:set_price {data['price_date']}"}
+    info = {'game': game, 'rows': len(rows), 'artworks': len(data['artworks']), 'printings': len(data['printings']),
+            'priced_printings': len(quotes), 'enrollment_sha256': meta['enrollment_sha256'], 'price_source': data['price_source']}
+    return rows, list(meta['identities']), cards, quotes, info
+
+
 def convert_detector_fp16(src: Path, dst: Path, evaluated: Path, fixtures: Path) -> None:
     import numpy as np
     import onnxruntime as ort
@@ -167,6 +205,10 @@ def main():
     parser.add_argument('--detector-origin', default='corners-s640-v4-ft; synthetic pretraining plus AI-reviewed real-corner fine tuning; not device-verified')
     parser.add_argument('--backs', type=Path, help='card-back reference manifest (default: <dataset>/recognition/backs/manifest.json when present)')
     parser.add_argument('--no-backs', action='store_true', help='build without card-back gallery rows')
+    parser.add_argument('--logos', type=Path, default=ROOT / 'datasets/sources/catalog/game-logos/manifest.json',
+                        help='game logos for the game picker (scripts/catalog/acquire_game_logos.py); skipped when absent')
+    parser.add_argument('--enrolled', type=Path, action='append', default=[],
+                        help='enrolled gallery (e.g. <export>/enrolled/yugioh.json from scripts/catalog/enroll_yugioh_gallery.py); repeatable')
     args = parser.parse_args()
     export = args.export.resolve(strict=True)
     prices_path = args.prices.resolve(strict=True)
@@ -246,6 +288,14 @@ def main():
                                      f"min cosine to fp32 {e['fp16']['cosine_to_fp32']['min']}")
         fp16['detector']['parity'] = (f"{d['fp16']['found_within_5pct']}/{d['fp16']['cards']} held-out real cards found "
                                       f"(fp32 {d['fp32']['found_within_5pct']})")
+    enrolled_rows, enrolled_quotes, enrolled_info = [], {}, []
+    for path in args.enrolled:
+        rows, extra_ids, extra_cards, quotes, info = load_enrolled(path.resolve(strict=True), report['encoder']['sha256'], gallery['dimension'])
+        enrolled_rows.append(rows)
+        gallery_ids += extra_ids
+        cards += extra_cards
+        enrolled_quotes.update(quotes)
+        enrolled_info.append(info)
     backs_manifest = None if args.no_backs else (args.backs or args.dataset / 'recognition/backs/manifest.json')
     backs = None
     if backs_manifest is not None and (args.backs or backs_manifest.exists()):
@@ -253,14 +303,24 @@ def main():
                                                                        export / report['encoder']['path'], gallery['dimension'])
         gallery_ids += back_ids
         cards += back_cards
-    if len(keep) != len(gallery['identities']) or backs:
+    if len(keep) != len(gallery['identities']) or backs or enrolled_rows:
         import numpy as np
-        vectors = np.fromfile(export / 'gallery.f16', dtype='<f2').reshape(-1, gallery['dimension'])[keep]
+        vectors = np.concatenate([np.fromfile(export / 'gallery.f16', dtype='<f2').reshape(-1, gallery['dimension'])[keep], *enrolled_rows])
         if backs:
             vectors = np.concatenate([vectors, back_rows.astype('<f2')])
         vectors.tofile(staging / 'gallery.f16')
         report['gallery'] = {**report['gallery'], 'rows': len(vectors), 'sha256': sha256_file(staging / 'gallery.f16'),
                              'bytes': (staging / 'gallery.f16').stat().st_size}
+    logos = {}
+    if args.logos.exists():
+        (staging / 'logos').mkdir()
+        for logo in json.loads(args.logos.read_text())['logos']:
+            src = args.logos.parent / logo['file']
+            if sha256_file(src) != logo['sha256']:
+                raise ValueError(f'{src} differs from its logo manifest')
+            shutil.copy2(src, staging / 'logos' / logo['file'])
+            logos[logo['game']] = {'path': f"logos/{logo['file']}", 'sha256': logo['sha256'],
+                                   **({'monochromeDark': True} if logo.get('monochrome_dark') else {})}
     (staging / 'catalog.json').write_text(json.dumps({'schema_version': 2, 'languages': sorted(languages),
                                                       'gallery_identities': gallery_ids, 'cards': cards}, separators=(',', ':')))
     fresh = json.loads(prices_path.read_text())
@@ -275,7 +335,11 @@ def main():
                 en = f"pokemon:en:{c['cardId']}"
                 if c['language'] == 'de' and en in market['quotes']:
                     q[c['id']] = {**market['quotes'][en], 'basis': market['quotes'][en]['basis'] + ' (Cardmarket, all languages)'}
+        if name == 'USD':
+            q.update(enrolled_quotes)
         market['quotes'] = q
+    if enrolled_quotes:
+        fresh['markets']['USD']['source'] += '; YGOPRODeck set prices for Yu-Gi-Oh!'
     # A version priced in only one market gets a converted estimate in the other, marked as such.
     fx = fresh.get('fx')
     if not fx:
@@ -292,6 +356,8 @@ def main():
         components['encoder_int8'] = int8['sha256']
     for name, variant in fp16.items():
         components[f'{name}_fp16'] = variant['sha256']
+    if logos:
+        components['logos'] = hashlib.sha256(json.dumps(logos, sort_keys=True).encode()).hexdigest()
     components['catalog'] = sha256_file(staging / 'catalog.json')
     components['prices'] = sha256_file(staging / 'prices.json')
     version = hashlib.sha256(json.dumps(components, sort_keys=True).encode()).hexdigest()[:16]
@@ -306,7 +372,11 @@ def main():
                      'source_weights_sha256': report['detector'].get('source_weights_sha256'),
                      'kind': report['detector'].get('kind', 'pose'), **({'fp16': fp16['detector']} if fp16 else {})},
         'gallery': {'path': 'gallery.f16', 'rows': len(gallery_ids), 'dimension': gallery['dimension'], 'dtype': 'float16-le',
-                    'card_rows': len(keep), 'back_rows': backs['rows'] if backs else 0},
+                    'card_rows': len(keep), 'enrolled_rows': sum(i['rows'] for i in enrolled_info),
+                    'back_rows': backs['rows'] if backs else 0},
+        'games': sorted({c['game'] for c in cards}),
+        **({'logos': logos} if logos else {}),
+        **({'enrolled': enrolled_info} if enrolled_info else {}),
         **({'backs': backs} if backs else {}),
         'catalog': 'catalog.json', 'prices': 'prices.json',
         'thresholds_calibrated': False,

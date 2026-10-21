@@ -199,3 +199,48 @@ describe('card backs', () => {
     expect(() => userChoiceMatch(withBacks, 'back:pokemon', [], 'en', false)).toThrow('card back');
   });
 });
+
+describe('artwork matches (printing open)', () => {
+  const art = (id: string, family: string): CatalogCard => ({ id, game: 'yugioh', language: 'en', cardId: '89631139', name: 'Blue-Eyes White Dragon', family, finish: 'unknown', printing: 'unknown', kind: 'artwork' });
+  const printing = (id: string, family: string, rarity: string): CatalogCard => ({ id, game: 'yugioh', language: 'en', cardId: id.split(':')[2], name: 'Blue-Eyes White Dragon', family, finish: rarity, printing: 'Set', ref: 'x' });
+  const ygo = new Catalog([
+    art('yugioh:en:89631139', 'yugioh:card:89631139'),
+    art('yugioh:en:89631140', 'yugioh:card:89631139'),
+    printing('yugioh:en:LOB-EN001:UR', 'yugioh:card:89631139', 'Ultra Rare'),
+    printing('yugioh:en:SDK-001:UR', 'yugioh:card:89631139', 'Ultra Rare'),
+    printing('yugioh:en:LCKC-EN001:C', 'yugioh:card:89631139', 'Common'),
+    art('yugioh:en:46986414', 'yugioh:card:46986414'),
+  ]);
+
+  it('shows the matched artwork, keeps every printing plausible and the printing open', () => {
+    const m = matched(decideMatch(hits(['yugioh:en:89631140', 0.8], ['yugioh:en:89631139', 0.79], ['yugioh:en:46986414', 0.5]), ygo, { preferredLanguage: 'en' }));
+    expect(m.preferred?.id).toBe('yugioh:en:89631140');
+    expect(m.plausible.map((c) => c.id).sort()).toEqual(['yugioh:en:LCKC-EN001:C', 'yugioh:en:LOB-EN001:UR', 'yugioh:en:SDK-001:UR']);
+    expect(m.unresolved).toEqual(['printing']);
+    expect(m.languageAssumed).toBe(false);
+    // The other artwork of the same card is not the competitor.
+    expect(m.competitor?.identity).toBe('yugioh:en:46986414');
+  });
+
+  it('prices only the printings: the artwork itself has no quote, a valuable printing raises the cue', () => {
+    const m = matched(decideMatch(hits(['yugioh:en:89631139', 0.8], ['yugioh:en:46986414', 0.5]), ygo, { preferredLanguage: 'en' }));
+    const v = summarizeValue(m, new Map([['yugioh:en:LOB-EN001:UR', quote(120)], ['yugioh:en:SDK-001:UR', quote(40)], ['yugioh:en:LCKC-EN001:C', quote(0.5)]]));
+    expect(v.preferred).toBeNull();
+    expect([v.low, v.high, v.status]).toEqual([0.5, 120, 'known']);
+    expect(v.cue).toMatchObject({ kind: 'check-variant', amount: 120 });
+  });
+
+  it('a picked printing is the exact version, with its artwork hit as evidence', () => {
+    const m = userChoiceMatch(ygo, 'yugioh:en:SDK-001:UR', hits(['yugioh:en:89631139', 0.8], ['yugioh:en:46986414', 0.5]), 'en', true);
+    expect(m.plausible.map((c) => c.id)).toEqual(['yugioh:en:SDK-001:UR']);
+    expect(m.top.identity).toBe('yugioh:en:89631139');
+    expect(m.unresolved).toEqual([]);
+  });
+
+  it('a picked artwork leaves the printing open', () => {
+    const m = userChoiceMatch(ygo, 'yugioh:en:89631139', [], 'en', false);
+    expect(m.preferred?.id).toBe('yugioh:en:89631139');
+    expect(m.plausible).toHaveLength(3);
+    expect(m.unresolved).toEqual(['printing']);
+  });
+});

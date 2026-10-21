@@ -2,7 +2,7 @@
 
 How the scanner turns a captured page into card identities, which contracts keep Python
 and the browser consistent, and what is still open. Status 2026-10-19: implemented and
-in bundle `c73c459e7a24eaf2` ([BROWSER_BUNDLE.md](BROWSER_BUNDLE.md)); physical
+in bundle `09304b039491978b` ([BROWSER_BUNDLE.md](BROWSER_BUNDLE.md)); physical
 phone behavior and operating thresholds are unverified/uncalibrated.
 
 ## Principle: enrollment-based retrieval

@@ -22,9 +22,10 @@ similarity search with a fine-tuned DINOv2 encoder, and review the results with 
 
 ## Current state
 
-Bundle `c73c459e7a24eaf2`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
-DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017`, 24,038 English/German card rows
-plus six card-back rows. Inference runs in a worker: WebGPU with the fp16 encoder, falling
+Bundle `09304b039491978b`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
+DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017`, 24,038 English/German Pokémon and One
+Piece card rows, 14,777 English Yu-Gi-Oh! artwork rows (enrolled without retraining) and seven
+card-back rows. Home has a game picker; cards are only matched within the selected games. Inference runs in a worker: WebGPU with the fp16 encoder, falling
 back to WASM with the int8 encoder; both use the fp16 detector. The scanner is in use on phones. It can be installed
 from the browser as a home-screen app (web app manifest, no app store, no offline mode): opened
 that way it runs full screen with a bottom tab bar ([details](web/README.md#navigation-back-and-installing-as-an-app)).

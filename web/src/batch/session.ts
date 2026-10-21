@@ -40,8 +40,8 @@ export interface BatchBackend {
   extract(captureId: number, quad: Quad): Promise<ExtractedCard>;
   /** Free the capture (and the worker's capture-sized buffer). */
   release(captureId: number): void;
-  /** Embed + search a stored canonical crop. */
-  search(canonical: Blob): Promise<Hit[]>;
+  /** Embed + search a stored canonical crop within these games' gallery rows (null: all). */
+  search(canonical: Blob, games: string[] | null): Promise<Hit[]>;
   /** Runtime failure (worker crashed / models failed): background work cannot continue until a reload. */
   failure(): string | null;
 }
@@ -76,6 +76,8 @@ export interface BatchOptions {
   catalog: Catalog;
   prices: PriceService;
   preferredLanguage: () => string;
+  /** Games the user expects; stored with each page so its queued cards are searched in that scope. */
+  games?: () => string[] | null;
   bundleVersion: string;
   thresholds?: MatchThresholds;
   valueSettings?: ValueSettings;
@@ -272,7 +274,7 @@ export class BatchSession {
         }
       }
       const page: SavedPage = { key: pageKey, sessionId, pageNumber, revision: 1, savedAt: new Date(this.now()).toISOString(),
-        partial: true, cards, batchId: batch.id, appearance: !overLimit && appearance.length === cards.length ? appearance : undefined };
+        partial: true, cards, batchId: batch.id, games: this.options.games?.() ?? undefined, appearance: !overLimit && appearance.length === cards.length ? appearance : undefined };
       const duplicate = page.appearance ? await this.findDuplicate(page) : null;
       // Automatic captures skip a probable repeat outright (the page was not turned); only a
       // manual capture holds it for an explicit Keep anyway / Dismiss.
@@ -408,7 +410,8 @@ export class BatchSession {
     let hits: Hit[];
     try {
       const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), this.options.cardTimeoutMs ?? 60000); });
-      hits = await Promise.race([this.backend.search(crops.canonical), timeout]);
+      const games = this.store.loadPages().find((p) => p.key === job.pageKey)?.games ?? null;
+      hits = await Promise.race([this.backend.search(crops.canonical, games), timeout]);
     } catch (err) {
       const failure = this.backend.failure();
       if (failure) {

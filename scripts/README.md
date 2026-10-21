@@ -9,6 +9,8 @@ project environment, for example `.env/bin/python scripts/release/update_prices.
 | | `fill_pokemon_gallery_gaps.py` | exact-match pokemontcg.io images for TCGdex gaps |
 | | `sync_onepiece_gallery.py`, `sync_onepiece_ja_gallery.py` | official Bandai English/Japanese card lists |
 | | `sync_yugioh_gallery.py` | resumable YGOPRODeck English Yu-Gi-Oh! catalog (one record per artwork, TCG printings) + images → `datasets/sources/catalog/yugioh-en-ygoprodeck` |
+| | `enroll_yugioh_gallery.py` | Yu-Gi-Oh! artworks into `datasets/curated` (references, printings, set prices) + fp32 embeddings for the bundle (`--enrolled`) |
+| | `acquire_game_logos.py` | pinned official game logos for the game picker → `datasets/sources/catalog/game-logos` (bundled, not in git) |
 | | `acquire_card_backs.py` | pinned card-back references → `datasets/curated/recognition/backs` |
 | `video/` | `mine_video_frames.py` | sharp, diverse frames from a local video excerpt |
 | | `collect_video_frames.py` | validates mined-frame manifests into localization inputs |

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { Gallery, validateEmbedding } from '../src/recognition/gallery';
+import { Gallery, gameMask, identityGame, validateEmbedding } from '../src/recognition/gallery';
 import { EXPORT_DIR, hasFixtures, json, type EncoderFixture } from './fixtures';
 
 describe.skipIf(!hasFixtures)('gallery search parity', () => {
@@ -15,6 +15,28 @@ describe.skipIf(!hasFixtures)('gallery search parity', () => {
       expect(hits.map((h) => h.identity)).toEqual(f.topk_torch_cpu.map((h) => h.identity));
       hits.forEach((h, i) => expect(Math.abs(h.score - f.topk_torch_cpu[i].score)).toBeLessThan(2e-3));
     }
+  });
+});
+
+describe('game scope', () => {
+  const ids = ['pokemon:en:a', 'onepiece:en:b', 'yugioh:en:1', 'back:pokemon', 'back:onepiece'];
+  // Each row points the same way, so unmasked search would rank every game's rows.
+  const gallery = new Gallery(Float32Array.from(ids.flatMap((_, i) => [1, i * 0.01, 0, 0].map((x, _j, a) => x / Math.hypot(...a)))), 4, ids);
+  const query = Float32Array.of(1, 0, 0, 0);
+
+  it('reads the game of card and card-back identities', () => {
+    expect(ids.map(identityGame)).toEqual(['pokemon', 'onepiece', 'yugioh', 'pokemon', 'onepiece']);
+  });
+
+  it('only returns rows of the selected games', () => {
+    const hits = gallery.search(query, 10, gameMask(ids, ['onepiece']));
+    expect(hits.map((h) => h.identity).sort()).toEqual(['back:onepiece', 'onepiece:en:b']);
+    expect(gallery.search(query, 10, gameMask(ids, ['yugioh'])).map((h) => h.identity)).toEqual(['yugioh:en:1']);
+    expect(gallery.search(query, 10)).toHaveLength(5);
+  });
+
+  it('returns nothing when no row is selected', () => {
+    expect(gallery.search(query, 10, gameMask(ids, ['magic']))).toEqual([]);
   });
 });
 

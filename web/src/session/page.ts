@@ -70,6 +70,8 @@ export interface RecognitionJob {
   instanceId: string;
   revision: number;
   quad: Quad;
+  /** Search only these games' gallery rows (null: all). */
+  games: string[] | null;
 }
 
 export interface RecognitionOutput {
@@ -90,6 +92,8 @@ export interface SessionOptions {
   catalog: Catalog;
   prices: PriceService;
   preferredLanguage: () => string;
+  /** Games the user expects (search scope); null: all games in the bundle. */
+  games?: () => string[] | null;
   thresholds?: MatchThresholds;
   backThresholds?: BackThresholds;
   valueSettings?: ValueSettings;
@@ -228,7 +232,7 @@ export class PageSession {
     const timeoutMs = this.options.cardTimeoutMs ?? 10000;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const work = this.recognizer.recognize({ captureId, instanceId: card.id, revision, quad: card.quad }, (step, crop) => {
+      const work = this.recognizer.recognize({ captureId, instanceId: card.id, revision, quad: card.quad, games: this.options.games?.() ?? null }, (step, crop) => {
         try {
           current();
         } catch {

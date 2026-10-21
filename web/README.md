@@ -8,10 +8,24 @@ with the int8 encoder; both use the fp16 detector. Status: in use on phones; aut
 Thresholds are uncalibrated. The detector combines synthetic pretraining with AI-reviewed
 real-corner fine tuning; phone performance remains unverified.
 
-Current bundle `27047332` (`web/public/bundle/manifest.json` records the full provenance):
+Current bundle `09304b03` (`web/public/bundle/manifest.json` records the full provenance):
 encoder from `models/card-encoder/dinov2-arcface-gpu-20261017`, detector
-`models/corner-detector/corners-s640-v4-ft/weights/best.pt` at 640 px (box confidence 0.6), 24,038
-English/German card rows plus 6 card-back rows.
+`models/corner-detector/corners-s640-v4-ft` at 640 px (box confidence 0.6), 24,038 English/German
+Pokémon and One Piece card rows, 14,777 English Yu-Gi-Oh! artwork rows and 7 card-back rows.
+
+## Games
+
+Home and Settings show the games in the bundle as toggle tiles with their official logos from the
+bundle (`logos/`; default: Pokémon and One Piece; at least one stays selected). Recognition searches only gallery rows of the selected games
+(`gameMask` in `src/recognition/gallery.ts`), so a card is never matched to an unselected game;
+margins are measured within that scope too. Single-page scans use the selection at capture time;
+batch pages store it (`SavedPage.games`) and their queued cards are searched with it after a reload.
+Manual catalog search still covers every game, selected games first.
+
+Yu-Gi-Oh! gallery rows are artworks (`kind: 'artwork'`): the printing (set code × rarity) is not
+visible to retrieval, so a match shows the artwork, lists every printing of the card as a plausible
+version (value range, `Check variant`) and offers a printing picker. Picking one prices exactly that
+printing.
 
 ## Setup
 
@@ -35,10 +49,15 @@ To build them yourself (defaults select the current GPU run and fine-tuned corne
 .env/bin/python scripts/release/build_browser_bundle.py \
   --export models/browser-export/gpu-20261017 \
   --encoder-int8 models/browser-export/gpu-20261017/encoder.int8.onnx --fp16 \
-  --detector-weights models/corner-detector/corners-s640-v4-ft/weights/best.pt --detector-conf 0.6 \
-  --prices datasets/prices/prices.json --detector-origin "<what the weights were trained on>"
+  --enrolled models/browser-export/gpu-20261017/enrolled/yugioh.json \
+  --prices datasets/prices/prices.json
+# The export's detector.onnx is the current detector; --detector-weights <best.pt> replaces it
+# (re-exported per build, so the bundle version changes even for identical weights).
+# Yu-Gi-Oh! rows: scripts/catalog/enroll_yugioh_gallery.py (references into datasets/curated,
+# printings and YGOPRODeck set prices, fp32 embeddings into <export>/enrolled/).
 # German Pokémon versions come from datasets/sources/catalog/pokemon-de-tcgdex/cards.json
 # (saved TCGdex /v2/de/cards; refetch it to pick up new German cards).
+# Game logos come from datasets/sources/catalog/game-logos (scripts/catalog/acquire_game_logos.py).
 # 3. Optional: local test videos for the camera mock (web/public/media, gitignored)
 node web/scripts/link-media.mjs
 # 4. Run
