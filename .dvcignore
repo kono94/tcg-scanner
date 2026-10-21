@@ -2,3 +2,6 @@
 # the performance. Learn more at
 # https://dvc.org/doc/user-guide/dvcignore
 
+
+# Yu-Gi-Oh! catalog: versioned with its zero-shot evaluation
+datasets/sources/catalog/yugioh-en-ygoprodeck/

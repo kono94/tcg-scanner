@@ -73,7 +73,7 @@ Encoder and detector training fit on the GPU together (about 11.7 GB). Logs go t
 Copy finished runs into `runs/`, then evaluate and build here:
 `scripts/detection/evaluate_corners_real.py` and `compare_detectors_real.py` for the
 detector, full-catalog val/test for the encoder, then
-`scripts/release/export_browser_models.py`, int8 quantization,
+`scripts/release/export_browser_models.py`, int8 quantization, `scripts/release/compare_model_precisions.py` (fp16 copies and parity),
 `scripts/release/build_browser_bundle.py` and the web unit and browser tests. A model
 replaces the deployed one only when it wins these checks; then move it into `models/`,
 `dvc add`, `dvc push` and commit the pointer.

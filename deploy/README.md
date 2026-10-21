@@ -3,8 +3,9 @@
 The scanner is a static site. Recognition runs in the visitor's browser; the server
 delivers the app, ONNX runtime, versioned model bundle and catalog thumbnails (loaded
 as needed), and a small upload service stores training uploads (captures and corrections)
-when visitors leave "Share scans to improve recognition" on. Bundle `27047332` contains a 46.0 MB raw / 38.6 MB gzip detector; this is
-only the detector, and encoders, gallery, catalog and runtime add download size. Actual
+when visitors leave "Share scans to improve recognition" on. Bundle `c73c459e` models download as
+67 MB raw on WebGPU (fp16 encoder + fp16 detector) or 47 MB on WASM (int8 encoder + fp16
+detector); gallery, catalog, prices and runtime add to that. Actual
 transfer size depends on compression, execution provider and browser cache.
 
 One shared Caddy proxy serves every subdomain on the VPS with automatic HTTPS

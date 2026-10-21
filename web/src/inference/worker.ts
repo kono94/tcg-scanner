@@ -77,6 +77,17 @@ async function dropOldCaches(current: string) {
 }
 
 let modelUrls: { encoder: string; detector: string; cache: string } | null = null;
+let cpuEncoderPath = '';
+
+/** Before a WASM session: switch to the CPU encoder, re-downloading only if it is a different file. */
+function useCpuEncoder() {
+  if (!modelUrls || !manifest) return;
+  const url = new URL(cpuEncoderPath + '?v=' + manifest.version, modelUrls.encoder).href;
+  if (url !== modelUrls.encoder) {
+    modelUrls.encoder = url;
+    modelBytes = null;
+  }
+}
 
 async function createModels(provider: Provider): Promise<Models> {
   if (!modelBytes && modelUrls) {
@@ -102,8 +113,8 @@ async function init(msg: Extract<ToWorker, { type: 'init' }>) {
   const started = performance.now();
   manifest = msg.manifest;
   ort.env.wasm.wasmPaths = new URL('ort/', msg.baseUrl.replace(/bundle\/?$/, '')).href;
-  // iOS/iPadOS (every browser there is WebKit): the tab memory limit is tight. Use single-threaded
-  // WASM with the int8 encoder by default; threaded WASM and the fp32 encoder can exceed it.
+  // iOS/iPadOS (every browser there is WebKit): the tab memory limit is tight, so single-threaded
+  // WASM and no WebGPU.
   const ios = isIOS();
   if (ios) ort.env.wasm.numThreads = 1;
   const gpu = (navigator as Navigator & { gpu?: unknown }).gpu;
@@ -111,10 +122,12 @@ async function init(msg: Extract<ToWorker, { type: 'init' }>) {
   const cacheName = `tcg-bundle-${manifest.version}`;
   const base = msg.baseUrl.endsWith('/') ? msg.baseUrl : msg.baseUrl + '/';
   const v = '?v=' + manifest.version;
-  // The GPU path runs the fp32 encoder; the CPU path the int8 one (when the bundle has it).
-  const encoderPath = !tryGPU && manifest.encoder.int8 ? manifest.encoder.int8.path : manifest.encoder.path;
-  debug('init', { threads: ort.env.wasm.numThreads ?? 'default', encoder: encoderPath, tryGPU });
-  modelUrls = { encoder: base + encoderPath + v, detector: base + manifest.detector.path + v, cache: cacheName };
+  // WebGPU runs the fp16 encoder, WASM the int8 one; both use the fp16 detector (each where the bundle has it).
+  cpuEncoderPath = manifest.encoder.int8?.path ?? manifest.encoder.fp16?.path ?? manifest.encoder.path;
+  const encoderPath = tryGPU ? manifest.encoder.fp16?.path ?? manifest.encoder.path : cpuEncoderPath;
+  const detectorPath = manifest.detector.fp16?.path ?? manifest.detector.path;
+  debug('init', { threads: ort.env.wasm.numThreads ?? 'default', encoder: encoderPath, detector: detectorPath, tryGPU });
+  modelUrls = { encoder: base + encoderPath + v, detector: base + detectorPath + v, cache: cacheName };
   const [encoder, detector, vectors] = await Promise.all([
     fetchCached(modelUrls.encoder, cacheName, 'encoder'),
     fetchCached(modelUrls.detector, cacheName, 'detector'),
@@ -136,11 +149,7 @@ async function init(msg: Extract<ToWorker, { type: 'init' }>) {
     fallbackReason = ios ? 'iOS: CPU path for memory' : gpu ? 'WebGPU disabled in settings' : 'WebGPU not supported by this browser';
   }
   if (!models) {
-    if (tryGPU && manifest.encoder.int8) {
-      // WebGPU failed: switch to the smaller CPU encoder.
-      modelUrls.encoder = base + manifest.encoder.int8.path + v;
-      modelBytes = null;
-    }
+    useCpuEncoder();
     models = await createModels('wasm');
   }
   if (models.provider === 'wasm') modelBytes = null; // nothing left to fall back to
@@ -156,10 +165,7 @@ async function runWithFallback<T>(fn: (m: Models) => Promise<T>): Promise<T> {
   } catch (err) {
     if (models.provider !== 'webgpu') throw err;
     const reason = `WebGPU inference failed: ${(err as Error).message}`;
-    if (manifest?.encoder.int8 && modelUrls) {
-      modelUrls.encoder = modelUrls.encoder.replace(manifest.encoder.path, manifest.encoder.int8.path);
-      modelBytes = null;
-    }
+    useCpuEncoder();
     models = await createModels('wasm');
     modelBytes = null;
     post({ type: 'provider-fallback', provider: 'wasm', reason });

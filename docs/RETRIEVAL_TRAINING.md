@@ -72,7 +72,7 @@ small checks.
 
 A new run replaces the deployed encoder only after it beats it on the same full-catalog
 val/test evaluation. Then move it to `models/card-encoder/`, `dvc add` it, re-export with
-`scripts/release/export_browser_models.py` (fp32 and int8, parity checked) and rebuild the
+`scripts/release/export_browser_models.py` (fp32 and int8), make fp16 copies with `scripts/release/compare_model_precisions.py` and rebuild the
 bundle; the gallery must always be re-embedded with the new encoder.
 
 ## History

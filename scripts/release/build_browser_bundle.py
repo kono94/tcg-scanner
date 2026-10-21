@@ -105,6 +105,22 @@ def embed_back_references(manifest_path: Path, dataset: Path, encoder: Path, dim
     return np.stack(rows), identities, list(cards.values()), info
 
 
+def convert_detector_fp16(src: Path, dst: Path, evaluated: Path, fixtures: Path) -> None:
+    import numpy as np
+    import onnxruntime as ort
+    from scripts.release.compare_model_precisions import to_fp16
+    to_fp16(src, dst)
+    new, ref = (ort.InferenceSession(str(p), providers=['CPUExecutionProvider']) for p in (dst, evaluated))
+    scenes = sorted(fixtures.glob('scene-*-input.f32'))
+    if not scenes:
+        raise ValueError(f'no detector parity scenes in {fixtures}')
+    for scene in scenes:
+        x = np.fromfile(scene, dtype=np.float32).reshape(1, 3, *new.get_inputs()[0].shape[2:])
+        diff = float(np.abs(new.run(None, {'images': x})[0] - ref.run(None, {'images': x})[0]).max())
+        if diff > 1e-3:
+            raise ValueError(f'fp16 detector differs from the evaluated one on {scene.name} (max abs diff {diff})')
+
+
 def export_detector(weights: Path, size: int, out: Path) -> dict:
     """ONNX export plus a real-output parity check against PyTorch on a non-trivial input."""
     import numpy as np
@@ -138,10 +154,13 @@ def main():
     parser.add_argument('--dataset', type=Path, default=ROOT / 'datasets/curated')
     parser.add_argument('--output', type=Path, default=ROOT / 'web/public/bundle')
     parser.add_argument('--languages', default='en,de', help='catalog languages in the app (gallery rows of other languages are dropped)')
-    parser.add_argument('--german-pokemon', type=Path, help='TCGdex /v2/de/cards list: adds German Pokemon versions of enrolled artworks')
+    parser.add_argument('--german-pokemon', type=Path, default=ROOT / 'datasets/sources/catalog/pokemon-de-tcgdex/cards.json',
+                        help='saved TCGdex /v2/de/cards list: adds German Pokemon versions of enrolled artworks')
     parser.add_argument('--prices', type=Path, default=ROOT / 'datasets/prices/prices.json',
                         help='prices.json from scripts/release/update_prices.py (schema 2, USD + EUR markets)')
-    parser.add_argument('--encoder-int8', type=Path, help='dynamically quantized encoder for the WASM/CPU path (phones)')
+    parser.add_argument('--encoder-int8', type=Path, help='dynamically quantized encoder for the WASM path')
+    parser.add_argument('--fp16', action='store_true',
+                        help='ship the fp16 encoder/detector from <export>/precision_report.json (scripts/release/compare_model_precisions.py)')
     parser.add_argument('--detector-weights', type=Path, help='replace the exported detector with these Ultralytics pose weights')
     parser.add_argument('--detector-size', type=int, default=640)
     parser.add_argument('--detector-conf', type=float, default=0.6, help='app-side box confidence cut-off')
@@ -157,6 +176,8 @@ def main():
         if sha256_file(export / report[name]['path']) != report[name]['sha256']:
             raise ValueError(f'{name} artifact differs from its export report')
     run = ROOT / report['source_run']
+    if sha256_file(run / 'best.pt') != report['checkpoint_sha256']:
+        raise ValueError(f'{run} is not the checkpoint this export came from')
     references = json.loads((run / 'gallery_index.json').read_text())['references']
     if [':'.join(r['identity'][k] for k in ('game', 'language', 'card_id')) for r in references] != gallery['identities']:
         raise ValueError('Gallery identity order differs from the training-run index')
@@ -169,7 +190,7 @@ def main():
             aliases[key] = 'alias:' + row['sha256'][:16]
 
     languages = set(args.languages.split(','))
-    german = {c['id']: c['name'] for c in json.loads(args.german_pokemon.read_text())} if args.german_pokemon and 'de' in languages else {}
+    german = {c['id']: c['name'] for c in json.loads(args.german_pokemon.resolve(strict=True).read_text())} if 'de' in languages else {}
     keep = [i for i, ident in enumerate(gallery['identities']) if ident.split(':')[1] in languages]
     gallery_ids = [gallery['identities'][i] for i in keep]
     cards = []
@@ -200,10 +221,31 @@ def main():
         shutil.copy2(src, staging / 'encoder.int8.onnx')
         int8 = {'path': 'encoder.int8.onnx', 'sha256': sha256_file(staging / 'encoder.int8.onnx'),
                 'quantization': 'onnxruntime dynamic int8, per-channel MatMul/Gemm weights',
-                'parity': 'top-1 identical to fp32 on 24/24 validation queries; mean cosine to fp32 0.98'}
+                'parity': 'top-1 identical to fp32 on 296/298 real queries; mean cosine to fp32 0.991 (precision_report.json)'}
     if args.detector_weights:
         report['detector'] = export_detector(args.detector_weights.resolve(strict=True), args.detector_size, staging / 'detector.onnx')
         report['detector']['weights_origin'] = args.detector_origin
+    fp16 = {}
+    if args.fp16:
+        precision = json.loads((export / 'precision_report.json').read_text())
+        for name, file in (('encoder', 'encoder.fp16.onnx'), ('detector', 'detector.fp16.onnx')):
+            if sha256_file(export / file) != precision['models'][file]['sha256']:
+                raise ValueError(f'{file} differs from precision_report.json')
+            if precision['fp16_sources'][file] == report[name]['sha256']:
+                shutil.copy2(export / file, staging / file)
+            elif name == 'detector' and args.detector_weights:
+                # Re-exported detector (same weights, different bytes): convert it here and require the
+                # evaluated fp16 detector's outputs, so the precision report still describes it.
+                convert_detector_fp16(staging / 'detector.onnx', staging / file, export / file, export / 'fixtures')
+            else:
+                raise ValueError(f'{file} was converted from a different {name}; rerun compare_model_precisions.py')
+            fp16[name] = {'path': file, 'sha256': sha256_file(staging / file),
+                          'conversion': precision['conversion'] if name == 'encoder' else 'onnxruntime.transformers.float16, keep_io_types'}
+        e, d = precision['encoder'], precision['detector']['labeled_heldout']
+        fp16['encoder']['parity'] = (f"top-1 same as fp32 on {e['fp16']['top1_same_as_fp32']}/{e['queries']} real queries; "
+                                     f"min cosine to fp32 {e['fp16']['cosine_to_fp32']['min']}")
+        fp16['detector']['parity'] = (f"{d['fp16']['found_within_5pct']}/{d['fp16']['cards']} held-out real cards found "
+                                      f"(fp32 {d['fp32']['found_within_5pct']})")
     backs_manifest = None if args.no_backs else (args.backs or args.dataset / 'recognition/backs/manifest.json')
     backs = None
     if backs_manifest is not None and (args.backs or backs_manifest.exists()):
@@ -248,6 +290,8 @@ def main():
     components = {name: report[name]['sha256'] for name in ('encoder', 'detector', 'gallery')}
     if int8:
         components['encoder_int8'] = int8['sha256']
+    for name, variant in fp16.items():
+        components[f'{name}_fp16'] = variant['sha256']
     components['catalog'] = sha256_file(staging / 'catalog.json')
     components['prices'] = sha256_file(staging / 'prices.json')
     version = hashlib.sha256(json.dumps(components, sort_keys=True).encode()).hexdigest()[:16]
@@ -256,11 +300,11 @@ def main():
         'encoder': {'path': 'encoder.onnx', 'input': 'pixels', 'output': 'embedding', 'size': 224,
                     'dimension': gallery['dimension'], 'preprocessing': gallery['preprocessing'],
                     'preprocessing_sha256': gallery['preprocessing_sha256'],
-                    **({'int8': int8} if int8 else {})},
+                    **({'fp16': fp16['encoder']} if fp16 else {}), **({'int8': int8} if int8 else {})},
         'detector': {'path': 'detector.onnx', 'size': report['detector']['input_size'], 'pad_value': 114,
                      'conf': args.detector_conf, 'iou': 0.7, 'weights_origin': report['detector']['weights_origin'],
                      'source_weights_sha256': report['detector'].get('source_weights_sha256'),
-                     'kind': report['detector'].get('kind', 'pose')},
+                     'kind': report['detector'].get('kind', 'pose'), **({'fp16': fp16['detector']} if fp16 else {})},
         'gallery': {'path': 'gallery.f16', 'rows': len(gallery_ids), 'dimension': gallery['dimension'], 'dtype': 'float16-le',
                     'card_rows': len(keep), 'back_rows': backs['rows'] if backs else 0},
         **({'backs': backs} if backs else {}),

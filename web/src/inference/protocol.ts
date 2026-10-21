@@ -6,12 +6,20 @@ import type { OrientedBox } from '../vision/quad';
 
 export type Provider = 'webgpu' | 'wasm';
 
+export interface ModelVariant {
+  path: string;
+  sha256: string;
+}
+
 export interface BundleManifest {
   version: string;
-  /** `int8`: quantized encoder used on the WASM/CPU path (much smaller; top-1 parity checked offline). */
-  encoder: { path: string; input: string; output: string; size: number; dimension: number; preprocessing: { version: string }; int8?: { path: string; sha256: string } };
-  /** YOLO-pose card-corner detector: box + 4 corner keypoints. */
-  detector: { path: string; size: number; pad_value: number; conf: number; iou: number; weights_origin: string; kind: 'pose' };
+  /**
+   * `path` is the fp32 reference. `fp16`: half-precision weights (float32 inputs/outputs) for
+   * WebGPU; `int8`: quantized encoder for WASM. Parity is checked offline.
+   */
+  encoder: { path: string; input: string; output: string; size: number; dimension: number; preprocessing: { version: string }; fp16?: ModelVariant; int8?: ModelVariant };
+  /** YOLO-pose card-corner detector: box + 4 corner keypoints. `fp16` as for the encoder. */
+  detector: { path: string; size: number; pad_value: number; conf: number; iou: number; weights_origin: string; kind: 'pose'; fp16?: ModelVariant };
   gallery: { path: string; rows: number; dimension: number; dtype: string };
   catalog: string;
   prices: string;

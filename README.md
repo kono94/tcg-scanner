@@ -22,10 +22,10 @@ similarity search with a fine-tuned DINOv2 encoder, and review the results with 
 
 ## Current state
 
-Bundle `270473320b53d5b4`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
+Bundle `c73c459e7a24eaf2`: YOLOv8s-pose corner detector `corners-s640-v4-ft` (640 px) and
 DINOv2-small/ArcFace encoder `dinov2-arcface-gpu-20261017`, 24,038 English/German card rows
-plus six card-back rows. Inference runs in a worker: WebGPU with the fp32 encoder, falling
-back to WASM with an int8 encoder. The scanner is in use on phones. It can be installed
+plus six card-back rows. Inference runs in a worker: WebGPU with the fp16 encoder, falling
+back to WASM with the int8 encoder; both use the fp16 detector. The scanner is in use on phones. It can be installed
 from the browser as a home-screen app (web app manifest, no app store, no offline mode): opened
 that way it runs full screen with a bottom tab bar ([details](web/README.md#navigation-back-and-installing-as-an-app)).
 

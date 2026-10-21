@@ -1,39 +1,48 @@
 # Current browser bundle
 
-The bundle in `web/public/bundle` (DVC) as deployed. Update this page when a new bundle
-ships and move the superseded text to `archive/docs/`.
+The bundle in `web/public/bundle` (DVC). Update this page when a new bundle ships and move
+the superseded text to `archive/docs/` (the previous page is
+[BROWSER_BUNDLE_270473320b53d5b4.md](../archive/docs/BROWSER_BUNDLE_270473320b53d5b4.md)).
 
-Bundle `270473320b53d5b4` (2026-10-17) replaces the detector in `535078e65aa8d649` with
-`models/corner-detector/corners-s640-v4-ft/weights/best.pt`, exported at 640 px.
-The confidence threshold remains 0.6 and NMS IoU remains 0.7. Encoder, int8 encoder,
-gallery, catalog and price files are byte-identical to the previous bundle.
+Bundle `c73c459e7a24eaf2` (2026-10-21) carries half-precision copies of the encoder and
+detector. Gallery, catalog, prices and card-back rows are byte-identical to `270473320b53d5b4`;
+the detector weights (`corners-s640-v4-ft`, confidence 0.6, NMS IoU 0.7) are unchanged.
 
-The app's `plausibleCard` filter now accepts square and nearly square outlines:
-perspective can foreshorten a physical card to those proportions. Convexity, the
-maximum side ratio of 2.0, and the minimum box-fill check remain. A regression test
-checks that these detections survive the complete decoder.
+| Path | Encoder | Detector | Model download |
+| --- | --- | --- | --- |
+| WebGPU | `encoder.fp16.onnx` 43.9 MB (40.4 gzip) | `detector.fp16.onnx` 23.0 MB (21.2 gzip) | 67 MB |
+| WASM (all platforms) | `encoder.int8.onnx` 23.5 MB (20.7 gzip) | `detector.fp16.onnx` | 47 MB |
 
-## Provenance and validation
+The fp32 `encoder.onnx`/`detector.onnx` stay in the bundle as the reference the variants were
+converted from; the app does not download them when the manifest lists fp16 copies.
 
-- Source checkpoint SHA-256:
-  `9cf37d1885e7e85ec3b4c3bed7e06f6e2bfe1c62b44760fffdf7803787bd5bf4`.
-- ONNX SHA-256:
-  `d38f1ac96320f369a7dd10d3fc49850e97fda26c0a93143522e8d0f52a756a85`.
-- Exported through `scripts.release.build_browser_bundle.export_detector` (opset 17,
-  static input, float32). Maximum absolute difference against PyTorch CPU was
-  0.002228 on the seeded input and 0.001092 across five real frames. These compare
-  actual raw outputs with ONNX Runtime CPU, not just tensor shapes.
-- Detector size: 45,976,592 bytes raw (43.8 MiB), 38,626,265 bytes gzip. This is the
-  detector alone; other models, gallery and runtime assets add download size.
-- `npm run typecheck`, all 80 unit/parity tests (no skips), `npm run build`, and
-  both default Playwright flows passed. Playwright uses desktop Chrome with a
-  test-video camera mock, including single-page review and persisted batch review.
-- Export and real-frame parity reports are DVC-versioned alongside the checkpoint
-  as `browser_export.json` and `browser_real_parity.json`. Updated Ultralytics
-  decoder fixtures are in `models/browser-export/corner-decoder-fixture` (DVC).
+## Precision checks
 
-The detector has synthetic pretraining plus AI-reviewed real-corner fine tuning.
-The preceding model comparison used a small video-derived set with AI-reviewed
-labels initialized from an older s model; those labels may favor the s family.
-This update does not establish physical-phone latency, accuracy or numerical
-browser-runtime parity. Recognition thresholds remain uncalibrated.
+`scripts/release/compare_model_precisions.py` writes the fp16 models and
+`models/browser-export/gpu-20261017/precision_report.json`. Conversion:
+`onnxruntime.transformers.float16` with float32 inputs/outputs; the encoder's final L2
+normalization stays float32 (in fp16 its epsilon underflows and the embedding becomes NaN).
+
+- Encoder, 298 AI-reviewed real query crops (188 train / 24 val / 86 test) against the
+  bundle gallery: fp32, fp16 and int8 each rank the exact ID first for 292 and within the
+  top five for 298. fp16 keeps the fp32 top-1 on 298/298 (min cosine to fp32 0.99999, top-1
+  score change ≤ 0.0006). int8 keeps it on 296/298 (mean cosine 0.991, top-1 score change
+  up to 0.056, margin change up to 0.067).
+- Detector, 28 held-out real-corner frames (156 cards): fp32 and fp16 both find 139 within
+  5% corner error (mean 2.38% vs 2.39% of the card diagonal). On 75 unlabeled Yu-Gi-Oh!
+  video frames both return 210 detections, 209 within 1%.
+- onnxruntime-web 1.30 WASM (Node): fp16 encoder cosine 0.999997 to fp32 on a parity
+  fixture; fp16 detector raw outputs within 1.3 px (640 px input) of fp32.
+- WASM memory (Node, single thread, one encoder): fp32 639 MB RSS, fp16 569 MB, int8
+  397 MB, all about 650 ms per card. fp16 weights do not reduce WASM memory much, so the
+  CPU path uses int8.
+
+These are retrieval and corner diagnostics on repeated video views with AI-reviewed labels,
+not scanner accuracy. In-browser WebGPU execution of the fp16 models, iPhone memory and phone
+latency are unverified. `npm run typecheck`, 122 web unit/parity tests, 80 Python tests and
+the 9 Playwright flows (desktop Chrome, test-video camera mock) pass.
+
+The detector is re-exported from its `.pt` weights at every build, which yields new ONNX
+bytes (identical outputs), so each rebuild changes the bundle version. The builder converts
+that export to fp16 and requires its outputs to match the evaluated `detector.fp16.onnx` on
+the parity scenes.

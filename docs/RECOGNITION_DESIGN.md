@@ -2,7 +2,7 @@
 
 How the scanner turns a captured page into card identities, which contracts keep Python
 and the browser consistent, and what is still open. Status 2026-10-19: implemented and
-deployed in bundle `270473320b53d5b4` ([BROWSER_BUNDLE.md](BROWSER_BUNDLE.md)); physical
+in bundle `c73c459e7a24eaf2` ([BROWSER_BUNDLE.md](BROWSER_BUNDLE.md)); physical
 phone behavior and operating thresholds are unverified/uncalibrated.
 
 ## Principle: enrollment-based retrieval
@@ -25,7 +25,7 @@ stable-frame capture (one immutable image; docs/CAPTURE_CYCLE.md)
       web/src/vision/pose.ts, quad.ts
   → shape filter (convex, side ratio ≤ 2, box fill) → perspective warp per card
   → tcg-full-card-v1 canonical crop → encoder tensor           web/src/vision/preprocess.ts
-  → DINOv2-small/ArcFace embedding (WebGPU fp32 or WASM int8)   web/src/inference/worker.ts
+  → DINOv2-small/ArcFace embedding (WebGPU fp16 or WASM int8)   web/src/inference/worker.ts
   → exact cosine search over the gallery, best template per identity
       web/src/recognition/gallery.ts
   → match policy: back / match / needs attention                web/src/recognition/policy.ts

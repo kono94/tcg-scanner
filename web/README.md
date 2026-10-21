@@ -3,8 +3,8 @@
 Vite + TypeScript scanner using the stable-frame cycle from `docs/CAPTURE_CYCLE.md`:
 stability check → one capture → four-corner detection (YOLOv8s-pose) → perspective warp →
 DINOv2/ArcFace embedding → exact cosine search → match/value policy → review. Inference
-runs in a worker with onnxruntime-web: WebGPU with the fp32 encoder, falling back to WASM
-with the int8 encoder. Status: in use on phones; automated checks run on desktop Chrome with a test video.
+runs in a worker with onnxruntime-web: WebGPU with the fp16 encoder, falling back to WASM
+with the int8 encoder; both use the fp16 detector. Status: in use on phones; automated checks run on desktop Chrome with a test video.
 Thresholds are uncalibrated. The detector combines synthetic pretraining with AI-reviewed
 real-corner fine tuning; phone performance remains unverified.
 
@@ -24,18 +24,21 @@ To build them yourself (defaults select the current GPU run and fine-tuned corne
 .env/bin/python scripts/release/export_browser_models.py \
   --run models/card-encoder/dinov2-arcface-gpu-20261017 \
   --output runs/browser-export/<name>   # promote to models/browser-export/ when it ships
-# 1b. int8 encoder for the WASM path: onnxruntime dynamic quantization (per-channel
-#     MatMul/Gemm weights) of encoder.onnx -> encoder.int8.onnx. No script is committed;
-#     the manifest records the top-1 parity check (24/24 validation queries).
+# 1b. int8 encoder for the WASM path: onnxruntime dynamic quantization (per-channel MatMul/Gemm
+#     weights) of encoder.onnx -> encoder.int8.onnx. No script is committed.
+# 1c. fp16 encoder (WebGPU) and detector (all paths) plus precision_report.json, comparing
+#     fp32/fp16/int8 on the real labeled queries and held-out corner frames:
+.env/bin/python scripts/release/compare_model_precisions.py --export models/browser-export/gpu-20261017
 # 2. Assemble the versioned bundle (web/public/bundle, gitignored). Card-back rows are added
 #    from datasets/curated/recognition/backs/manifest.json when present (--no-backs to omit);
 #    scripts/catalog/acquire_card_backs.py (re)creates those references.
 .env/bin/python scripts/release/build_browser_bundle.py \
   --export models/browser-export/gpu-20261017 \
-  --encoder-int8 models/browser-export/gpu-20261017/encoder.int8.onnx \
+  --encoder-int8 models/browser-export/gpu-20261017/encoder.int8.onnx --fp16 \
   --detector-weights models/corner-detector/corners-s640-v4-ft/weights/best.pt --detector-conf 0.6 \
-  --prices datasets/prices/prices.json --detector-origin "<what the weights were trained on>" \
-  --german-pokemon <TCGdex /v2/de/cards list>   # German Pokémon versions of enrolled art
+  --prices datasets/prices/prices.json --detector-origin "<what the weights were trained on>"
+# German Pokémon versions come from datasets/sources/catalog/pokemon-de-tcgdex/cards.json
+# (saved TCGdex /v2/de/cards; refetch it to pick up new German cards).
 # 3. Optional: local test videos for the camera mock (web/public/media, gitignored)
 node web/scripts/link-media.mjs
 # 4. Run
