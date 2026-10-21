@@ -133,7 +133,10 @@ price); the card's printings (set code × rarity) are catalog-only entries in th
 
 - A match shows the artwork and lists every printing as a plausible version; `printing` stays
   unresolved. The preferred estimate is empty (the artwork has no price), so the value is the
-  plausible-versions range and `Check variant` fires for a valuable printing.
+  plausible-versions range. `Check variant` fires for a printing worth at least the valuable amount
+  (default 20) and at least the spread ratio (default 3×) above the cheapest priced printing; when
+  only one printing is priced, a valuable one is enough. Cards whose printings are all expensive,
+  or all cheap, get no cue.
 - The printing picker (set code · rarity · set) confirms one printing; that printing is then the
   exact version and is priced alone.
 - YGOPRODeck does not map alternate artworks to set codes, so a card's printings belong to all of

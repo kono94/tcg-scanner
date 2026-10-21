@@ -230,6 +230,19 @@ describe('artwork matches (printing open)', () => {
     expect(v.cue).toMatchObject({ kind: 'check-variant', amount: 120 });
   });
 
+  it('measures the spread from the cheapest printing when the artwork has no price', () => {
+    const m = matched(decideMatch(hits(['yugioh:en:89631139', 0.8], ['yugioh:en:46986414', 0.5]), ygo, { preferredLanguage: 'en' }));
+    const value = (prices: [string, number][]) => summarizeValue(m, new Map(prices.map(([id, a]) => [id, quote(a)])));
+    // Every printing is valuable, none 3x the cheapest: no cue.
+    expect(value([['yugioh:en:LOB-EN001:UR', 40], ['yugioh:en:SDK-001:UR', 30], ['yugioh:en:LCKC-EN001:C', 25]]).cue).toBeNull();
+    // A cheap and a valuable printing: cue.
+    expect(value([['yugioh:en:LOB-EN001:UR', 45], ['yugioh:en:LCKC-EN001:C', 0.5]]).cue).toMatchObject({ kind: 'check-variant', amount: 45 });
+    // Only one price known: a valuable one still raises the cue (unpriced printings may be cheap).
+    expect(value([['yugioh:en:LOB-EN001:UR', 45]]).cue).toMatchObject({ kind: 'check-variant', amount: 45 });
+    // Small spreads never do.
+    expect(value([['yugioh:en:LOB-EN001:UR', 3], ['yugioh:en:LCKC-EN001:C', 0.1]]).cue).toBeNull();
+  });
+
   it('a picked printing is the exact version, with its artwork hit as evidence', () => {
     const m = userChoiceMatch(ygo, 'yugioh:en:SDK-001:UR', hits(['yugioh:en:89631139', 0.8], ['yugioh:en:46986414', 0.5]), 'en', true);
     expect(m.plausible.map((c) => c.id)).toEqual(['yugioh:en:SDK-001:UR']);

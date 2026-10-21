@@ -65,9 +65,12 @@ export function summarizeValue(match: MatchResult, quotes: ReadonlyMap<string, Q
   let cue: ValueCue = null;
   if (versions.length > 1) {
     const alternatives = versions.filter((c) => c.id !== match.preferred?.id);
+    // The spread is measured from the assumed version's price, else (an artwork whose printing is
+    // open) from the cheapest priced version; with a single price there is nothing to compare.
+    const base = preferred?.amount ?? (priced.length > 1 ? Math.min(...amounts) : null);
     const valuable = priced
       .filter((p) => p.card.id !== match.preferred?.id)
-      .filter((p) => p.quote.amount >= settings.valuableAmount && (!preferred || p.quote.amount >= preferred.amount * settings.spreadRatio))
+      .filter((p) => p.quote.amount >= settings.valuableAmount && (base === null || p.quote.amount >= base * settings.spreadRatio))
       .sort((a, b) => b.quote.amount - a.quote.amount)[0];
     if (valuable) cue = { kind: 'check-variant', alternative: valuable.card, amount: valuable.quote.amount };
     else if (languageOpen) {
