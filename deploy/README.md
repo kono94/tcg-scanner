@@ -64,6 +64,14 @@ A pushed tag on this repo deploys **only the scanner**:
    That script hard-links the bundle and thumbnails named by the `.dvc` pointers out of the store
    (`deploy/checkout-artifacts.py`, no DVC on the server), runs `npm ci && npm run build`
    in `node:24-alpine`, and the same release/switch steps as `deploy.sh` (`deploy/release.sh`).
+4. It then copies `deploy/scanner/` over `/opt/stacks/scanner/` and runs `docker compose pull` and
+   `docker compose up -d` there, so image, Caddyfile and upload-service changes go live with the
+   tag and base images are refreshed on every deploy. `github-deployer` needs write access to the
+   stack files (group `deployers`, see the one-time setup under Training uploads).
+
+The shared proxy (`/opt/stacks/proxy/`) is not deployed by a tag, because it also serves the other
+sites. After changing `deploy/proxy/`: `rsync -a deploy/proxy/compose.yaml deploy/proxy/Caddyfile
+user@VPS:/opt/stacks/proxy/`, then `docker compose pull && docker compose up -d` there.
 
 The model bundle and thumbnails live in DVC, not git, and the LAN DVC store (`gpu-pc`) can't be
 reached from GitHub or the VPS. **Before tagging a commit that changes `web/public/bundle.dvc` or
@@ -121,13 +129,15 @@ allows 300 uploads per visitor per hour (`PER_CLIENT_PER_HOUR`) and stops accept
 automated test runs go to `*-tests/`. Visitor IPs are only used for the rate limit and are
 not stored. Caddy cannot write request bodies itself, hence the service.
 
-One-time setup (and after changing `deploy/scanner/`), on the VPS:
+One-time setup, on the VPS (later changes to `deploy/scanner/` are applied by a tag deploy):
 
 ```bash
 # from the Mac:
 rsync -a deploy/scanner/ user@VPS:/opt/stacks/scanner/ --exclude www --exclude uploads
 # on the VPS:
 cd /opt/stacks/scanner && mkdir -p uploads && sudo chown 65534:65534 uploads
+chgrp -R deployers Caddyfile compose.yaml upload-service   # tag deploys rewrite these
+chmod -R g+w Caddyfile compose.yaml upload-service && chmod g+w .
 docker compose up -d                                   # starts `uploads`, reloads the scanner Caddy
 curl -sI https://scanner.lwenstrom.net/api/health      # 204
 ```

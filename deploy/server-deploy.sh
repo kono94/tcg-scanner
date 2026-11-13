@@ -15,6 +15,7 @@ DRY=""
 NODE_IMAGE="node:24-alpine"
 PY_IMAGE="python:3.12-alpine"
 STORE="${DVC_STORE:-/opt/stacks/scanner/dvc-store}"
+STACK="${STACK_DIR:-/opt/stacks/scanner}"
 USER_ARGS=(-u "$(id -u):$(id -g)" -e HOME=/tmp)
 
 cd "$REPO"
@@ -38,3 +39,18 @@ DEST=""
 source "$REPO/deploy/release.sh"
 publish_release web/dist datasets/reference-thumbnails "$RELEASE"
 echo "live: $RELEASE (bundle $BUNDLE)"
+
+echo "== stack"
+# The compose project runs from $STACK, a copy of deploy/scanner. Files are rewritten in place:
+# the containers bind-mount single files, and a replaced file would leave them on the old one.
+CHANGED="$(rsync -rc --inplace --itemize-changes deploy/scanner/ "$STACK/" | awk '{print $2}')"
+cd "$STACK"
+docker compose pull -q          # also refreshes unchanged tags (base image security fixes)
+docker compose up -d --remove-orphans
+if grep -qx 'Caddyfile' <<<"$CHANGED"; then
+  docker compose exec -T scanner caddy reload --config /etc/caddy/Caddyfile
+fi
+if grep -q '^upload-service/' <<<"$CHANGED"; then
+  docker compose restart uploads
+fi
+docker compose ps --format '{{.Service}}: {{.Image}} ({{.Status}})'
