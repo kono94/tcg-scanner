@@ -3,7 +3,7 @@
 # Apps join the external `web` network and are reached by service name; they publish no ports.
 services:
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     environment:
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}

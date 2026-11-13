@@ -9,9 +9,9 @@ regex==2024.11.6
 onnx==1.16.2
 onnxruntime==1.19.0
 scipy==1.14.0
-tqdm==4.66.5
-requests==2.32.3
-beautifulsoup4==4.12.3
+tqdm==4.70.1
+requests==2.34.2
+beautifulsoup4==4.15.0
 # Video acquisition (docs/VIDEO_MINING.md); upgrade when YouTube extraction breaks.
-yt-dlp==2026.8.19
+yt-dlp==2026.10.26
 dvc[ssh]==3.67.1

@@ -3,7 +3,7 @@
 # deploy.sh uploads releases to ./www; `current` points at the live one (switched atomically).
 services:
   scanner:
-    image: caddy:2.10-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
